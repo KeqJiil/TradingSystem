@@ -1,0 +1,8 @@
+<Solution>
+    <Folder Name="/Solution Items/">
+        <File Path=".gitignore" />
+        <File Path="docker-compose.yml" />
+    </Folder>
+    
+    <Project Path="src\Services\Stock\Stock.csproj" />
+</Solution>
