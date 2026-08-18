@@ -3,6 +3,7 @@ CREATE TABLE "events_store" (
     "aggregate_id" UNIQUEIDENTIFIER NOT NULL,
     "version" BIGINT NOT NULL,
     "event_type" NVARCHAR(50) NOT NULL,
+    "payload" NVARCHAR(MAX) NOT NULL,
     "price_change" DECIMAL(20, 4) NOT NULL,
     "created_at" DATETIMEOFFSET NOT NULL DEFAULT(GETDATE())
 );
