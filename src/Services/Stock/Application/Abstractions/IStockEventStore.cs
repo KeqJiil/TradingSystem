@@ -1,9 +1,9 @@
+using Stock.Application.Events;
+
 namespace Stock.Application.Abstractions;
 
 public interface IStockEventStore
 {
-    public Task AppendAsync(StockEvent stockEvent, CancellationToken ct);
-    public Task AppendAsync(ICollection<StockEvent> stockEvents, CancellationToken ct);
+    public Task AppendAsync(PriceChangeEvent stockEvent, CancellationToken ct);
+    public Task AppendAsync(IEnumerable<PriceChangeEvent> stockEvents, CancellationToken ct);
 };
-
-public abstract record StockEvent();

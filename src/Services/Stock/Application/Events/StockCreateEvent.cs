@@ -1,11 +1,9 @@
-using Stock.Application.Abstractions;
-
 namespace Stock.Application.Events;
 
 public sealed record StockCreateEvent(
-    Guid Id,
+    Guid AggregateId,
     string Name, 
     bool IsOpenToTrade,
     string Currency,
     TimeOnly TradingStartTime,
-    TimeOnly TradingCloseTime) : StockEvent();
+    TimeOnly TradingCloseTime) : StockEvent(AggregateId);
