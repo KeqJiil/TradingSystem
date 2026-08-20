@@ -2,9 +2,9 @@ using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class StockReader(IUnitOfWork unitOfWork) : IStockReader
+public class OutboxWriter(IUnitOfWork unitOfWork) : IOutboxWriter
 {
-    public Task<StockReadModel> GetByIdAsync(Guid stockId, CancellationToken cancellationToken)
+    public Task WriteAsync<T>(T @event, CancellationToken cancellationToken) where T : class
     {
         throw new NotImplementedException();
     }

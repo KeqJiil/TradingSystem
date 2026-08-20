@@ -3,7 +3,7 @@ using Stock.Application.Events;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class StockEventStore : IStockEventStore
+public class StockEventStore(IUnitOfWork unitOfWork) : IStockEventStore
 {
     public Task AppendAsync(PriceChangeEvent stockEvent, CancellationToken ct)
     {

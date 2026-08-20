@@ -3,12 +3,12 @@ using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class UnitOfWork : IUnitOfWork
+public class UnitOfWork : IUnitOfWork, IDbContext
 {
     private readonly IDbConnectionFactory _connectionFactory;
-    private DbConnection? _connection;
-    private DbTransaction? _transaction;
-    
+    public DbConnection? Connection { get; private set; }
+    public DbTransaction? Transaction { get; private set; }
+
     public UnitOfWork(IDbConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory;
@@ -16,18 +16,18 @@ public class UnitOfWork : IUnitOfWork
     
     public async Task StartTransactionAsync(CancellationToken ct)
     {
-        _connection = _connectionFactory.CreateConnection();
-        await _connection.OpenAsync(ct);
-        _transaction = await _connection.BeginTransactionAsync(ct);
+        Connection = _connectionFactory.CreateConnection();
+        await Connection.OpenAsync(ct);
+        Transaction = await Connection.BeginTransactionAsync(ct);
     }
     
     public async ValueTask CommitAsync(CancellationToken ct)
     {
-        if (_transaction is not null)
+        if (Transaction is not null)
         {
             try
             {
-                await _transaction.CommitAsync(ct);
+                await Transaction.CommitAsync(ct);
             }
             finally
             {
@@ -38,11 +38,11 @@ public class UnitOfWork : IUnitOfWork
 
     public async ValueTask RollbackAsync(CancellationToken ct)
     {
-        if (_transaction is not null)
+        if (Transaction is not null)
         {
             try
             {
-                await _transaction.RollbackAsync(ct);
+                await Transaction.RollbackAsync(ct);
             }
             finally
             {
@@ -53,15 +53,15 @@ public class UnitOfWork : IUnitOfWork
 
     public async ValueTask DisposeAsync()
     {
-        if (_connection != null)
+        if (Connection != null)
         {
-            await _connection.CloseAsync();
-            await _connection.DisposeAsync();
+            await Connection.CloseAsync();
+            await Connection.DisposeAsync();
         }
 
-        if (_transaction != null)
+        if (Transaction != null)
         {
-            await _transaction.DisposeAsync();
+            await Transaction.DisposeAsync();
         }
     }
 }
