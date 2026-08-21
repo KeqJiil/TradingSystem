@@ -4,7 +4,7 @@ namespace Stock.Application.Queries.GetDailyReadModel;
 
 public record GetDailyReadModelQuery(
     Guid AggregateId,
-    DateOnly Date) : IRequest<DailyReadModel>;
+    DateOnly Date) : IRequest<DailyReadModel?>;
     
 public record DailyReadModel(
     Guid AggregateId,

@@ -1,20 +1,14 @@
 using MediatR;
-using Stock.Application.Queries.GetDailyReadModel;
+using Stock.Application.Abstractions;
 
 namespace Stock.Application.Queries.GetWeeklyReadModel;
 
 public record GetWeeklyReadModelQuery(
     Guid AggregateId,
-    byte WeekNumber) : IRequest<WeeklyReadModel>;
+    DateOnly StartDate,
+    DateOnly EndDate) : IRequest<WeeklyReadModel>;
 
 public record WeeklyReadModel(
     Guid AggregateId,
-    byte WeekNumber,
-    DailyReadModel? Sunday,
-    DailyReadModel? Monday,
-    DailyReadModel? Tuesday,
-    DailyReadModel? Wednesday,
-    DailyReadModel? Thursday,
-    DailyReadModel? Friday,
-    DailyReadModel? Saturday
+    List<PriceHistoryDateOnlyReadModel> DailyReadModels
     );
