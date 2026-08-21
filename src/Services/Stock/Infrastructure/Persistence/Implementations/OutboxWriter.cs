@@ -1,11 +1,24 @@
+using System.Text.Json;
+using Dapper;
 using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class OutboxWriter(IUnitOfWork unitOfWork) : IOutboxWriter
+public class OutboxWriter(IDbContext dbContext) : IOutboxWriter
 {
-    public Task WriteAsync<T>(T @event, CancellationToken cancellationToken) where T : class
+    public async Task WriteAsync<T>(T @event, Guid aggregateId, CancellationToken cancellationToken) where T : class
+
     {
-        throw new NotImplementedException();
+        var id = Guid.NewGuid();
+        var payload = JsonSerializer.Serialize(@event);
+        
+        var sql = """
+                    INSERT INTO outbox (id, event_type, payload, aggregate_id)
+                    VALUES (@Id, @Type, @Payload, @AggregateId)
+                  """;
+        
+        await dbContext.EnsureConnectionOpenAsync(cancellationToken);
+
+        await dbContext.Connection.ExecuteAsync(sql, new { Id = id, Type = typeof(T).Name, Payload = payload, AggregateId = aggregateId }, dbContext.Transaction);
     }
 }

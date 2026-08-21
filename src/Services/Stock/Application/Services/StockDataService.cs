@@ -39,7 +39,7 @@ public class StockDataService
         await _unitOfWork.ExecuteAsync(async () =>
         {
             await _stockWriter.ToggleOpenToTrade(stockId, cancellationToken);
-            await _outboxWriter.WriteAsync(new StockToggledStatusEvent(stockId), cancellationToken);
+            await _outboxWriter.WriteAsync(new StockToggledStatusEvent(stockId), stockId, cancellationToken);
         }, cancellationToken);
     }
 }

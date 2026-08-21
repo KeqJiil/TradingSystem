@@ -2,7 +2,7 @@ using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class StockPriceHistoryReader(IUnitOfWork unitOfWork) : IStockPriceHistoryReader
+public class StockPriceHistoryReader(IDbContext dbContext) : IStockPriceHistoryReader
 {
     public Task<IEnumerable<PriceHistoryDateOnlyReadModel>> GetDailyPriceHistoryAsync(Guid stockId, DateOnly from, DateOnly to, CancellationToken ct)
     {

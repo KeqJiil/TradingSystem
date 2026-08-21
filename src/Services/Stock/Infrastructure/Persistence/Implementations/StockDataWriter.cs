@@ -1,27 +1,50 @@
+using Dapper;
 using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class StockDataWriter(IUnitOfWork unitOfWork) : IStockWriter
+public class StockDataWriter(IDbContext dbContext) : IStockWriter
 {
     
-    public Task ChangeName(Guid id, string name, CancellationToken ct)
+    public async Task ChangeName(Guid id, string name, CancellationToken ct)
     {
-        throw new NotImplementedException();
+        await dbContext.EnsureConnectionOpenAsync(ct);
+        
+        await dbContext.Connection.ExecuteAsync(
+            "UPDATE stock_data SET Name = @Name WHERE Id = @Id",
+            new { Id = id, Name = name },
+            dbContext.Transaction
+        );
     }
 
-    public Task CreateAsync(Guid id, CreateStockDto dto, CancellationToken ct)
+    public async Task CreateAsync(Guid id, CreateStockDto dto, CancellationToken ct)
     {
-        throw new NotImplementedException();
+        await dbContext.EnsureConnectionOpenAsync(ct);
+        await dbContext.Connection.ExecuteAsync(
+            "INSERT INTO stock_data (id, name, is_open_to_trade, trading_start_time, trading_end_time, currency) VALUES (@Id, @Name, @OpenTime, @CloseTime, @IsOpenToTrade, @Currency)",
+            new { Id = id, dto.Name, dto.OpenTime, dto.CloseTime, dto.IsOpenToTrade, dto.Currency },
+            dbContext.Transaction
+        );
     }
 
-    public Task ChangeTime(Guid id, TimeOnly openTime, TimeOnly closeTime, CancellationToken ct)
+    public async Task ChangeTime(Guid id, TimeOnly openTime, TimeOnly closeTime, CancellationToken ct)
     {
-        throw new NotImplementedException();
+        await dbContext.EnsureConnectionOpenAsync(ct);
+        
+        await dbContext.Connection.ExecuteAsync(
+            "UPDATE stock_data SET OpenTime = @OpenTime, CloseTime = @CloseTime WHERE Id = @Id",
+            new { Id = id, OpenTime = openTime, CloseTime = closeTime },
+            dbContext.Transaction
+        );
     }
 
-    public Task ToggleOpenToTrade(Guid id, CancellationToken ct)
+    public async Task ToggleOpenToTrade(Guid id, CancellationToken ct)
     {
-        throw new NotImplementedException();
+        await dbContext.EnsureConnectionOpenAsync(ct);
+        await dbContext.Connection.ExecuteAsync(
+            "UPDATE stock_data SET IsOpenToTrade = NOT IsOpenToTrade WHERE Id = @Id",
+            new { Id = id },
+            dbContext.Transaction
+        );
     }
 }

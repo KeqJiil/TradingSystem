@@ -4,6 +4,8 @@
     build:
       context: .
       dockerfile: src/Services/Stock/Dockerfile
+    environment:
+      - ConnectionStrings__DefaultConnection=${ConnectionStrings__DefaultConnection}
     depends_on:
       - stock-db
     

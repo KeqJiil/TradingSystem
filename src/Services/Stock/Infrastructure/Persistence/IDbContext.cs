@@ -4,6 +4,8 @@ namespace Stock.Infrastructure.Persistence;
 
 public interface IDbContext
 {
-    DbConnection? Connection { get; }
+    DbConnection Connection { get; }
     DbTransaction? Transaction { get; }
+
+    Task EnsureConnectionOpenAsync(CancellationToken ct);
 }

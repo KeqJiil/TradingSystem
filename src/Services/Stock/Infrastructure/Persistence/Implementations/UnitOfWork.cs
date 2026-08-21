@@ -1,3 +1,4 @@
+using System.Data;
 using System.Data.Common;
 using Stock.Application.Abstractions;
 
@@ -6,18 +7,26 @@ namespace Stock.Infrastructure.Persistence.Implementations;
 public class UnitOfWork : IUnitOfWork, IDbContext
 {
     private readonly IDbConnectionFactory _connectionFactory;
-    public DbConnection? Connection { get; private set; }
+    public DbConnection Connection { get; private set; }
     public DbTransaction? Transaction { get; private set; }
 
     public UnitOfWork(IDbConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory;
+        Connection = _connectionFactory.CreateConnection();
     }
     
+    public async Task EnsureConnectionOpenAsync(CancellationToken ct)
+    {
+        if (Connection.State == ConnectionState.Closed)
+        {
+            await Connection.OpenAsync(ct);
+        }
+    }
+
     public async Task StartTransactionAsync(CancellationToken ct)
     {
-        Connection = _connectionFactory.CreateConnection();
-        await Connection.OpenAsync(ct);
+        await EnsureConnectionOpenAsync(ct);
         Transaction = await Connection.BeginTransactionAsync(ct);
     }
     
@@ -53,11 +62,8 @@ public class UnitOfWork : IUnitOfWork, IDbContext
 
     public async ValueTask DisposeAsync()
     {
-        if (Connection != null)
-        {
-            await Connection.CloseAsync();
-            await Connection.DisposeAsync();
-        }
+        await Connection.CloseAsync();
+        await Connection.DisposeAsync();
 
         if (Transaction != null)
         {
