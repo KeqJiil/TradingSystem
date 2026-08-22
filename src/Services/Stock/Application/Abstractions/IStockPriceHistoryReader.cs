@@ -8,4 +8,4 @@ public interface IStockPriceHistoryReader
 }
 
 public record PriceHistoryReadModel(decimal CurrentPrice, decimal Difference, DateTimeOffset Date);
-public record PriceHistoryDateOnlyReadModel(decimal OpenPrice, decimal LowPrice, decimal HighPrice, decimal ClosePrice, decimal Difference, DateOnly Date);
+public readonly record struct PriceHistoryDateOnlyReadModel(decimal OpenPrice, decimal LowPrice, decimal HighPrice, decimal ClosePrice, decimal Difference, DateOnly Date);

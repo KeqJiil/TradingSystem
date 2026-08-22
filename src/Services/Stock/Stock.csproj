@@ -21,7 +21,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Infrastructure\Messaging\" />
     <Folder Include="Infrastructure\Workers\" />
     <Folder Include="Presentation\gRpc\" />
     <Folder Include="Presentation\Http\" />

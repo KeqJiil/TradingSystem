@@ -8,16 +8,16 @@ public class GetDailyReadModelHandler(IStockPriceHistoryReader reader) : IReques
     public async Task<DailyReadModel?> Handle(GetDailyReadModelQuery request, CancellationToken cancellationToken)
     {
         var dailyReadModel = await reader.GetDayPriceHistoryAsync(request.AggregateId, request.Date, cancellationToken);
-        if (dailyReadModel == null) return null;
+        if (!dailyReadModel.HasValue) return null;
         
         return new DailyReadModel(
             request.AggregateId,
             request.Date,
-            dailyReadModel.OpenPrice,
-            dailyReadModel.ClosePrice,
-            dailyReadModel.HighPrice,
-            dailyReadModel.LowPrice,
-            dailyReadModel.Difference
+            dailyReadModel.Value.OpenPrice,
+            dailyReadModel.Value.ClosePrice,
+            dailyReadModel.Value.HighPrice,
+            dailyReadModel.Value.LowPrice,
+            dailyReadModel.Value.Difference
         );
     }
 }

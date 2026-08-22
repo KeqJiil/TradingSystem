@@ -2,11 +2,11 @@ using MediatR;
 
 namespace Stock.Application.Queries.GetDailyReadModel;
 
-public record GetDailyReadModelQuery(
+public record struct GetDailyReadModelQuery(
     Guid AggregateId,
     DateOnly Date) : IRequest<DailyReadModel?>;
     
-public record DailyReadModel(
+public readonly record struct DailyReadModel(
     Guid AggregateId,
     DateOnly Date,
     decimal OpenPrice,

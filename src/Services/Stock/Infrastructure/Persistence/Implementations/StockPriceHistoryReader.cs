@@ -8,8 +8,8 @@ public class StockPriceHistoryReader(IDbContext dbContext) : IStockPriceHistoryR
     public async Task<IEnumerable<PriceHistoryDateOnlyReadModel>> GetDailyPriceHistoryAsync(Guid stockId, DateOnly from, DateOnly to, CancellationToken ct)
     {
         var sql = """
-                  SELECT 
-                   dp.price_difference AS PriceDifference,
+                  SELECT
+                   dp.price_difference AS Difference,
                    dp.low_price AS LowPrice,
                    dp.high_price AS HighPrice,
                    dp.open_price AS OpenPrice,
@@ -31,8 +31,8 @@ public class StockPriceHistoryReader(IDbContext dbContext) : IStockPriceHistoryR
     public async Task<PriceHistoryDateOnlyReadModel?> GetDayPriceHistoryAsync(Guid stockId, DateOnly date, CancellationToken ct)
     {
         var sql = """
-                  SELECT 
-                   dp.price_difference AS PriceDifference,
+                  SELECT
+                   dp.price_difference AS Difference,
                    dp.low_price AS LowPrice,
                    dp.high_price AS HighPrice,
                    dp.open_price AS OpenPrice,
