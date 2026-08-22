@@ -1,5 +1,6 @@
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
+using Stock.Application.Events;
 using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Messaging.Workers;
 using Stock.Presentation.Options;
@@ -24,13 +25,19 @@ public static class AddKafkaClass
         });
         
         builder.Services.AddSingleton<IKafkaConsumerFactory, KafkaConsumerFactory>();
+        builder.Services.AddSingleton<IKafkaProducerFactory, KafkaProducerFactory>();
         
         builder.Services.AddHostedService<StockCreatedConsumer>();
         builder.Services.AddHostedService<StockEventConsumer>();
         builder.Services.AddHostedService<PriceChangeConsumer>();
-        
-        builder.Services.AddHostedService<StockCreatedProducer>();
-        builder.Services.AddHostedService<StockEventProducer>();
-        builder.Services.AddHostedService<StockStatusToggledProducer>();
+
+        builder.Services.AddSingleton<IProducer<string, PriceChangedEvent>>(sp =>
+            sp.GetRequiredService<IKafkaProducerFactory>().Create<PriceChangedEvent>("stock-price-producer"));
+
+        builder.Services.AddSingleton<IProducer<string, StockToggledStatusEvent>>(sp =>
+            sp.GetRequiredService<IKafkaProducerFactory>().Create<StockToggledStatusEvent>("stock-status-producer"));
+
+        builder.Services.AddSingleton<IProducer<string, StockCreatedEvent>>(sp =>
+            sp.GetRequiredService<IKafkaProducerFactory>().Create<StockCreatedEvent>("stock-created-producer"));
     }
 }
