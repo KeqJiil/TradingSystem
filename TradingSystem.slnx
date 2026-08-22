@@ -4,6 +4,10 @@
         <File Path="compose.yaml" />
         <File Path=".env" />
     </Folder>
+    <Folder Name="/src/" />
+    <Folder Name="/src/Contracts/">
+        <Project Path="src/Contracts/TradingSystem.Contracts.csproj" />
+    </Folder>
     
     <Project Path="src\Services\Stock\Stock.csproj" />
 </Solution>

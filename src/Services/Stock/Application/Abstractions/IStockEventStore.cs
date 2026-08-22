@@ -4,6 +4,6 @@ namespace Stock.Application.Abstractions;
 
 public interface IStockEventStore
 {
-    public Task AppendAsync(PriceChangeEvent stockEvent, CancellationToken ct);
-    public Task AppendAsync(IEnumerable<PriceChangeEvent> stockEvents, CancellationToken ct);
+    public Task AppendAsync(PriceChangedEvent stockEvent, CancellationToken ct);
+    public Task AppendAsync(IEnumerable<PriceChangedEvent> stockEvents, CancellationToken ct);
 };

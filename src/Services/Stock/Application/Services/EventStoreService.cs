@@ -14,7 +14,7 @@ public class EventStoreService
 
     public async Task<Guid> ChangePriceAppendAsync(ChangePrice request, CancellationToken cancellationToken)
     {
-        var stockUpdateEvent = new PriceChangeEvent(request.AggregateId, request.PriceChange);
+        var stockUpdateEvent = new PriceChangedEvent(request.AggregateId, request.PriceChange);
         await _stockEventStore.AppendAsync(stockUpdateEvent, cancellationToken);
         
         return request.AggregateId;

@@ -3,10 +3,10 @@ using Stock.Application.Events;
 
 namespace Stock.Infrastructure.Messaging.Workers;
 
-public class PriceChangeConsumer(IKafkaConsumerFactory consumerFactory) : BackgroundService
+public class StockCreatedConsumer(IKafkaConsumerFactory consumerFactory) : BackgroundService
 {
-    private readonly IConsumer<string, PriceChangedEvent> _consumer =
-        consumerFactory.Create<PriceChangedEvent>(groupId: "price-change-events-group", clientId: "price-change-events-consumer");
+    private readonly IConsumer<string, StockCreatedEvent> _consumer =
+        consumerFactory.Create<StockCreatedEvent>(groupId: "price-change-events-group", clientId: "price-change-events-consumer");
     
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {

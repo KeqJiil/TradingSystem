@@ -1,18 +1,19 @@
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
+using Stock.Infrastructure.Serialization;
 using Stock.Presentation.Options;
 
 namespace Stock.Infrastructure.Messaging;
 
 public interface IKafkaConsumerFactory
 {
-    IConsumer<string, string> Create(string groupId, string clientId);
+    IConsumer<string, TValue> Create<TValue>(string groupId, string clientId);
 }
 
 public class KafkaConsumerFactory(IOptions<KafkaOptions> options) : IKafkaConsumerFactory
 {
-    public IConsumer<string, string> Create(string groupId, string clientId) =>
-        new ConsumerBuilder<string, string>(new ConsumerConfig
+    public IConsumer<string, TValue> Create<TValue>(string groupId, string clientId) =>
+        new ConsumerBuilder<string, TValue>(new ConsumerConfig
         {
             BootstrapServers = options.Value.BootstrapServers,
             GroupId = groupId,
@@ -20,5 +21,7 @@ public class KafkaConsumerFactory(IOptions<KafkaOptions> options) : IKafkaConsum
             EnableAutoCommit = false,
             EnableAutoOffsetStore = false,
             GroupProtocol = GroupProtocol.Consumer,
-        }).Build();
+        })
+        .SetValueDeserializer(new ProtobufNetDeserializer<TValue>())
+        .Build();
 }

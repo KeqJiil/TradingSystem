@@ -8,6 +8,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Services/Stock/Stock.csproj", "src/Services/Stock/"]
+COPY ["src/Contracts/TradingSystem.Contracts.csproj", "src/Contracts/"]
 RUN dotnet restore "src/Services/Stock/Stock.csproj"
 COPY . .
 WORKDIR "/src/src/Services/Stock"

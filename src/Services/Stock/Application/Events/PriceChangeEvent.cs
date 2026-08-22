@@ -1,3 +1,3 @@
 namespace Stock.Application.Events;
 
-public sealed record PriceChangeEvent(Guid AggregateId, decimal PriceChange) : StockEvent(AggregateId);
+public sealed record PriceChangedEvent(Guid AggregateId, decimal PriceChange) : StockEvent(AggregateId);

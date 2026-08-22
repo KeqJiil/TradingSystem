@@ -1,11 +1,12 @@
 using Confluent.Kafka;
+using Stock.Application.Events;
 
 namespace Stock.Infrastructure.Messaging.Workers;
 
 public class StockEventConsumer(IKafkaConsumerFactory consumerFactory) : BackgroundService
 {
-    private readonly IConsumer<string, string> _consumer =
-        consumerFactory.Create(groupId: "stock-events-group", clientId: "stock-events-consumer");
+    private readonly IConsumer<string, StockCreatedEvent> _consumer =
+        consumerFactory.Create<StockCreatedEvent>(groupId: "stock-events-group", clientId: "stock-events-consumer");
 
     
     protected override Task ExecuteAsync(CancellationToken stoppingToken)

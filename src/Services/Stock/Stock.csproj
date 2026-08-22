@@ -17,6 +17,10 @@
     <PackageReference Include="Polly" Version="8.7.0" />
     <PackageReference Include="protobuf-net" Version="3.4.14" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Contracts\TradingSystem.Contracts.csproj" />
+  </ItemGroup>
   
   <ItemGroup>
     <EmbeddedResource Include="Infrastructure\Persistence\Migrations\*.sql" />

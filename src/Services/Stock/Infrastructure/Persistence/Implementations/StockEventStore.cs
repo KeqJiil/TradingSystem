@@ -8,7 +8,7 @@ namespace Stock.Infrastructure.Persistence.Implementations;
 
 public class StockEventStore(IDbContext dbContext) : IStockEventStore
 {
-    public async Task AppendAsync(PriceChangeEvent stockEvent, CancellationToken ct)
+    public async Task AppendAsync(PriceChangedEvent stockEvent, CancellationToken ct)
     {
         await dbContext.EnsureConnectionOpenAsync(ct);
 
@@ -17,12 +17,12 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
             VALUES (@Id, @AggregateId, COALESCE((SELECT MAX(e.version) FROM events_store e WHERE e.aggregate_id = @AggregateId), 0) + 1, @EventType, @Payload, @PriceChange)
         """, 
             new { Id = Guid.NewGuid(), AggregateId = stockEvent.AggregateId,
-                EventType = nameof(PriceChangeEvent), Payload = JsonSerializer.Serialize(stockEvent),
+                EventType = nameof(PriceChangedEvent), Payload = JsonSerializer.Serialize(stockEvent),
                 PriceChange = stockEvent.PriceChange },
             dbContext.Transaction);
     }
 
-    public async Task AppendAsync(IEnumerable<PriceChangeEvent> stockEvents, CancellationToken ct)
+    public async Task AppendAsync(IEnumerable<PriceChangedEvent> stockEvents, CancellationToken ct)
     {
         var events = stockEvents.ToList();
         if (events.Count == 0)
@@ -58,7 +58,7 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
             parameters.Add($"Id{i}", Guid.NewGuid());
             parameters.Add($"AggregateId{i}", stockEvent.AggregateId);
             parameters.Add($"Version{i}", version);
-            parameters.Add($"EventType{i}", nameof(PriceChangeEvent));
+            parameters.Add($"EventType{i}", nameof(PriceChangedEvent));
             parameters.Add($"Payload{i}", JsonSerializer.Serialize(stockEvent));
             parameters.Add($"PriceChange{i}", stockEvent.PriceChange);
         }

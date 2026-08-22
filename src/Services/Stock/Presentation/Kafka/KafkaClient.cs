@@ -24,7 +24,13 @@ public static class AddKafkaClass
         });
         
         builder.Services.AddSingleton<IKafkaConsumerFactory, KafkaConsumerFactory>();
+        
+        builder.Services.AddHostedService<StockCreatedConsumer>();
         builder.Services.AddHostedService<StockEventConsumer>();
         builder.Services.AddHostedService<PriceChangeConsumer>();
+        
+        builder.Services.AddHostedService<StockCreatedProducer>();
+        builder.Services.AddHostedService<StockEventProducer>();
+        builder.Services.AddHostedService<StockStatusToggledProducer>();
     }
 }
