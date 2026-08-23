@@ -6,7 +6,7 @@ namespace Stock.Infrastructure.Messaging.Workers;
 public class StockCreatedConsumer(IKafkaConsumerFactory consumerFactory) : BackgroundService
 {
     private readonly IConsumer<string, StockCreatedEvent> _consumer =
-        consumerFactory.Create<StockCreatedEvent>(groupId: "price-change-events-group", clientId: "price-change-events-consumer");
+        consumerFactory.Create<StockCreatedEvent>(groupId: "stock-created-events-group", clientId: "stock-created-events-consumer");
     
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
