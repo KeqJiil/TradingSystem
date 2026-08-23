@@ -4,7 +4,7 @@ using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class OutboxWriter(IDbContext dbContext) : IOutboxWriter
+public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker
 {
     public async Task WriteAsync<T>(T @event, Guid aggregateId, CancellationToken cancellationToken) where T : class
 
@@ -20,5 +20,18 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
         await dbContext.Connection.ExecuteAsync(sql, new { Id = id, Type = typeof(T).Name, Payload = payload, AggregateId = aggregateId }, dbContext.Transaction);
+    }
+
+    public async Task MarkCompletedAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken)
+    {
+        var sql = """
+                    UPDATE outbox
+                    SET status = 'COMPLETED'
+                    WHERE id IN (@Ids)
+                  """;
+        
+        await dbContext.EnsureConnectionOpenAsync(cancellationToken);
+        
+        await dbContext.Connection.ExecuteAsync(sql, new { Ids = ids }, dbContext.Transaction);
     }
 }
