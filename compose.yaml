@@ -1,0 +1,26 @@
+﻿services:
+  stock:
+    image: stock
+    build:
+      context: .
+      dockerfile: src/Services/Stock/Dockerfile
+    environment:
+      - ConnectionStrings__DefaultConnection=${ConnectionStrings__DefaultConnection}
+    depends_on:
+      - stock-db
+    
+  stock-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql-server-stock
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${MSSQL_STOCK_PASSWORD}
+      - MSSQL_PID=Developer
+    ports:
+      - "1434:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql/stock
+    restart: unless-stopped
+    
+volumes:
+    mssql-data:

@@ -1,0 +1,2 @@
+ALTER TABLE outbox
+ADD attempts INT NOT NULL DEFAULT(0);
