@@ -8,26 +8,18 @@ namespace Stock.Infrastructure.Persistence.Implementations;
 
 public class StockEventStore(IDbContext dbContext) : IStockEventStore
 {
-    public async Task AppendAsync(PriceChangedEvent stockEvent, CancellationToken ct)
+    public async Task<PriceChangedEvent> AppendAsync(PriceChangedEvent stockEvent, CancellationToken ct)
     {
-        await dbContext.EnsureConnectionOpenAsync(ct);
-
-        await dbContext.Connection.ExecuteAsync("""
-            INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change)
-            VALUES (@Id, @AggregateId, COALESCE((SELECT MAX(e.version) FROM events_store e WHERE e.aggregate_id = @AggregateId), 0) + 1, @EventType, @Payload, @PriceChange)
-        """, 
-            new { Id = Guid.NewGuid(), AggregateId = stockEvent.AggregateId,
-                EventType = nameof(PriceChangedEvent), Payload = JsonSerializer.Serialize(stockEvent),
-                PriceChange = stockEvent.PriceChange },
-            dbContext.Transaction);
+        var result = await AppendAsync([stockEvent], ct);
+        return result.Single();
     }
-
-    public async Task AppendAsync(IEnumerable<PriceChangedEvent> stockEvents, CancellationToken ct)
+    
+    public async Task<IEnumerable<PriceChangedEvent>> AppendAsync(IEnumerable<PriceChangedEvent> stockEvents, CancellationToken ct)
     {
         var events = stockEvents.ToList();
         if (events.Count == 0)
         {
-            return;
+            return new List<PriceChangedEvent>();
         }
 
         await dbContext.EnsureConnectionOpenAsync(ct);
@@ -45,12 +37,16 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
         var parameters = new DynamicParameters();
         var sqlBuilder = new StringBuilder("INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change) VALUES ");
 
+        var result = new PriceChangedEvent[events.Count];
+
         for (var i = 0; i < events.Count; i++)
         {
             var stockEvent = events[i];
 
             var version = currentVersions.GetValueOrDefault(stockEvent.AggregateId, 0) + 1;
             currentVersions[stockEvent.AggregateId] = version;
+
+            result[i] = events[i] with { Version = version };
 
             if (i > 0) sqlBuilder.Append(", ");
             sqlBuilder.Append($"(@Id{i}, @AggregateId{i}, @Version{i}, @EventType{i}, @Payload{i}, @PriceChange{i})");
@@ -64,5 +60,27 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
         }
 
         await dbContext.Connection.ExecuteAsync(sqlBuilder.ToString(), parameters, dbContext.Transaction);
+
+        return result;
+    }
+
+    // Not Used
+    private async Task<PriceChangedEvent> AppendAsyncLegacy(PriceChangedEvent stockEvent, CancellationToken ct)
+    {
+        await dbContext.EnsureConnectionOpenAsync(ct);
+
+        var version = await dbContext.Connection.ExecuteAsync("""
+                                                                  INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change)
+                                                                  VALUES (@Id, @AggregateId, COALESCE((SELECT MAX(e.version) FROM events_store e WHERE e.aggregate_id = @AggregateId), 0) + 1, @EventType, @Payload, @PriceChange)
+                                                              """,
+            new
+            {
+                Id = Guid.NewGuid(), AggregateId = stockEvent.AggregateId,
+                EventType = nameof(PriceChangedEvent), Payload = JsonSerializer.Serialize(stockEvent),
+                PriceChange = stockEvent.PriceChange
+            },
+            dbContext.Transaction);
+
+        return stockEvent with { Version = version };
     }
 }
