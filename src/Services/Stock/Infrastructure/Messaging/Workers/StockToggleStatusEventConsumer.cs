@@ -1,14 +1,15 @@
 using Confluent.Kafka;
 using MediatR;
-using Stock.Application.Commands.UpdateReadModel;
+using Stock.Application.Commands.ToggleStatusReadModel;
 using Stock.Application.Events;
 
 namespace Stock.Infrastructure.Messaging.Workers;
 
-public class PriceChangeConsumer(IKafkaConsumerFactory consumerFactory, IMediator mediator) : BackgroundService
+public class StockToggleStatusEventConsumer(IKafkaConsumerFactory consumerFactory, IMediator mediator) : BackgroundService
 {
-    private readonly IConsumer<string, PriceChangedEvent> _consumer =
-        consumerFactory.Create<PriceChangedEvent>(groupId: "price-change-events-group", clientId: "price-change-events-consumer");
+    private readonly IConsumer<string, StockToggledStatusEvent> _consumer =
+        consumerFactory.Create<StockToggledStatusEvent>(groupId: "stock-toggle-events-group", clientId: "stock-toggle-events-consumer");
+
     
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -24,9 +25,9 @@ public class PriceChangeConsumer(IKafkaConsumerFactory consumerFactory, IMediato
         while (!ct.IsCancellationRequested)
         {
             var data = _consumer.Consume(ct).Message.Value;
-            if (data is not { Version: { } version }) return;
+            if (data is null) return;
 
-            await mediator.Send(new UpdateReadModelCommand(data.AggregateId, data.PriceChange, version), ct);
+            await mediator.Send(new ToggleStatusReadModelCommand(data.AggregateId), ct);
         }
     }
 }
