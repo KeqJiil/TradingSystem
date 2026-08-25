@@ -28,7 +28,7 @@ public static class AddKafkaClass
         builder.Services.AddSingleton<IKafkaProducerFactory, KafkaProducerFactory>();
         
         builder.Services.AddHostedService<StockCreatedConsumer>();
-        builder.Services.AddHostedService<StockEventConsumer>();
+        builder.Services.AddHostedService<StockToggleStatusEventConsumer>();
         builder.Services.AddHostedService<PriceChangeConsumer>();
 
         builder.Services.AddSingleton<IProducer<string, PriceChangedEvent>>(sp =>

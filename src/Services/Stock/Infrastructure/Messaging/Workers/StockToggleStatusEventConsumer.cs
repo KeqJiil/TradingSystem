@@ -1,14 +1,16 @@
 using Confluent.Kafka;
 using MediatR;
 using Stock.Application.Commands.CreateReadModel;
+using Stock.Application.Commands.ToggleStatusReadModel;
 using Stock.Application.Events;
 
 namespace Stock.Infrastructure.Messaging.Workers;
 
-public class StockCreatedConsumer(IKafkaConsumerFactory consumerFactory, IMediator mediator) : BackgroundService
+public class StockToggleStatusEventConsumer(IKafkaConsumerFactory consumerFactory, IMediator mediator) : BackgroundService
 {
-    private readonly IConsumer<string, StockCreatedEvent> _consumer =
-        consumerFactory.Create<StockCreatedEvent>(groupId: "stock-created-events-group", clientId: "stock-created-events-consumer");
+    private readonly IConsumer<string, StockToggledStatusEvent> _consumer =
+        consumerFactory.Create<StockToggledStatusEvent>(groupId: "stock-toggle-events-group", clientId: "stock-toggle-events-consumer");
+
     
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -24,8 +26,6 @@ public class StockCreatedConsumer(IKafkaConsumerFactory consumerFactory, IMediat
         var data = _consumer.Consume(ct).Message.Value;
         if (data is null) return;
 
-        var command = new CreateReadModelCommand(data.AggregateId, data.Name, data.IsOpenToTrade, data.Currency, data.TradingStartTime, data.TradingCloseTime);
-
-        await mediator.Send(command, ct);
+        await mediator.Send(new ToggleStatusReadModelCommand(data.AggregateId), ct);
     }
 }
