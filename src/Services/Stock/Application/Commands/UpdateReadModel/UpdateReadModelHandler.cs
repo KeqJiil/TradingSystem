@@ -3,10 +3,11 @@ using Stock.Application.Abstractions;
 
 namespace Stock.Application.Commands.UpdateReadModel;
 
-public class UpdateReadModelHandler(IStockReadModelWriter writer) : IRequestHandler<UpdateReadModelCommand>
+public class UpdateReadModelHandler(IStockReadModelWriter writer)
+    : IRequestHandler<UpdateReadModelCommand, ReadModelUpdateOutcome>
 {
-    public async Task Handle(UpdateReadModelCommand request, CancellationToken cancellationToken)
+    public Task<ReadModelUpdateOutcome> Handle(UpdateReadModelCommand request, CancellationToken cancellationToken)
     {
-        await writer.UpdateAsync(request.AggregateId, request.Version, request.PriceChange, cancellationToken);
+        return writer.UpdateAsync(request.AggregateId, request.Version, request.PriceChange, cancellationToken);
     }
 }

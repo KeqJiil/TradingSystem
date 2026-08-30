@@ -1,4 +1,5 @@
 using Stock.Infrastructure.Persistence;
+using Stock.Presentation.Builder;
 using Stock.Presentation.Http.Controllers;
 using Stock.Presentation.Kafka;
 
@@ -6,9 +7,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.AddKafka();
+builder.AddResilence();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
+                       ?? throw new InvalidOperationException(
+                           "Connection string 'DefaultConnection' is not configured.");
 
 DbMigrator.ApplyMigrations(connectionString);
 
@@ -16,10 +19,7 @@ var app = builder.Build();
 
 app.MapStockReadController();
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
+if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
 app.UseHttpsRedirection();
 

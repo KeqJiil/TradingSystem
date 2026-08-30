@@ -5,7 +5,7 @@ using Stock.Application.Events;
 
 namespace Stock.Infrastructure.Messaging.Workers;
 
-public class StockToggleStatusEventConsumer(IKafkaConsumerFactory consumerFactory, IMediator mediator) : BackgroundService
+public class StockToggleStatusEventConsumer(IKafkaConsumerFactory consumerFactory, IServiceScopeFactory serviceScopeFactory) : BackgroundService
 {
     private readonly IConsumer<string, StockToggledStatusEvent> _consumer =
         consumerFactory.Create<StockToggledStatusEvent>(groupId: "stock-toggle-events-group", clientId: "stock-toggle-events-consumer");
@@ -27,7 +27,12 @@ public class StockToggleStatusEventConsumer(IKafkaConsumerFactory consumerFactor
             var data = _consumer.Consume(ct).Message.Value;
             if (data is null) return;
 
+            using var scope = serviceScopeFactory.CreateScope();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            
             await mediator.Send(new ToggleStatusReadModelCommand(data.AggregateId), ct);
+            
+            _consumer.Commit();
         }
     }
 }
