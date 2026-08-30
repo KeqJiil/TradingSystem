@@ -1,3 +1,4 @@
+using Polly;
 using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
@@ -5,25 +6,30 @@ namespace Stock.Infrastructure.Persistence.Implementations;
 public class UnitOfWorkDecorator : IUnitOfWorkDecorator
 {
     private readonly IUnitOfWork _unitOfWork;
-    
-    public UnitOfWorkDecorator(IUnitOfWork unitOfWork)
+    private readonly ResiliencePipeline _pipeline;
+
+    public UnitOfWorkDecorator(IUnitOfWork unitOfWork, ResiliencePipeline pipeline)
     {
         _unitOfWork = unitOfWork;
+        _pipeline = pipeline;
     }
-    
+
     public async Task ExecuteAsync(Func<Task> action, CancellationToken ct)
     {
-        await _unitOfWork.StartTransactionAsync(ct);
-        
-        try
+        await _pipeline.ExecuteAsync(async (state, token) =>
         {
-            await action();
-            await _unitOfWork.CommitAsync(ct);
-        }
-        catch
-        {
-            await _unitOfWork.RollbackAsync(ct);
-            throw;
-        }
+            await _unitOfWork.StartTransactionAsync(token);
+
+            try
+            {
+                await state.Action();
+                await state.UnitOfWork.CommitAsync(token);
+            }
+            catch
+            {
+                await state.UnitOfWork.RollbackAsync(token);
+                throw;
+            }
+        }, (UnitOfWork: _unitOfWork, Action: action), ct);
     }
 }

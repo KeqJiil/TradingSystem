@@ -1,24 +1,33 @@
 using Dapper;
-using Polly;
 using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
 public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
 {
-    public async Task<bool> UpdateAsync(Guid aggregateId, long newVersion, decimal priceChange, CancellationToken ct)
+    public async Task<ReadModelUpdateOutcome> UpdateAsync(Guid aggregateId, long newVersion, decimal priceChange,
+        CancellationToken ct)
     {
+        await context.EnsureConnectionOpenAsync(ct);
+
+        var currentVersion = await context.Connection.ExecuteScalarAsync<long>(
+            """SELECT "version" FROM "stock_data_projection" WHERE "aggregate_id" = @AggregateId""",
+            new { AggregateId = aggregateId }, context.Transaction);
+
+        if (newVersion <= currentVersion) return ReadModelUpdateOutcome.Stale;
+        if (newVersion > currentVersion + 1) return ReadModelUpdateOutcome.Gap;
+
         var sql = """
                     UPDATE "stock_data_projection"
                     SET "price" = "price" + @PriceChange, "version" = "version" + 1
                     WHERE "version" = @OldVersion AND "aggregate_id" = @AggregateId
                   """;
-        
-        await context.EnsureConnectionOpenAsync(ct);
 
-        var result = await context.Connection.ExecuteAsync(sql, new { OldVersion = newVersion - 1, AggregateId = aggregateId }, context.Transaction);
+        var result = await context.Connection.ExecuteAsync(sql,
+            new { OldVersion = newVersion - 1, PriceChange = priceChange, AggregateId = aggregateId },
+            context.Transaction);
 
-        return result > 0;
+        return result > 0 ? ReadModelUpdateOutcome.Applied : ReadModelUpdateOutcome.Gap;
     }
 
     public async Task<bool> CreateAsync(CreateStockReadModelDto data, CancellationToken ct)
@@ -44,11 +53,11 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
 
         var result = await context.Connection.ExecuteAsync(sql, new
         {
-            AggregateId = data.aggregateId, Currency = data.currency,
-            Name = data.name, IsOpenToTrade = data.isOpenToTrade,
-            TradingStart = data.tradingStartTime, TradingEnd = data.tradingCloseTime
+            AggregateId = data.AggregateId, Currency = data.Currency,
+            Name = data.Name, IsOpenToTrade = data.IsOpenToTrade,
+            TradingStart = data.TradingStartTime, TradingEnd = data.TradingCloseTime
         }, context.Transaction);
-        
+
         return result > 0;
     }
 
@@ -59,11 +68,11 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
                     SET "is_open_to_trade" = NOT "is_open_to_trade" 
                     WHERE "aggregate_id" = @AggregateId
                   """;
-        
+
         await context.EnsureConnectionOpenAsync(ct);
 
         var result = await context.Connection.ExecuteAsync(sql, new { AggregateId = aggregateId }, context.Transaction);
-        
+
         return result > 0;
     }
 }
