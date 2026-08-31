@@ -21,8 +21,8 @@ public class StockDataWriter(IDbContext dbContext) : IStockWriter
     {
         await dbContext.EnsureConnectionOpenAsync(ct);
         await dbContext.Connection.ExecuteAsync(
-            "INSERT INTO stock_data (id, name, is_open_to_trade, trading_start_time, trading_end_time, currency) VALUES (@Id, @Name, @OpenTime, @CloseTime, @IsOpenToTrade, @Currency)",
-            new { Id = id, dto.Name, dto.OpenTime, dto.CloseTime, dto.IsOpenToTrade, dto.Currency },
+            "INSERT INTO stock_data (id, name, is_open_to_trade, trading_start_time, trading_end_time, currency) VALUES (@Id, @Name, @IsOpenToTrade, @OpenTime, @CloseTime, @Currency)",
+            new { Id = id, dto.Name, dto.IsOpenToTrade, dto.OpenTime, dto.CloseTime, dto.Currency },
             dbContext.Transaction
         );
     }

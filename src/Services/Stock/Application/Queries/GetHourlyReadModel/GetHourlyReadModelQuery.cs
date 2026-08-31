@@ -4,12 +4,12 @@ namespace Stock.Application.Queries.GetHourlyReadModel;
 
 public record GetHourlyReadModelQuery(
     Guid AggregateId,
-    DateOnly Day,
-    TimeOnly Time) : IRequest<HourlyReadModel>;
+    DateTimeOffset From,
+    DateTimeOffset To,
+    TimeOnly Time) : IRequest<HourlyReadModel?>;
 
 public record HourlyReadModel(
     Guid AggregateId,
-    DateOnly Day,
-    List<PriceChange> PriceChanges);
+    IEnumerable<PriceChange> PriceChanges);
 
 public record PriceChange(DateTimeOffset Timestamp, decimal PriceDifference);

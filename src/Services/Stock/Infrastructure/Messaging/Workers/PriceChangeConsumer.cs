@@ -32,7 +32,7 @@ public class PriceChangeConsumer(
 
             await buffer.TryApplyAsync(data.AggregateId, version, data, ApplyAsync, ct);
 
-            _consumer.Commit();
+            if (!buffer.HasPendingGaps) _consumer.Commit();
         }
     }
 

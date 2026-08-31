@@ -1,4 +1,3 @@
-using Stock.Application.Commands.UpdateReadModel;
 using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Messaging.Workers;
@@ -9,6 +8,8 @@ public class VersionsBuffer<T>(
     private readonly Dictionary<Guid, SortedDictionary<long, T>> _pending = new();
     private readonly Dictionary<Guid, DateTimeOffset> _firstGapSeenAt = new();
     private readonly TimeSpan _gapTimeout = TimeSpan.FromMinutes(2);
+
+    public bool HasPendingGaps => _pending.Count > 0;
 
     public async Task TryApplyAsync(Guid aggregateId, long version, T data,
         Func<Guid, long, T, CancellationToken, Task<ReadModelUpdateOutcome>> applyAsync, CancellationToken ct)
@@ -65,7 +66,13 @@ public class VersionsBuffer<T>(
     private void CheckStuckGap(Guid aggregateId)
     {
         if (_firstGapSeenAt.TryGetValue(aggregateId, out var since) && DateTimeOffset.UtcNow - since > _gapTimeout)
+        {
             logger.LogWarning("{aggregateId} haven't been restored ordering for {gapTimeout} minutes", aggregateId,
                 _gapTimeout);
+            
+            // should be changed in the future
+            _firstGapSeenAt.Remove(aggregateId);
+            _pending.Remove(aggregateId);
+        };
     }
 }
