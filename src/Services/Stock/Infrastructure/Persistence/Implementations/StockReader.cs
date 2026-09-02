@@ -24,4 +24,18 @@ public class StockReader(IDbContext dbContext) : IStockReader
 
         return await dbContext.Connection.QuerySingleAsync<StockReadModel>(sql, new { StockId = stockId }, dbContext.Transaction);
     }
+
+    public async Task<IAsyncEnumerable<Guid>> GetAllIdsAsync(int limit, CancellationToken cancellationToken = default)
+    {
+        var sql = """
+                  SELECT TOP @Limit s.aggregate_id as AggregateId
+                  FROM stock_data_projection s
+                  WHERE created_at > @lastCreatedAt AND s.aggregate_id > @lastAggregateId
+                  ORDER BY created_at ASC
+                  """;
+        
+        await dbContext.EnsureConnectionOpenAsync(cancellationToken);
+
+        var result = dbContext.Connection.QueryAsync<Guid>(sql, new { Limit = limit }, dbContext.Transaction);
+    }
 }
