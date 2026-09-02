@@ -13,29 +13,29 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
         var result = await AppendAsync([stockEvent], ct);
         return result.Single();
     }
-    
-    public async Task<IEnumerable<PriceChangedEvent>> AppendAsync(IEnumerable<PriceChangedEvent> stockEvents, CancellationToken ct)
+
+    public async Task<IEnumerable<PriceChangedEvent>> AppendAsync(IEnumerable<PriceChangedEvent> stockEvents,
+        CancellationToken ct)
     {
         var events = stockEvents.ToList();
-        if (events.Count == 0)
-        {
-            return new List<PriceChangedEvent>();
-        }
+        if (events.Count == 0) return new List<PriceChangedEvent>();
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
         var aggregateIds = events.Select(e => e.AggregateId).Distinct().ToList();
 
         var currentVersions = (await dbContext.Connection.QueryAsync<(Guid AggregateId, long Version)>("""
-            SELECT aggregate_id AS AggregateId, MAX(version) AS Version
-            FROM events_store
-            WHERE aggregate_id IN @AggregateIds
-            GROUP BY aggregate_id
-        """, new { AggregateIds = aggregateIds }, dbContext.Transaction))
+                    SELECT aggregate_id AS AggregateId, MAX(version) AS Version
+                    FROM events_store
+                    WHERE aggregate_id IN @AggregateIds
+                    GROUP BY aggregate_id
+                """, new { AggregateIds = aggregateIds }, dbContext.Transaction))
             .ToDictionary(x => x.AggregateId, x => x.Version);
 
         var parameters = new DynamicParameters();
-        var sqlBuilder = new StringBuilder("INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change) VALUES ");
+        var sqlBuilder =
+            new StringBuilder(
+                "INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change) VALUES ");
 
         var result = new PriceChangedEvent[events.Count];
 
@@ -50,7 +50,7 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
 
             if (i > 0) sqlBuilder.Append(", ");
             sqlBuilder.Append($"(@Id{i}, @AggregateId{i}, @Version{i}, @EventType{i}, @Payload{i}, @PriceChange{i})");
-            
+
             parameters.Add($"Id{i}", Guid.NewGuid());
             parameters.Add($"AggregateId{i}", stockEvent.AggregateId);
             parameters.Add($"Version{i}", version);
@@ -69,10 +69,11 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
     {
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        var version = await dbContext.Connection.ExecuteAsync("""
-                                                                  INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change)
-                                                                  VALUES (@Id, @AggregateId, COALESCE((SELECT MAX(e.version) FROM events_store e WHERE e.aggregate_id = @AggregateId), 0) + 1, @EventType, @Payload, @PriceChange)
-                                                              """,
+        var version = await dbContext.Connection.ExecuteAsync(
+            """
+                INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change)
+                VALUES (@Id, @AggregateId, COALESCE((SELECT MAX(e.version) FROM events_store e WHERE e.aggregate_id = @AggregateId), 0) + 1, @EventType, @Payload, @PriceChange)
+            """,
             new
             {
                 Id = Guid.NewGuid(), AggregateId = stockEvent.AggregateId,
