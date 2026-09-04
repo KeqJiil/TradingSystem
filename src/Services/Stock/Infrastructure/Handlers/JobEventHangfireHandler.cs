@@ -1,5 +1,6 @@
 using Hangfire;
 using MediatR;
+using Stock.Application.Abstractions;
 using Stock.Application.Events;
 
 namespace Stock.Infrastructure.Handlers;
@@ -9,6 +10,7 @@ public class JobEventHangfireHandler<TEvent>(IBackgroundJobClient jobQueue)
 {
     public Task Handle(TEvent @event, CancellationToken ct)
     {
-        throw new NotImplementedException();
+        jobQueue.Enqueue<IJobEventProcessor<TEvent>>(p => p.ProcessAsync(@event, CancellationToken.None));
+        return Task.CompletedTask;
     }
 }

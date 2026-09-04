@@ -1,9 +1,11 @@
-using TradingSystem.Contracts.ProtobufClasses;
+using Stock.Application.Events;
 
 namespace Stock.Application.Abstractions;
 
 public interface IStockEventStoreReader
 {
-    Task<IEnumerable<PriceChangedEvent>> ListEventsAsync(Guid aggregateId, DateTimeOffset from, DateTimeOffset to,
-        CancellationToken ct);
+    IAsyncEnumerable<PriceChangedEvent> ListEventsAsync(Guid aggregateId, DateTimeOffset from, DateTimeOffset to,
+        CancellationToken ct = default);
+
+    Task<long?> GetLastVersionAsync(Guid aggregateId, DateTimeOffset before, CancellationToken ct = default);
 }
