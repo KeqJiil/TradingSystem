@@ -11,17 +11,32 @@ public class OutboxDispatcherService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var scope = scopeFactory.CreateScope();
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
         do
         {
+            using var scope = scopeFactory.CreateScope();
             var reader = scope.ServiceProvider.GetRequiredService<IOutboxReader>();
             var marker = scope.ServiceProvider.GetRequiredService<IOutboxMarker>();
             
 
             var outboxes = await reader.GetPendingAsync(50, 10, stoppingToken);
+            
+            var semaphore = new SemaphoreSlim(10);
 
-            var tasks = outboxes.Select(o => ProcessAsync(o, stoppingToken)).ToList();
+            var tasks = outboxes.Select(async (o) =>
+            {
+                await semaphore.WaitAsync(stoppingToken);
+                
+                try
+                {
+                    return await ProcessAsync(o, stoppingToken);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }).ToList();
+            
             var result = await Task.WhenAll(tasks);
             var ids = result.Where(x => x.Item1).Select(x => x.Item2).ToList();
 

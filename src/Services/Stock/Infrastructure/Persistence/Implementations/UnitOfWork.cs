@@ -7,6 +7,7 @@ namespace Stock.Infrastructure.Persistence.Implementations;
 public class UnitOfWork : IUnitOfWork, IDbContext
 {
     private readonly IDbConnectionFactory _connectionFactory;
+    private bool _disposed;
     public DbConnection Connection { get; private set; }
     public DbTransaction? Transaction { get; private set; }
 
@@ -43,11 +44,14 @@ public class UnitOfWork : IUnitOfWork, IDbContext
 
     public async ValueTask DisposeAsync()
     {
+        if (_disposed) return;
+        _disposed = true;
+
         await Connection.CloseAsync();
         await Connection.DisposeAsync();
 
         if (Transaction != null) await Transaction.DisposeAsync();
-        
+
         GC.SuppressFinalize(this);
     }
 }
