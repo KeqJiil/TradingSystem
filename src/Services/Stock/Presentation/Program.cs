@@ -28,7 +28,9 @@ DbMigrator.ApplyMigrations(connectionString);
 
 var app = builder.Build();
 
+app.MapStockController();
 app.MapStockReadController();
+app.MapStockMetadataController();
 app.UseHangfireDashboard();
 app.UseCronJobs();
 

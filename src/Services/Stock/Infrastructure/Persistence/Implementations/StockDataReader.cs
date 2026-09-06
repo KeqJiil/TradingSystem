@@ -37,5 +37,26 @@ public class StockDataReader(IDbContext dbContext) : IStockDataReader
         }
     }
 
+    public async Task<StockMetadata?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var sql = """
+                  SELECT
+                      s.id AS Id,
+                      s.name AS Name,
+                      s.is_open_to_trade AS IsOpenToTrade,
+                      s.trading_start_time AS TradingStartTime,
+                      s.trading_end_time AS TradingEndTime,
+                      s.currency AS Currency,
+                      s.created_at AS CreatedAt
+                  FROM stock_data s
+                  WHERE s.id = @Id
+                  """;
+
+        await dbContext.EnsureConnectionOpenAsync(cancellationToken);
+
+        return await dbContext.Connection.QuerySingleOrDefaultAsync<StockMetadata?>(sql, new { Id = id },
+            dbContext.Transaction);
+    }
+
     private readonly record struct StockIdRow(Guid AggregateId);
 }
