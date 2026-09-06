@@ -11,6 +11,7 @@
     <PackageReference Include="Confluent.Kafka" Version="2.15.0" />
     <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="dbup-sqlserver" Version="7.2.0" />
+    <PackageReference Include="Hangfire" Version="1.8.25" />
     <PackageReference Include="MediatR" Version="14.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />

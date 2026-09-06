@@ -5,7 +5,7 @@ namespace Stock.Infrastructure.Persistence.Implementations;
 
 public class StockReader(IDbContext dbContext) : IStockReader
 {
-    public async Task<StockReadModel> GetByIdAsync(Guid stockId, CancellationToken cancellationToken)
+    public async Task<StockReadModel?> GetByIdAsync(Guid stockId, CancellationToken cancellationToken)
     {
         var sql = """
                   SELECT 
@@ -22,6 +22,7 @@ public class StockReader(IDbContext dbContext) : IStockReader
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
-        return await dbContext.Connection.QuerySingleAsync<StockReadModel>(sql, new { StockId = stockId }, dbContext.Transaction);
+        return await dbContext.Connection.QuerySingleOrDefaultAsync<StockReadModel?>(sql, new { StockId = stockId },
+            dbContext.Transaction);
     }
 }

@@ -3,7 +3,7 @@ using Stock.Application.Abstractions;
 
 namespace Stock.Application.Queries.GetReadModel;
 
-public class GetReadModelHandler : IRequestHandler<GetReadModelQuery, StockReadModel>
+public class GetReadModelHandler : IRequestHandler<GetReadModelQuery, StockReadModel?>
 {
     private readonly IStockReader _stockReader;
 
@@ -12,7 +12,7 @@ public class GetReadModelHandler : IRequestHandler<GetReadModelQuery, StockReadM
         _stockReader = stockReader;
     }
 
-    public async Task<StockReadModel> Handle(GetReadModelQuery request, CancellationToken cancellationToken)
+    public async Task<StockReadModel?> Handle(GetReadModelQuery request, CancellationToken cancellationToken)
     {
         var readModel = await _stockReader.GetByIdAsync(request.Id, cancellationToken);
         return readModel;

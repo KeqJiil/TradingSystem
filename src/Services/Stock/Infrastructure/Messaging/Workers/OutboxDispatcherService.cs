@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Confluent.Kafka;
+using MediatR;
 using Stock.Application.Events;
 using Stock.Infrastructure.Persistence;
 
@@ -7,37 +7,54 @@ namespace Stock.Infrastructure.Messaging.Workers;
 
 public class OutboxDispatcherService(
     ILogger<OutboxDispatcherService> logger,
-    IOutboxReader reader,
-    IOutboxMarker marker,
-    IProducer<string, PriceChangedEvent> priceProducer,
-    IProducer<string, StockToggledStatusEvent> statusProducer,
-    IProducer<string, StockCreatedEvent> stockCreatedProducer) : BackgroundService
+    IServiceScopeFactory scopeFactory) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
         do
         {
-            var outboxes = await reader.GetPendingAsync(50, 10, stoppingToken);
+            using var scope = scopeFactory.CreateScope();
+            var reader = scope.ServiceProvider.GetRequiredService<IOutboxReader>();
+            var marker = scope.ServiceProvider.GetRequiredService<IOutboxMarker>();
+            
 
-            var tasks = outboxes.Select(o => ProcessAsync(o, stoppingToken)).ToList();
+            var outboxes = await reader.GetPendingAsync(50, 10, stoppingToken);
+            
+            var semaphore = new SemaphoreSlim(10);
+
+            var tasks = outboxes.Select(async (o) =>
+            {
+                await semaphore.WaitAsync(stoppingToken);
+                
+                try
+                {
+                    return await ProcessAsync(o, stoppingToken);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }).ToList();
+            
             var result = await Task.WhenAll(tasks);
             var ids = result.Where(x => x.Item1).Select(x => x.Item2).ToList();
 
             await marker.MarkCompletedAsync(ids, stoppingToken);
-        } 
-        while (await timer.WaitForNextTickAsync(stoppingToken));
+        } while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
     private async Task<(bool, Guid)> ProcessAsync(OutboxData data, CancellationToken ct)
     {
+        using var scope = scopeFactory.CreateScope();
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         try
         {
             var @event = DispatchOutbox(data.EventType, data.Payload);
             if (@event is null) return (false, data.Id);
 
-            var result = await DispatchProducer(@event, ct);
-            return (result, data.Id);
+            await mediator.Publish(@event, ct);
+            return (true, data.Id);
         }
         catch (Exception ex)
         {
@@ -46,31 +63,14 @@ public class OutboxDispatcherService(
         }
     }
 
-    private async Task<bool> DispatchProducer(StockEvent @event, CancellationToken ct)
-    {
-        switch (@event)
-        {
-            case PriceChangedEvent e:
-                await priceProducer.ProduceAsync("stock.events", new Message<string, PriceChangedEvent> { Value = e, Key = @event.AggregateId.ToString() }, ct);
-                return true;
-            case StockCreatedEvent e:
-                await stockCreatedProducer.ProduceAsync("stock.events", new Message<string, StockCreatedEvent> { Value = e, Key = @event.AggregateId.ToString() }, ct);
-                return true;
-            case StockToggledStatusEvent e:
-                await statusProducer.ProduceAsync("stock.events", new Message<string, StockToggledStatusEvent> { Value = e, Key = @event.AggregateId.ToString() }, ct);
-                return true;
-            default:
-                return false;
-        }
-    }
-    
-    private StockEvent? DispatchOutbox(string eventType, string payload)
+    private BasicEvent? DispatchOutbox(string eventType, string payload)
     {
         return eventType switch
         {
             EventTypeNames.PriceChanged => JsonSerializer.Deserialize<PriceChangedEvent>(payload),
             EventTypeNames.StockCreated => JsonSerializer.Deserialize<StockCreatedEvent>(payload),
             EventTypeNames.StockToggledStatus => JsonSerializer.Deserialize<StockToggledStatusEvent>(payload),
+            EventTypeNames.DailyReadModelRequested => JsonSerializer.Deserialize<DailyReadModelRequested>(payload),
             _ => null
         };
     }
@@ -81,4 +81,5 @@ public static class EventTypeNames
     public const string PriceChanged = nameof(PriceChangedEvent);
     public const string StockCreated = nameof(StockCreatedEvent);
     public const string StockToggledStatus = nameof(StockToggledStatusEvent);
+    public const string DailyReadModelRequested = nameof(DailyReadModelRequested);
 }
