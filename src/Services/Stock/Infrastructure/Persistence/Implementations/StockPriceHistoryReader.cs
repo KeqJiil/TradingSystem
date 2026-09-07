@@ -57,16 +57,16 @@ public class StockPriceHistoryReader(IDbContext dbContext) : IStockPriceHistoryR
         CancellationToken ct)
     {
         var sql = """
-                    SELECT es.created_at AS TimeStamp, es.price_change AS PriceDifference
+                    SELECT es.occured_at AS TimeStamp, es.price_change AS PriceDifference
                     FROM events_store es
-                    WHERE es.created_at < @DateTo AND es.created_at >= @DateFrom AND es.aggregate_id = @StockId
+                    WHERE es.occured_at < @DateTo AND es.occured_at >= @DateFrom AND es.aggregate_id = @StockId
                   """;
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
         var priceChanges = await dbContext.Connection.QueryAsync<PriceChange>(sql,
             new { DateTo = to, DateFrom = from, StockId = stockId }, dbContext.Transaction);
-        
+
         return new HourlyReadModel(stockId, priceChanges);
     }
 }

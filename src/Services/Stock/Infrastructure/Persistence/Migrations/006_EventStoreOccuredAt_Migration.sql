@@ -1,0 +1,2 @@
+ALTER TABLE events_store
+    ADD occured_at DATETIMEOFFSET NOT NULL DEFAULT (GETDATE())

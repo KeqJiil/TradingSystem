@@ -35,7 +35,7 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
         var parameters = new DynamicParameters();
         var sqlBuilder =
             new StringBuilder(
-                "INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change) VALUES ");
+                "INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change, occured_at) VALUES ");
 
         var result = new PriceChangedEvent[events.Count];
 
@@ -49,7 +49,8 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
             result[i] = events[i] with { Version = version };
 
             if (i > 0) sqlBuilder.Append(", ");
-            sqlBuilder.Append($"(@Id{i}, @AggregateId{i}, @Version{i}, @EventType{i}, @Payload{i}, @PriceChange{i})");
+            sqlBuilder.Append(
+                $"(@Id{i}, @AggregateId{i}, @Version{i}, @EventType{i}, @Payload{i}, @PriceChange{i}, @OccuredAt{i})");
 
             parameters.Add($"Id{i}", Guid.NewGuid());
             parameters.Add($"AggregateId{i}", stockEvent.AggregateId);
@@ -57,6 +58,7 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
             parameters.Add($"EventType{i}", nameof(PriceChangedEvent));
             parameters.Add($"Payload{i}", JsonSerializer.Serialize(stockEvent));
             parameters.Add($"PriceChange{i}", stockEvent.PriceChange);
+            parameters.Add($"OccuredAt{i}", stockEvent.OccuredAt);
         }
 
         await dbContext.Connection.ExecuteAsync(sqlBuilder.ToString(), parameters, dbContext.Transaction);

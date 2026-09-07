@@ -39,7 +39,7 @@ public class PriceChangeConsumer(
     private async Task<ReadModelUpdateOutcome> ApplyAsync(Guid aggregateId, long version, PriceChangedEvent data,
         CancellationToken ct)
     {
-        using var scope = serviceScopeFactory.CreateScope();
+        await using var scope = serviceScopeFactory.CreateAsyncScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         return await mediator.Send(new UpdateReadModelCommand(aggregateId, data.PriceChange, version), ct);
     }

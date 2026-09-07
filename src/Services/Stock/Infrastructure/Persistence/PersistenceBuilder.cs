@@ -7,6 +7,8 @@ public static class PersistenceBuilder
 {
     public static void AddPersistence(this WebApplicationBuilder builder)
     {
+        DapperTypeHandlers.Register();
+
         builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 
         builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();

@@ -8,7 +8,7 @@ public class EventStoreService
     private readonly IStockEventStore _stockEventStore;
     private readonly IUnitOfWorkDecorator _uow;
     private readonly IOutboxWriter _outboxWriter;
-    
+
     public EventStoreService(IStockEventStore stockEventStore, IUnitOfWorkDecorator uow, IOutboxWriter outboxWriter)
     {
         _stockEventStore = stockEventStore;
@@ -16,20 +16,21 @@ public class EventStoreService
         _outboxWriter = outboxWriter;
     }
 
-    public async Task<Guid> ChangePriceAppendAsync(ChangePrice request, CancellationToken ct)
+    public async Task<Guid> ChangePriceAppendAsync(ChangePriceRequested request, CancellationToken ct)
     {
-        var stockUpdateEvent = new PriceChangedEvent(request.AggregateId, request.PriceChange, null);
-        
+        var stockUpdateEvent = new PriceChangedEvent(request.AggregateId, request.PriceChange, null, request.OccuredAt);
+
         await _uow.ExecuteAsync(async () =>
         {
             var @event = await _stockEventStore.AppendAsync(stockUpdateEvent, ct);
             await _outboxWriter.WriteAsync(@event, @event.AggregateId, ct);
         }, ct);
-        
+
         return request.AggregateId;
     }
 }
 
-public record ChangePrice(
+public record ChangePriceRequested(
     Guid AggregateId,
-    decimal PriceChange);
+    decimal PriceChange,
+    DateTimeOffset OccuredAt);

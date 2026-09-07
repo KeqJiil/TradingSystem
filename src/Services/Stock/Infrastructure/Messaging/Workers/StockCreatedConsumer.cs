@@ -27,7 +27,7 @@ public class StockCreatedConsumer(IKafkaConsumerFactory consumerFactory, IServic
             var command = new CreateReadModelCommand(data.AggregateId, data.Name, data.IsOpenToTrade, data.Currency,
                 data.TradingStartTime, data.TradingCloseTime);
 
-            using var scope = serviceScopeFactory.CreateScope();
+            await using var scope = serviceScopeFactory.CreateAsyncScope();
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
             
             await mediator.Send(command, ct);

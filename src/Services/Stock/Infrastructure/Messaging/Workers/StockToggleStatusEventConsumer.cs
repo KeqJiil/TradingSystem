@@ -27,7 +27,7 @@ public class StockToggleStatusEventConsumer(IKafkaConsumerFactory consumerFactor
             var data = _consumer.Consume(ct).Message.Value;
             if (data is null) return;
 
-            using var scope = serviceScopeFactory.CreateScope();
+            await using var scope = serviceScopeFactory.CreateAsyncScope();
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
             
             await mediator.Send(new ToggleStatusReadModelCommand(data.AggregateId), ct);

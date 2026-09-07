@@ -14,7 +14,7 @@ public class OutboxDispatcherService(
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
         do
         {
-            using var scope = scopeFactory.CreateScope();
+            await using var scope = scopeFactory.CreateAsyncScope();
             var reader = scope.ServiceProvider.GetRequiredService<IOutboxReader>();
             var marker = scope.ServiceProvider.GetRequiredService<IOutboxMarker>();
             
@@ -46,7 +46,7 @@ public class OutboxDispatcherService(
 
     private async Task<(bool, Guid)> ProcessAsync(OutboxData data, CancellationToken ct)
     {
-        using var scope = scopeFactory.CreateScope();
+        await using var scope = scopeFactory.CreateAsyncScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         try
         {

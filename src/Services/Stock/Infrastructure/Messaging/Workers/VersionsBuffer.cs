@@ -1,9 +1,11 @@
+using Microsoft.Extensions.Internal;
 using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Messaging.Workers;
 
 public class VersionsBuffer<T>(
-    ILogger<VersionsBuffer<T>> logger)
+    ILogger<VersionsBuffer<T>> logger,
+    ISystemClock clock)
 {
     private readonly Dictionary<Guid, SortedDictionary<long, T>> _pending = new();
     private readonly Dictionary<Guid, DateTimeOffset> _firstGapSeenAt = new();
@@ -39,7 +41,7 @@ public class VersionsBuffer<T>(
             _pending[aggregateId] = buffer = new SortedDictionary<long, T>();
 
         buffer[version] = data;
-        _firstGapSeenAt.TryAdd(aggregateId, DateTimeOffset.UtcNow);
+        _firstGapSeenAt.TryAdd(aggregateId, clock.UtcNow);
     }
 
     private async Task DrainBufferAsync(Guid aggregateId,
@@ -65,14 +67,16 @@ public class VersionsBuffer<T>(
 
     private void CheckStuckGap(Guid aggregateId)
     {
-        if (_firstGapSeenAt.TryGetValue(aggregateId, out var since) && DateTimeOffset.UtcNow - since > _gapTimeout)
+        if (_firstGapSeenAt.TryGetValue(aggregateId, out var since) && clock.UtcNow - since > _gapTimeout)
         {
             logger.LogWarning("{aggregateId} haven't been restored ordering for {gapTimeout} minutes", aggregateId,
                 _gapTimeout);
-            
+
             // should be changed in the future
             _firstGapSeenAt.Remove(aggregateId);
             _pending.Remove(aggregateId);
-        };
+        }
+
+        ;
     }
 }

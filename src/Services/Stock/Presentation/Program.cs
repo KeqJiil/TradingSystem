@@ -1,4 +1,6 @@
 using Hangfire;
+using Hangfire.Dashboard;
+using Microsoft.Extensions.Internal;
 using Stock.Infrastructure.Cron;
 using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Persistence;
@@ -14,15 +16,15 @@ builder.AddPersistence();
 builder.AddApplication();
 builder.AddKafka();
 builder.AddMessaging();
-builder.Services.AddHangfire(config =>
-    config.UseSqlServerStorage(
-        builder.Configuration.GetConnectionString("Default")));
-builder.Services.AddHangfireServer();
-
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
                        ?? throw new InvalidOperationException(
                            "Connection string 'DefaultConnection' is not configured.");
+
+builder.Services.AddHangfire(config =>
+    config.UseSqlServerStorage(connectionString));
+builder.Services.AddHangfireServer();
+builder.Services.AddSingleton<ISystemClock, SystemClock>();
 
 DbMigrator.ApplyMigrations(connectionString);
 
@@ -31,7 +33,12 @@ var app = builder.Build();
 app.MapStockController();
 app.MapStockReadController();
 app.MapStockMetadataController();
-app.UseHangfireDashboard();
+
+// dev only
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = [new AllowAllDashboardAuthorizationFilter()]
+});
 app.UseCronJobs();
 
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
@@ -39,3 +46,8 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi();
 app.UseHttpsRedirection();
 
 app.Run();
+
+file class AllowAllDashboardAuthorizationFilter : IDashboardAuthorizationFilter
+{
+    public bool Authorize(DashboardContext context) => true;
+}

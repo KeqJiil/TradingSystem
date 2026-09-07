@@ -7,7 +7,7 @@ public class DailyCronWorker(IServiceScopeFactory serviceScopeFactory)
 {
     public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var scope = serviceScopeFactory.CreateScope();
+        await using var scope = serviceScopeFactory.CreateAsyncScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
         await mediator.Send(new CreateDailyReadModelCommand(DateTime.UtcNow.Date), stoppingToken);
