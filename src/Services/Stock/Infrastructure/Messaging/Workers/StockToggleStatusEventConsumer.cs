@@ -1,16 +1,23 @@
 using Confluent.Kafka;
 using MediatR;
+using Stock.Application.Abstractions;
 using Stock.Application.Commands.ToggleStatusReadModel;
 using Stock.Application.Events;
+using Stock.Presentation.Options;
 
 namespace Stock.Infrastructure.Messaging.Workers;
 
-public class StockToggleStatusEventConsumer(IKafkaConsumerFactory consumerFactory, IServiceScopeFactory serviceScopeFactory) : BackgroundService
+public class StockToggleStatusEventConsumer(
+    IKafkaConsumerFactory consumerFactory,
+    IServiceScopeFactory serviceScopeFactory,
+    ILogger<StockToggleStatusEventConsumer> logger,
+    IDeadLetterPublisher dlq) : BackgroundService
 {
     private readonly IConsumer<string, StockToggledStatusEvent> _consumer =
-        consumerFactory.Create<StockToggledStatusEvent>(groupId: "stock-toggle-events-group", clientId: "stock-toggle-events-consumer");
+        consumerFactory.Create<StockToggledStatusEvent>("stock-toggle-events-group", TopicNames.Stock,
+            "stock-toggle-events-consumer");
 
-    
+
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         return Task.Factory.StartNew(
@@ -29,9 +36,17 @@ public class StockToggleStatusEventConsumer(IKafkaConsumerFactory consumerFactor
 
             await using var scope = serviceScopeFactory.CreateAsyncScope();
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-            
-            await mediator.Send(new ToggleStatusReadModelCommand(data.AggregateId), ct);
-            
+
+            try
+            {
+                await mediator.Send(new ToggleStatusReadModelCommand(data.AggregateId), ct);
+            }
+            catch (Exception ex)
+            {
+                await dlq.PublishAsync(TopicNames.Stock, data, ex, ct);
+                logger.LogWarning(ex, "Error processing StockToggledStatusEvent");
+            }
+
             _consumer.Commit();
         }
     }

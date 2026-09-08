@@ -3,6 +3,7 @@ using MediatR;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.UpdateReadModel;
 using Stock.Application.Events;
+using Stock.Presentation.Options;
 
 namespace Stock.Infrastructure.Messaging.Workers;
 
@@ -12,7 +13,8 @@ public class PriceChangeConsumer(
     VersionsBuffer<PriceChangedEvent> buffer) : BackgroundService
 {
     private readonly IConsumer<string, PriceChangedEvent> _consumer =
-        consumerFactory.Create<PriceChangedEvent>("price-change-events-group", "price-change-events-consumer");
+        consumerFactory.Create<PriceChangedEvent>("price-change-events-group", TopicNames.Price,
+            "price-change-events-consumer");
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {

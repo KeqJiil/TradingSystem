@@ -16,10 +16,17 @@ public class VersionsBufferTests
     private readonly FakeSystemClock _clock = new(DateTimeOffset.UtcNow);
     private readonly VersionsBuffer<PriceChangedEvent> _versionsBuffer;
     private readonly FakeApplier _fakeApplier = new();
+    private readonly List<(Guid AggregateId, IReadOnlyCollection<PriceChangedEvent> Expired)> _expired = new();
 
     public VersionsBufferTests()
     {
-        _versionsBuffer = new VersionsBuffer<PriceChangedEvent>(Logger, _clock);
+        _versionsBuffer = new VersionsBuffer<PriceChangedEvent>(Logger, _clock, OnExpire);
+    }
+
+    private Task OnExpire(Guid aggregateId, IReadOnlyCollection<PriceChangedEvent> expired, CancellationToken ct)
+    {
+        _expired.Add((aggregateId, expired));
+        return Task.CompletedTask;
     }
 
     [Fact]
@@ -122,20 +129,26 @@ public class VersionsBufferTests
     public async Task StuckGap_ExpiresAfterTimeout()
     {
         var aggregateId = Guid.NewGuid();
+        var firstGapEvent = new PriceChangedEvent(aggregateId, -10, 3, DateTimeOffset.UtcNow);
 
-        await _versionsBuffer.TryApplyAsync(aggregateId, 3,
-            new PriceChangedEvent(aggregateId, -10, 3, DateTimeOffset.UtcNow),
+        await _versionsBuffer.TryApplyAsync(aggregateId, 3, firstGapEvent,
             _fakeApplier.ApplyAsync, CancellationToken.None);
 
         Assert.True(_versionsBuffer.HasPendingGaps);
+        Assert.Empty(_expired);
 
         _clock.UtcNow += TimeSpan.FromMinutes(3);
 
-        await _versionsBuffer.TryApplyAsync(aggregateId, 3,
-            new PriceChangedEvent(aggregateId, -10, 3, DateTimeOffset.UtcNow),
+        var secondGapEvent = new PriceChangedEvent(aggregateId, -10, 4, DateTimeOffset.UtcNow);
+
+        await _versionsBuffer.TryApplyAsync(aggregateId, 4, secondGapEvent,
             _fakeApplier.ApplyAsync, CancellationToken.None);
 
         Assert.False(_versionsBuffer.HasPendingGaps);
+
+        var (expiredAggregateId, expired) = Assert.Single(_expired);
+        Assert.Equal(aggregateId, expiredAggregateId);
+        Assert.Equal([firstGapEvent, secondGapEvent], expired);
     }
 
     [Fact]

@@ -5,7 +5,8 @@ namespace Stock.Infrastructure.Messaging.Workers;
 
 public class VersionsBuffer<T>(
     ILogger<VersionsBuffer<T>> logger,
-    ISystemClock clock)
+    ISystemClock clock,
+    Func<Guid, IReadOnlyCollection<T>, CancellationToken, Task> onExpire)
 {
     private readonly Dictionary<Guid, SortedDictionary<long, T>> _pending = new();
     private readonly Dictionary<Guid, DateTimeOffset> _firstGapSeenAt = new();
@@ -30,7 +31,7 @@ public class VersionsBuffer<T>(
 
             case ReadModelUpdateOutcome.Gap:
                 BufferEvent(aggregateId, version, data);
-                CheckStuckGap(aggregateId);
+                await CheckStuckGapAsync(aggregateId, ct);
                 break;
         }
     }
@@ -65,18 +66,17 @@ public class VersionsBuffer<T>(
         }
     }
 
-    private void CheckStuckGap(Guid aggregateId)
+    private async Task CheckStuckGapAsync(Guid aggregateId, CancellationToken ct)
     {
-        if (_firstGapSeenAt.TryGetValue(aggregateId, out var since) && clock.UtcNow - since > _gapTimeout)
-        {
-            logger.LogWarning("{aggregateId} haven't been restored ordering for {gapTimeout} minutes", aggregateId,
-                _gapTimeout);
+        if (!_firstGapSeenAt.TryGetValue(aggregateId, out var since) || clock.UtcNow - since <= _gapTimeout)
+            return;
 
-            // should be changed in the future
-            _firstGapSeenAt.Remove(aggregateId);
-            _pending.Remove(aggregateId);
-        }
+        logger.LogWarning("{aggregateId} haven't been restored ordering for {gapTimeout} minutes", aggregateId,
+            _gapTimeout);
 
-        ;
+        _firstGapSeenAt.Remove(aggregateId);
+
+        if (_pending.Remove(aggregateId, out var buffer))
+            await onExpire(aggregateId, buffer.Values.ToList(), ct);
     }
 }

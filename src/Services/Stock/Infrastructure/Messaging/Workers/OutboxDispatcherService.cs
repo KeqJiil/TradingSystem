@@ -1,13 +1,16 @@
 using System.Text.Json;
 using MediatR;
+using Stock.Application.Abstractions;
 using Stock.Application.Events;
 using Stock.Infrastructure.Persistence;
+using Stock.Presentation.Options;
 
 namespace Stock.Infrastructure.Messaging.Workers;
 
 public class OutboxDispatcherService(
     ILogger<OutboxDispatcherService> logger,
-    IServiceScopeFactory scopeFactory) : BackgroundService
+    IServiceScopeFactory scopeFactory,
+    IDeadLetterPublisher dlq) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -17,16 +20,16 @@ public class OutboxDispatcherService(
             await using var scope = scopeFactory.CreateAsyncScope();
             var reader = scope.ServiceProvider.GetRequiredService<IOutboxReader>();
             var marker = scope.ServiceProvider.GetRequiredService<IOutboxMarker>();
-            
+
 
             var outboxes = await reader.GetPendingAsync(50, 10, stoppingToken);
-            
+
             var semaphore = new SemaphoreSlim(10);
 
             var tasks = outboxes.Select(async (o) =>
             {
                 await semaphore.WaitAsync(stoppingToken);
-                
+
                 try
                 {
                     return await ProcessAsync(o, stoppingToken);
@@ -36,7 +39,7 @@ public class OutboxDispatcherService(
                     semaphore.Release();
                 }
             }).ToList();
-            
+
             var result = await Task.WhenAll(tasks);
             var ids = result.Where(x => x.Item1).Select(x => x.Item2).ToList();
 
@@ -51,7 +54,13 @@ public class OutboxDispatcherService(
         try
         {
             var @event = DispatchOutbox(data.EventType, data.Payload);
-            if (@event is null) return (false, data.Id);
+            if (@event is null)
+            {
+                await dlq.PublishUnknownAsync(data, ct);
+                return (true, data.Id);
+            }
+
+            ;
 
             await mediator.Publish(@event, ct);
             return (true, data.Id);
