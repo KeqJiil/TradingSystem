@@ -1,18 +1,21 @@
 using System.Net.Sockets;
 using Confluent.Kafka;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Options;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
 using Stock.Presentation.Options;
 
-namespace Stock.Infrastructure.Messaging;
+namespace Stock.Infrastructure.Messaging.Publishers;
 
-public class DeadLetterPublisher(IKafkaProducerFactory kafkaProducerFactory) : IDeadLetterPublisher
+public class DeadLetterPublisher(
+    IKafkaProducerFactory kafkaProducerFactory,
+    IOptions<DeadLetterOptions> deadLetterOptions) : IDeadLetterPublisher
 {
     public Task PublishAsync<TValue>(string sourceTopic, TValue value, Exception exception, CancellationToken ct)
         where TValue : BasicEvent
     {
-        var topic = sourceTopic + ".dlq" + (IsRetryableException(exception) ? ".retry" : ".fatal");
+        var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix + (IsRetryableException(exception) ? ".retry" : ".fatal");
         var producer = kafkaProducerFactory.Create<TValue>(topic);
 
         var headers = new Headers
@@ -30,7 +33,7 @@ public class DeadLetterPublisher(IKafkaProducerFactory kafkaProducerFactory) : I
     public Task PublishAsync<TValue>(string sourceTopic, TValue value, bool isRetryable, CancellationToken ct)
         where TValue : BasicEvent
     {
-        var topic = sourceTopic + ".dlq" + (isRetryable ? ".retry" : ".fatal");
+        var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix + (isRetryable ? ".retry" : ".fatal");
         var producer = kafkaProducerFactory.Create<TValue>(topic);
 
         var headers = new Headers
@@ -45,15 +48,15 @@ public class DeadLetterPublisher(IKafkaProducerFactory kafkaProducerFactory) : I
 
     public Task PublishUnknownAsync<TValue>(TValue value, CancellationToken ct)
     {
-        var producer = kafkaProducerFactory.Create<TValue>(DeadLetterOptions.UnknownTopic);
+        var producer = kafkaProducerFactory.Create<TValue>(deadLetterOptions.Value.UnknownTopic);
 
         var headers = new Headers
         {
-            { "original-topic", System.Text.Encoding.UTF8.GetBytes(DeadLetterOptions.UnknownTopic) },
+            { "original-topic", System.Text.Encoding.UTF8.GetBytes(deadLetterOptions.Value.UnknownTopic) },
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
 
-        return producer.ProduceAsync(DeadLetterOptions.UnknownTopic,
+        return producer.ProduceAsync(deadLetterOptions.Value.UnknownTopic,
             new Message<string, TValue> { Value = value, Headers = headers }, ct);
     }
 

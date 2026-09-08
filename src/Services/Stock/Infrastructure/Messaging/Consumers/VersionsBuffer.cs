@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Internal;
 using Stock.Application.Abstractions;
 
-namespace Stock.Infrastructure.Messaging.Workers;
+namespace Stock.Infrastructure.Messaging.Consumers;
 
 public class VersionsBuffer<T>(
     ILogger<VersionsBuffer<T>> logger,

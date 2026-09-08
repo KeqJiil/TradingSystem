@@ -5,12 +5,14 @@ using Stock.Application.Commands.UpdateReadModel;
 using Stock.Application.Events;
 using Stock.Presentation.Options;
 
-namespace Stock.Infrastructure.Messaging.Workers;
+namespace Stock.Infrastructure.Messaging.Consumers;
 
 public class PriceChangeConsumer(
     IKafkaConsumerFactory consumerFactory,
     IServiceScopeFactory serviceScopeFactory,
-    VersionsBuffer<PriceChangedEvent> buffer) : BackgroundService
+    VersionsBuffer<PriceChangedEvent> buffer,
+    ILogger<PriceChangeConsumer> logger
+    ) : BackgroundService
 {
     private readonly IConsumer<string, PriceChangedEvent> _consumer =
         consumerFactory.Create<PriceChangedEvent>("price-change-events-group", TopicNames.Price,
@@ -43,6 +45,15 @@ public class PriceChangeConsumer(
     {
         await using var scope = serviceScopeFactory.CreateAsyncScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        return await mediator.Send(new UpdateReadModelCommand(aggregateId, data.PriceChange, version), ct);
+        try
+        {
+            return await mediator.Send(new UpdateReadModelCommand(aggregateId, data.PriceChange, version), ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error occurred while applying price change event for aggregate {AggregateId}",
+                aggregateId);
+            return ReadModelUpdateOutcome.Gap;
+        }
     }
 }

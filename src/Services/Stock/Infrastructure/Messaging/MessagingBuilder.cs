@@ -3,6 +3,7 @@ using Stock.Application.Abstractions;
 using Stock.Application.Events;
 using Stock.Infrastructure.BackgroundWorkers;
 using Stock.Infrastructure.Cron;
+using Stock.Infrastructure.Messaging.Consumers;
 using Stock.Infrastructure.Messaging.Workers;
 using Stock.Presentation.Options;
 

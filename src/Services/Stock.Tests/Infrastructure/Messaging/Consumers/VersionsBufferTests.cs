@@ -3,10 +3,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
-using Stock.Infrastructure.Messaging.Workers;
+using Stock.Infrastructure.Messaging.Consumers;
 using Xunit;
 
-namespace Stock.Tests.Infrastructure.Messaging.Workers;
+namespace Stock.Tests.Infrastructure.Messaging.Consumers;
 
 public class VersionsBufferTests
 {

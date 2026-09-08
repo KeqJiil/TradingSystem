@@ -3,7 +3,8 @@ using Microsoft.Extensions.Options;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
 using Stock.Infrastructure.Messaging;
-using Stock.Infrastructure.Messaging.Workers;
+using Stock.Infrastructure.Messaging.Consumers;
+using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Presentation.Options;
 
 namespace Stock.Presentation.Kafka;
@@ -14,6 +15,7 @@ public static class AddKafkaClass
     {
         builder.Services.AddOptions<KafkaOptions>()
             .BindConfiguration(KafkaOptions.Name);
+        builder.Services.AddOptions<DeadLetterOptions>().BindConfiguration(DeadLetterOptions.Name).ValidateOnStart();
 
         builder.Services.AddSingleton<IProducer<string, string>>(sp =>
         {

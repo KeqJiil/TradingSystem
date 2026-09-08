@@ -5,7 +5,7 @@ using Stock.Application.Commands.ToggleStatusReadModel;
 using Stock.Application.Events;
 using Stock.Presentation.Options;
 
-namespace Stock.Infrastructure.Messaging.Workers;
+namespace Stock.Infrastructure.Messaging.Consumers;
 
 public class StockToggleStatusEventConsumer(
     IKafkaConsumerFactory consumerFactory,
