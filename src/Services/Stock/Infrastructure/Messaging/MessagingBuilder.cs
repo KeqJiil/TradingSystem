@@ -5,7 +5,7 @@ using Stock.Infrastructure.BackgroundWorkers;
 using Stock.Infrastructure.Cron;
 using Stock.Infrastructure.Messaging.Consumers;
 using Stock.Infrastructure.Messaging.Workers;
-using Stock.Presentation.Options;
+using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Messaging;
 
@@ -22,7 +22,7 @@ public static class MessagingBuilder
             async Task OnExpire(Guid aggregateId, IReadOnlyCollection<PriceChangedEvent> expired, CancellationToken ct)
             {
                 foreach (var evt in expired)
-                    await dlq.PublishAsync(TopicNames.Price, evt, isRetryable: true, ct);
+                    await dlq.PublishAsync(TopicNames.Price, evt, isRetryable: true, attempt: 1, ct);
             }
 
             return new VersionsBuffer<PriceChangedEvent>(logger, clock, OnExpire);

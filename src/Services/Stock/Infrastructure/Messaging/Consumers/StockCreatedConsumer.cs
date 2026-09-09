@@ -2,8 +2,8 @@ using Confluent.Kafka;
 using MediatR;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.CreateReadModel;
-using Stock.Application.Events;
-using Stock.Presentation.Options;
+using Stock.Infrastructure.ExternalEvents;
+using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
 
@@ -31,8 +31,10 @@ public class StockCreatedConsumer(
             var data = _consumer.Consume(ct).Message.Value;
             if (data is null) return;
 
-            var command = new CreateReadModelCommand(data.AggregateId, data.Name, data.IsOpenToTrade, data.Currency,
-                data.TradingStartTime, data.TradingCloseTime);
+            var mappedEvent = StockCreatedEventMapper.MapFrom(data);
+            var command = new CreateReadModelCommand(mappedEvent.AggregateId, mappedEvent.Name,
+                mappedEvent.IsOpenToTrade, mappedEvent.Currency, mappedEvent.TradingStartTime,
+                mappedEvent.TradingCloseTime);
 
             await using var scope = serviceScopeFactory.CreateAsyncScope();
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
@@ -43,7 +45,7 @@ public class StockCreatedConsumer(
             }
             catch (Exception ex)
             {
-                await dlq.PublishAsync(TopicNames.Stock, data, ex, ct);
+                await dlq.PublishAsync(TopicNames.Stock, mappedEvent, ex, attempt: 1, ct);
                 logger.LogWarning(ex, "Error processing StockCreatedEvent");
             }
 

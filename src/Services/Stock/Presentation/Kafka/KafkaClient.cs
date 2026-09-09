@@ -5,7 +5,7 @@ using Stock.Application.Events;
 using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Messaging.Consumers;
 using Stock.Infrastructure.Messaging.Publishers;
-using Stock.Presentation.Options;
+using Stock.Infrastructure.Options;
 
 namespace Stock.Presentation.Kafka;
 

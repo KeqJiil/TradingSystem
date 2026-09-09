@@ -3,7 +3,6 @@ using MediatR;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
 using Stock.Infrastructure.Persistence;
-using Stock.Presentation.Options;
 
 namespace Stock.Infrastructure.Messaging.Workers;
 

@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
-using Stock.Presentation.Options;
+using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Messaging.Publishers;
 
@@ -12,7 +12,7 @@ public class DeadLetterPublisher(
     IKafkaProducerFactory kafkaProducerFactory,
     IOptions<DeadLetterOptions> deadLetterOptions) : IDeadLetterPublisher
 {
-    public Task PublishAsync<TValue>(string sourceTopic, TValue value, Exception exception, CancellationToken ct)
+    public Task PublishAsync<TValue>(string sourceTopic, TValue value, Exception exception, int attempt, CancellationToken ct)
         where TValue : BasicEvent
     {
         var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix + (IsRetryableException(exception) ? ".retry" : ".fatal");
@@ -23,6 +23,7 @@ public class DeadLetterPublisher(
             { "exception-message", System.Text.Encoding.UTF8.GetBytes(exception.Message) },
             { "exception-stacktrace", System.Text.Encoding.UTF8.GetBytes(exception.StackTrace ?? string.Empty) },
             { "original-topic", System.Text.Encoding.UTF8.GetBytes(sourceTopic) },
+            { "attempt-count", BitConverter.GetBytes(attempt) },
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
 
@@ -30,7 +31,7 @@ public class DeadLetterPublisher(
             new Message<string, TValue> { Value = value, Key = value.AggregateId.ToString(), Headers = headers }, ct);
     }
 
-    public Task PublishAsync<TValue>(string sourceTopic, TValue value, bool isRetryable, CancellationToken ct)
+    public Task PublishAsync<TValue>(string sourceTopic, TValue value, bool isRetryable, int attempt, CancellationToken ct)
         where TValue : BasicEvent
     {
         var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix + (isRetryable ? ".retry" : ".fatal");
@@ -39,6 +40,7 @@ public class DeadLetterPublisher(
         var headers = new Headers
         {
             { "original-topic", System.Text.Encoding.UTF8.GetBytes(sourceTopic) },
+            { "attempt-count", BitConverter.GetBytes(attempt) },
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
 

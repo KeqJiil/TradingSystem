@@ -35,10 +35,11 @@ app.MapStockReadController();
 app.MapStockMetadataController();
 
 // dev only
-app.UseHangfireDashboard("/hangfire", new DashboardOptions
-{
-    Authorization = [new AllowAllDashboardAuthorizationFilter()]
-});
+if (app.Environment.IsDevelopment())
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = [new AllowAllDashboardAuthorizationFilter()]
+    });
 app.UseCronJobs();
 
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
@@ -49,5 +50,8 @@ app.Run();
 
 file class AllowAllDashboardAuthorizationFilter : IDashboardAuthorizationFilter
 {
-    public bool Authorize(DashboardContext context) => true;
+    public bool Authorize(DashboardContext context)
+    {
+        return true;
+    }
 }

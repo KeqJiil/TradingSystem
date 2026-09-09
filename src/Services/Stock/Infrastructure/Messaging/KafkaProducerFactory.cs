@@ -1,7 +1,7 @@
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
 using Stock.Infrastructure.Serialization;
-using Stock.Presentation.Options;
+using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Messaging;
 
