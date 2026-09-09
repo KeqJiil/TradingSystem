@@ -8,13 +8,13 @@ namespace Stock.Infrastructure.Persistence.Implementations;
 
 public class StockEventStore(IDbContext dbContext) : IStockEventStore
 {
-    public async Task<PriceChangedEvent> AppendAsync(PriceChangedEvent stockEvent, CancellationToken ct)
+    public async Task<PriceChangedEvent> AppendAsync(PriceChangeRequested stockEvent, CancellationToken ct)
     {
         var result = await AppendAsync([stockEvent], ct);
         return result.Single();
     }
 
-    public async Task<IEnumerable<PriceChangedEvent>> AppendAsync(IEnumerable<PriceChangedEvent> stockEvents,
+    public async Task<IEnumerable<PriceChangedEvent>> AppendAsync(IEnumerable<PriceChangeRequested> stockEvents,
         CancellationToken ct)
     {
         var events = stockEvents.ToList();
@@ -46,13 +46,13 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
             var version = currentVersions.GetValueOrDefault(stockEvent.AggregateId, 0) + 1;
             currentVersions[stockEvent.AggregateId] = version;
 
-            result[i] = events[i] with { Version = version };
+            result[i] = new(stockEvent.AggregateId, stockEvent.PriceChange, version, stockEvent.OccuredAt);
 
             if (i > 0) sqlBuilder.Append(", ");
             sqlBuilder.Append(
                 $"(@Id{i}, @AggregateId{i}, @Version{i}, @EventType{i}, @Payload{i}, @PriceChange{i}, @OccuredAt{i})");
 
-            parameters.Add($"Id{i}", Guid.NewGuid());
+            parameters.Add($"Id{i}", stockEvent.EventId);
             parameters.Add($"AggregateId{i}", stockEvent.AggregateId);
             parameters.Add($"Version{i}", version);
             parameters.Add($"EventType{i}", nameof(PriceChangedEvent));

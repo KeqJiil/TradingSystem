@@ -7,11 +7,11 @@ using Stock.Presentation.Options;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
 
-public class PriceChangeConsumer(
+public class PriceChangedConsumer(
     IKafkaConsumerFactory consumerFactory,
     IServiceScopeFactory serviceScopeFactory,
     VersionsBuffer<PriceChangedEvent> buffer,
-    ILogger<PriceChangeConsumer> logger
+    ILogger<PriceChangedConsumer> logger
     ) : BackgroundService
 {
     private readonly IConsumer<string, PriceChangedEvent> _consumer =

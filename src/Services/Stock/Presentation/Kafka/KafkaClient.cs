@@ -32,7 +32,8 @@ public static class AddKafkaClass
 
         builder.Services.AddHostedService<StockCreatedConsumer>();
         builder.Services.AddHostedService<StockToggleStatusEventConsumer>();
-        builder.Services.AddHostedService<PriceChangeConsumer>();
+        builder.Services.AddHostedService<PriceChangedConsumer>();
+        builder.Services.AddHostedService<PriceChangeRequestedConsumer>();
 
         builder.Services.AddSingleton<IProducer<string, PriceChangedEvent>>(sp =>
             sp.GetRequiredService<IKafkaProducerFactory>().Create<PriceChangedEvent>("stock-price-producer"));

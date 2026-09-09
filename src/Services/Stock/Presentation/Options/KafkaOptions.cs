@@ -15,4 +15,5 @@ public static class TopicNames
 {
     public const string Stock = "stock-topic";
     public const string Price = "price-topic";
+    public const string PriceChangeRequested = "price-change-requested-topic";
 }
