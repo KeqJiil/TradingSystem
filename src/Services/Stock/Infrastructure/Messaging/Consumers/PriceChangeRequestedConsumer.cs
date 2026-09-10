@@ -1,8 +1,8 @@
 using Confluent.Kafka;
 using Polly;
-using Stock.Application.Abstractions;
 using Stock.Application.Services;
 using Stock.Infrastructure.ExternalEvents;
+using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
@@ -58,7 +58,7 @@ public class PriceChangeRequestedConsumer(
         {
             logger.LogError(ex, "Error occurred while processing price change requested event for aggregate {AggregateId}",
                 aggregateId);
-            await dlq.PublishAsync(TopicNames.PriceChangeRequested, mappedEvent, ex, attempt: 1, ct);
+            await dlq.PublishAsync(TopicNames.PriceChangeRequested, data, ex, attempt: 1, ct);
         }
     }
 }

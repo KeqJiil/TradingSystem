@@ -1,5 +1,5 @@
 using Stock.Application.Commands.CreateReadModel;
-using Stock.Application.Events;
+using Stock.Infrastructure.ExternalEvents;
 
 namespace Stock.Infrastructure.Messaging.Consumers.Dlq.Mappers;
 

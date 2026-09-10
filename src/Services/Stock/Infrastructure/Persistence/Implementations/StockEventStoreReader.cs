@@ -35,7 +35,11 @@ public class StockEventStoreReader(IDbContext dbContext) : IStockEventStoreReade
         {
             var page = (await dbContext.Connection.QueryAsync<EventRow>(
                 sql,
-                new { PageSize, AggregateId = aggregateId, From = from, To = to, LastOccuredAt = lastOccuredAt, LastVersion = lastVersion },
+                new
+                {
+                    PageSize, AggregateId = aggregateId, From = from, To = to, LastOccuredAt = lastOccuredAt,
+                    LastVersion = lastVersion
+                },
                 dbContext.Transaction)).ToList();
 
             if (page.Count == 0) yield break;
@@ -46,6 +50,33 @@ public class StockEventStoreReader(IDbContext dbContext) : IStockEventStoreReade
             lastOccuredAt = page[^1].Timestamp;
             lastVersion = page[^1].Version;
         }
+    }
+
+    public async Task<IEnumerable<PriceChangedEvent>> ListEventsByVersionAsync(Guid aggregateId, long from, long to,
+        CancellationToken ct = default)
+    {
+        var sql = """
+                  SELECT s.aggregate_id AS StockId, s.price_change AS PriceChange,
+                         s.occured_at AS Timestamp, s.version AS Version
+                  FROM events_store s
+                  WHERE s.aggregate_id = @AggregateId
+                    AND s.version > @From AND s.version < @To
+                  ORDER BY s.version ASC
+                  """;
+
+        await dbContext.EnsureConnectionOpenAsync(ct);
+
+        var page = (await dbContext.Connection.QueryAsync<EventRow>(
+                sql,
+                new
+                {
+                    AggregateId = aggregateId, From = from, To = to
+                },
+                dbContext.Transaction))
+            .Select(x => new PriceChangedEvent(x.StockId, x.PriceChange, x.Version, x.Timestamp))
+            .ToList();
+
+        return page;
     }
 
     public async Task<long?> GetLastVersionAsync(Guid aggregateId, DateTimeOffset before,

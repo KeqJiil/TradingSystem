@@ -3,8 +3,8 @@ using MediatR;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.UpdateReadModel;
 using Stock.Infrastructure.ExternalEvents;
+using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
-using PriceChangedEvent = Stock.Application.Events.PriceChangedEvent;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
 
@@ -15,8 +15,8 @@ public class PriceChangedConsumer(
     ILogger<PriceChangedConsumer> logger
     ) : BackgroundService
 {
-    private readonly IConsumer<string, ExternalEvents.PriceChangedEvent> _consumer =
-        consumerFactory.Create<ExternalEvents.PriceChangedEvent>("price-change-events-group", TopicNames.Price,
+    private readonly IConsumer<string, PriceChangedEvent> _consumer =
+        consumerFactory.Create<PriceChangedEvent>("price-change-events-group", TopicNames.Price,
             "price-change-events-consumer");
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
@@ -35,9 +35,7 @@ public class PriceChangedConsumer(
             var data = _consumer.Consume(ct).Message.Value;
             if (data is not { Version: { } version }) continue;
 
-            var mappedEvent = PriceChangedEventMapper.MapFrom(data);
-
-            await buffer.TryApplyAsync(mappedEvent.AggregateId, version, mappedEvent, ApplyAsync, ct);
+            await buffer.TryApplyAsync(data.AggregateId, version, data, ApplyAsync, ct);
 
             if (!buffer.HasPendingGaps) _consumer.Commit();
         }

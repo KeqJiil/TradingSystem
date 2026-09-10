@@ -1,5 +1,5 @@
 using Stock.Application.Commands.ToggleStatusReadModel;
-using Stock.Application.Events;
+using Stock.Infrastructure.ExternalEvents;
 
 namespace Stock.Infrastructure.Messaging.Consumers.Dlq.Mappers;
 

@@ -1,8 +1,8 @@
 using Confluent.Kafka;
 using MediatR;
-using Stock.Application.Abstractions;
 using Stock.Application.Commands.CreateReadModel;
 using Stock.Infrastructure.ExternalEvents;
+using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
@@ -45,7 +45,7 @@ public class StockCreatedConsumer(
             }
             catch (Exception ex)
             {
-                await dlq.PublishAsync(TopicNames.StockCreated, mappedEvent, ex, attempt: 1, ct);
+                await dlq.PublishAsync(TopicNames.StockCreated, data, ex, attempt: 1, ct);
                 logger.LogWarning(ex, "Error processing StockCreatedEvent");
             }
 

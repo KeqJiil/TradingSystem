@@ -1,13 +1,13 @@
 using Stock.Application.Commands.ChangePrice;
-using Stock.Application.Events;
+using Stock.Infrastructure.ExternalEvents;
 
 namespace Stock.Infrastructure.Messaging.Consumers.Dlq.Mappers;
 
 public class PriceChangeRequestedDlqEventToCommandMapper
-    : IDlqEventToCommandMapper<PriceChangeRequested, ChangePriceCommand>
+    : IDlqEventToCommandMapper<PriceChangeRequestedEvent, ChangePriceCommand>
 {
-    public ChangePriceCommand Map(PriceChangeRequested message)
+    public ChangePriceCommand Map(PriceChangeRequestedEvent message)
     {
-        return new ChangePriceCommand(message.EventId, message.AggregateId, message.PriceChange, message.OccuredAt);
+        return new ChangePriceCommand(message.EventId, message.AggregateId, message.PriceChange, message.OccurredAt);
     }
 }

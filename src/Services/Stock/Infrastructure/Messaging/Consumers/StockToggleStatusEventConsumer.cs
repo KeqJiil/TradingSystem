@@ -1,8 +1,8 @@
 using Confluent.Kafka;
 using MediatR;
-using Stock.Application.Abstractions;
 using Stock.Application.Commands.ToggleStatusReadModel;
 using Stock.Infrastructure.ExternalEvents;
+using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
@@ -45,7 +45,7 @@ public class StockToggleStatusEventConsumer(
             }
             catch (Exception ex)
             {
-                await dlq.PublishAsync(TopicNames.StockStatusToggled, mappedEvent, ex, attempt: 1, ct);
+                await dlq.PublishAsync(TopicNames.StockStatusToggled, data, ex, attempt: 1, ct);
                 logger.LogWarning(ex, "Error processing StockToggledStatusEvent");
             }
 

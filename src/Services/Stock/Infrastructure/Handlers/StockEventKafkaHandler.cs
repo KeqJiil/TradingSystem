@@ -1,31 +1,39 @@
 using Confluent.Kafka;
 using MediatR;
-using Stock.Application.Events;
+using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Handlers;
 
-public class StockEventKafkaHandler<TEvent>(IProducer<string, TEvent> producer)
-    : INotificationHandler<TEvent> where TEvent : StockEvent
+public class StockEventKafkaHandler(
+    IProducer<string, StockCreatedEvent> stockCreatedProducer,
+    IProducer<string, StockToggledStatusEvent> stockToggledStatusProducer,
+    IProducer<string, PriceChangedEvent> priceChangedProducer)
+    : INotificationHandler<Application.Events.StockCreatedEvent>,
+      INotificationHandler<Application.Events.StockToggledStatusEvent>,
+      INotificationHandler<Application.Events.PriceChangedEvent>
 {
-    public async Task Handle(TEvent @event, CancellationToken ct)
+    public Task Handle(Application.Events.StockCreatedEvent @event, CancellationToken ct)
     {
-        var topic = StockEventTopics.Resolve<TEvent>();
-        await producer.ProduceAsync(topic,
-            new Message<string, TEvent> { Value = @event, Key = @event.AggregateId.ToString() }, ct);
+        return Produce(stockCreatedProducer, TopicNames.StockCreated, @event.AggregateId,
+            StockCreatedEventMapper.MapToExternal(@event), ct);
     }
-}
 
-public static class StockEventTopics
-{
-    public static string Resolve<TEvent>() where TEvent : StockEvent
+    public Task Handle(Application.Events.StockToggledStatusEvent @event, CancellationToken ct)
     {
-        return typeof(TEvent) switch
-        {
-            var t when t == typeof(StockCreatedEvent) => TopicNames.StockCreated,
-            var t when t == typeof(StockToggledStatusEvent) => TopicNames.StockStatusToggled,
-            var t when t == typeof(PriceChangedEvent) => TopicNames.Price,
-            _ => throw new InvalidOperationException($"No Kafka topic mapped for event type {typeof(TEvent).Name}")
-        };
+        return Produce(stockToggledStatusProducer, TopicNames.StockStatusToggled, @event.AggregateId,
+            StockToggledStatusEventMapper.MapToExternal(@event), ct);
+    }
+
+    public Task Handle(Application.Events.PriceChangedEvent @event, CancellationToken ct)
+    {
+        return Produce(priceChangedProducer, TopicNames.Price, @event.AggregateId,
+            PriceChangedEventMapper.MapToExternal(@event), ct);
+    }
+
+    private static Task Produce<TExternal>(IProducer<string, TExternal> producer, string topic, Guid key,
+        TExternal value, CancellationToken ct)
+    {
+        return producer.ProduceAsync(topic, new Message<string, TExternal> { Value = value, Key = key.ToString() }, ct);
     }
 }

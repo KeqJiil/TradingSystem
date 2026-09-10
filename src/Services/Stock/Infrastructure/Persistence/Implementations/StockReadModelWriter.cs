@@ -30,6 +30,21 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
         return result > 0 ? ReadModelUpdateOutcome.Applied : ReadModelUpdateOutcome.Gap;
     }
 
+    public async Task<bool> ReplayAsync(Guid aggregateId, long fromVersion, long toVersion, decimal priceChange, CancellationToken ct)
+    {
+        var sql = """
+                    UPDATE "stock_data_projection"
+                    SET "price" = "price" + @PriceChange, "version" = @ToVersion
+                    WHERE "aggregate_id" = @AggregateId AND "version" = @FromVersion
+                  """;
+        
+        await context.EnsureConnectionOpenAsync(ct);
+
+        return await context.Connection.ExecuteAsync(sql,
+            new { FromVersion = fromVersion, ToVersion = toVersion, PriceChange = priceChange, AggregateId = aggregateId },
+            context.Transaction) > 0;
+    }
+
     public async Task<bool> CreateAsync(CreateStockReadModelDto data, CancellationToken ct)
     {
         var sql = """

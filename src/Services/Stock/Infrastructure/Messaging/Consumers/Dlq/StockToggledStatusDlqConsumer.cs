@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Options;
-using Stock.Application.Abstractions;
 using Stock.Application.Commands.ToggleStatusReadModel;
-using Stock.Application.Events;
+using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Messaging.Consumers.Dlq.Mappers;
+using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Messaging.Consumers.Dlq;

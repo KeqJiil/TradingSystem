@@ -1,7 +1,7 @@
 using System.Text.Json;
 using MediatR;
-using Stock.Application.Abstractions;
 using Stock.Application.Events;
+using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Persistence;
 
 namespace Stock.Infrastructure.Messaging.Workers;

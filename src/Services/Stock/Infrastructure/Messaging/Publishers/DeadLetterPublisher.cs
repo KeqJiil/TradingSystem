@@ -2,8 +2,7 @@ using System.Net.Sockets;
 using Confluent.Kafka;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
-using Stock.Application.Abstractions;
-using Stock.Application.Events;
+using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Messaging.Publishers;
@@ -13,7 +12,7 @@ public class DeadLetterPublisher(
     IOptions<DeadLetterOptions> deadLetterOptions) : IDeadLetterPublisher
 {
     public Task PublishAsync<TValue>(string sourceTopic, TValue value, Exception exception, int attempt, CancellationToken ct)
-        where TValue : BasicEvent
+        where TValue : IExternalEvent
     {
         var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix + (IsRetryableException(exception) ? ".retry" : ".fatal");
         var producer = kafkaProducerFactory.Create<TValue>(topic);
@@ -32,7 +31,7 @@ public class DeadLetterPublisher(
     }
 
     public Task PublishAsync<TValue>(string sourceTopic, TValue value, bool isRetryable, int attempt, CancellationToken ct)
-        where TValue : BasicEvent
+        where TValue : IExternalEvent
     {
         var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix + (isRetryable ? ".retry" : ".fatal");
         var producer = kafkaProducerFactory.Create<TValue>(topic);

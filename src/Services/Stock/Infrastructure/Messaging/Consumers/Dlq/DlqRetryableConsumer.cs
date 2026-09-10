@@ -1,9 +1,9 @@
 using Confluent.Kafka;
 using MediatR;
 using Microsoft.Extensions.Options;
-using Stock.Application.Abstractions;
-using Stock.Application.Events;
+using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Messaging.Consumers.Dlq.Mappers;
+using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Messaging.Consumers.Dlq;
@@ -14,7 +14,7 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
     IServiceScopeFactory serviceScopeFactory,
     IDlqEventToCommandMapper<TMessage, TCommand> dlqEventToCommandMapper,
     IKafkaConsumerFactory consumerFactory,
-    IDeadLetterPublisher dlq) : BackgroundService where TMessage : BasicEvent where TCommand : IRequest
+    IDeadLetterPublisher dlq) : BackgroundService where TMessage : IExternalEvent where TCommand : IRequest
 {
     protected abstract string SourceTopic { get; }
     private IConsumer<string, TMessage> _consumer = null!;

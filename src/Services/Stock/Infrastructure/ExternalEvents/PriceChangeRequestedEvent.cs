@@ -7,7 +7,7 @@ public record PriceChangeRequestedEvent(
     Guid AggregateId,
     decimal PriceChange,
     DateTimeOffset OccurredAt
-);
+) : IExternalEvent;
 
 public static class PriceChangeRequestedEventMapper
 {

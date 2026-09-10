@@ -4,8 +4,10 @@ using Stock.Application.Events;
 using Stock.Infrastructure.BackgroundWorkers;
 using Stock.Infrastructure.Cron;
 using Stock.Infrastructure.Messaging.Consumers;
+using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Messaging.Workers;
 using Stock.Infrastructure.Options;
+using PriceChangedEvent = Stock.Infrastructure.ExternalEvents.PriceChangedEvent;
 
 namespace Stock.Infrastructure.Messaging;
 
