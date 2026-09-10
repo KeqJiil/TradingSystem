@@ -14,7 +14,7 @@ public class StockToggleStatusEventConsumer(
     IDeadLetterPublisher dlq) : BackgroundService
 {
     private readonly IConsumer<string, StockToggledStatusEvent> _consumer =
-        consumerFactory.Create<StockToggledStatusEvent>("stock-toggle-events-group", TopicNames.Stock,
+        consumerFactory.Create<StockToggledStatusEvent>("stock-toggle-events-group", TopicNames.StockStatusToggled,
             "stock-toggle-events-consumer");
 
 
@@ -45,7 +45,7 @@ public class StockToggleStatusEventConsumer(
             }
             catch (Exception ex)
             {
-                await dlq.PublishAsync(TopicNames.Stock, mappedEvent, ex, attempt: 1, ct);
+                await dlq.PublishAsync(TopicNames.StockStatusToggled, mappedEvent, ex, attempt: 1, ct);
                 logger.LogWarning(ex, "Error processing StockToggledStatusEvent");
             }
 

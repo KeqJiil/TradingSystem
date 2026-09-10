@@ -1,9 +1,11 @@
 using MediatR;
 using Stock.Application.Abstractions;
+using Stock.Application.Events;
 
 namespace Stock.Application.Commands.CreateStock;
 
-public class CreateStockHandler(IStockWriter writer) : IRequestHandler<CreateStockCommand, Guid>
+public class CreateStockHandler(IStockWriter writer, IOutboxWriter outboxWriter, IUnitOfWorkDecorator uow)
+    : IRequestHandler<CreateStockCommand, Guid>
 {
     public async Task<Guid> Handle(CreateStockCommand request, CancellationToken cancellationToken)
     {
@@ -16,7 +18,14 @@ public class CreateStockHandler(IStockWriter writer) : IRequestHandler<CreateSto
             request.TradingEndTime,
             request.Currency);
 
-        await writer.CreateAsync(id, dto, cancellationToken);
+        await uow.ExecuteAsync(async () =>
+        {
+            await writer.CreateAsync(id, dto, cancellationToken);
+
+            var @event = new StockCreatedEvent(id, request.Name, request.IsOpenToTrade, request.Currency,
+                request.TradingStartTime, request.TradingEndTime);
+            await outboxWriter.WriteAsync(@event, id, cancellationToken);
+        }, cancellationToken);
 
         return id;
     }

@@ -1,9 +1,14 @@
 using Confluent.Kafka;
 using Microsoft.Extensions.Options;
 using Stock.Application.Abstractions;
+using Stock.Application.Commands.ChangePrice;
+using Stock.Application.Commands.CreateReadModel;
+using Stock.Application.Commands.ToggleStatusReadModel;
 using Stock.Application.Events;
 using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Messaging.Consumers;
+using Stock.Infrastructure.Messaging.Consumers.Dlq;
+using Stock.Infrastructure.Messaging.Consumers.Dlq.Mappers;
 using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
 
@@ -45,5 +50,16 @@ public static class AddKafkaClass
             sp.GetRequiredService<IKafkaProducerFactory>().Create<StockCreatedEvent>("stock-created-producer"));
 
         builder.Services.AddSingleton<IDeadLetterPublisher, DeadLetterPublisher>();
+
+        builder.Services.AddScoped<IDlqEventToCommandMapper<StockCreatedEvent, CreateReadModelCommand>,
+            StockCreatedDlqEventToCommandMapper>();
+        builder.Services.AddScoped<IDlqEventToCommandMapper<StockToggledStatusEvent, ToggleStatusReadModelCommand>,
+            StockToggledStatusDlqEventToCommandMapper>();
+        builder.Services.AddScoped<IDlqEventToCommandMapper<PriceChangeRequested, ChangePriceCommand>,
+            PriceChangeRequestedDlqEventToCommandMapper>();
+
+        builder.Services.AddHostedService<StockCreatedDlqConsumer>();
+        builder.Services.AddHostedService<StockToggledStatusDlqConsumer>();
+        builder.Services.AddHostedService<PriceChangeRequestedDlqConsumer>();
     }
 }

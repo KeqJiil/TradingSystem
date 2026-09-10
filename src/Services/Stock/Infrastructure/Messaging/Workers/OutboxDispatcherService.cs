@@ -59,8 +59,6 @@ public class OutboxDispatcherService(
                 return (true, data.Id);
             }
 
-            ;
-
             await mediator.Publish(@event, ct);
             return (true, data.Id);
         }

@@ -46,8 +46,19 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
                 continue;
             }
 
+            var command = dlqEventToCommandMapper.Map(data);
+            if (command is null)
+            {
+                logger.LogWarning(
+                    "Message of type {MessageType} for aggregate {AggregateId} could not be mapped to a command, moving straight to fatal DLQ",
+                    typeof(TMessage).Name, data.AggregateId);
+                await dlq.PublishAsync(SourceTopic, data, false, GetAttempt(result.Message.Headers), ct);
+                _consumer.Commit(result);
+                continue;
+            }
+
             var attempt = GetAttempt(result.Message.Headers) + 1;
-            var ok = await HandleMessageAsync(data, ct);
+            var ok = await HandleMessageAsync(command, ct);
 
             if (!ok && attempt < dlqOptions.Value.MaxRetryAttempts)
                 await dlq.PublishAsync(SourceTopic, data, true, attempt, ct);
@@ -58,13 +69,12 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
         }
     }
 
-    private async Task<bool> HandleMessageAsync(TMessage message, CancellationToken cancellationToken)
+    private async Task<bool> HandleMessageAsync(TCommand command, CancellationToken cancellationToken)
     {
         using var scope = serviceScopeFactory.CreateScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         try
         {
-            var command = dlqEventToCommandMapper.Map(message);
             await mediator.Send(command, cancellationToken);
             return true;
         }

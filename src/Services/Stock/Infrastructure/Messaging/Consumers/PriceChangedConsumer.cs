@@ -2,8 +2,9 @@ using Confluent.Kafka;
 using MediatR;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.UpdateReadModel;
-using Stock.Application.Events;
+using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Options;
+using PriceChangedEvent = Stock.Application.Events.PriceChangedEvent;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
 
@@ -34,7 +35,7 @@ public class PriceChangedConsumer(
             var data = _consumer.Consume(ct).Message.Value;
             if (data is not { Version: { } version }) continue;
 
-            var mappedEvent = ExternalEvents.PriceChangedEventMapper.MapFrom(data);
+            var mappedEvent = PriceChangedEventMapper.MapFrom(data);
 
             await buffer.TryApplyAsync(mappedEvent.AggregateId, version, mappedEvent, ApplyAsync, ct);
 

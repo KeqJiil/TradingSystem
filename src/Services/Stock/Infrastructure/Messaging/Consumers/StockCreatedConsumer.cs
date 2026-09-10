@@ -14,7 +14,7 @@ public class StockCreatedConsumer(
     IDeadLetterPublisher dlq) : BackgroundService
 {
     private readonly IConsumer<string, StockCreatedEvent> _consumer =
-        consumerFactory.Create<StockCreatedEvent>("stock-created-events-group", TopicNames.Stock,
+        consumerFactory.Create<StockCreatedEvent>("stock-created-events-group", TopicNames.StockCreated,
             "stock-created-events-consumer");
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
@@ -45,7 +45,7 @@ public class StockCreatedConsumer(
             }
             catch (Exception ex)
             {
-                await dlq.PublishAsync(TopicNames.Stock, mappedEvent, ex, attempt: 1, ct);
+                await dlq.PublishAsync(TopicNames.StockCreated, mappedEvent, ex, attempt: 1, ct);
                 logger.LogWarning(ex, "Error processing StockCreatedEvent");
             }
 
