@@ -24,13 +24,13 @@ public class EventStoreServiceTests
     [Fact]
     public async Task ChangePriceAppendAsync_ShouldCallAppendAndWriteAsync()
     {
-        var request = new ChangePriceRequested(Guid.NewGuid(), 10.0m, DateTimeOffset.UtcNow);
+        var request = new PriceChangeRequested(Guid.NewGuid(), Guid.NewGuid(), 10.0m, DateTimeOffset.UtcNow);
 
         var result = await _eventStoreService.ChangePriceAppendAsync(request, CancellationToken.None);
 
         _stockEventStoreMock.Verify(
             x => x.AppendAsync(
-                It.Is<PriceChangedEvent>(e =>
+                It.Is<PriceChangeRequested>(e =>
                     e.AggregateId == request.AggregateId && e.PriceChange == request.PriceChange),
                 It.IsAny<CancellationToken>()), Times.Once);
         _outboxWriterMock.Verify(
@@ -44,7 +44,7 @@ public class EventStoreServiceTests
     [Fact]
     public async Task ChangePriceAppendAsync_ShouldThrowException_WhenUowThrows()
     {
-        var request = new ChangePriceRequested(Guid.NewGuid(), 10.0m, DateTimeOffset.UtcNow);
+        var request = new PriceChangeRequested(Guid.NewGuid(), Guid.NewGuid(), 10.0m, DateTimeOffset.UtcNow);
 
         _uowMock.Setup(x => x.ExecuteAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Unit of work failed"));
@@ -64,7 +64,8 @@ public class EventStoreServiceTests
             .Returns(Task.CompletedTask);
 
         _stockEventStoreMock
-            .Setup(x => x.AppendAsync(It.IsAny<PriceChangedEvent>(), It.IsAny<CancellationToken>()))
-            .Returns<PriceChangedEvent, CancellationToken>((evt, _) => Task.FromResult(evt with { Version = 42 }));
+            .Setup(x => x.AppendAsync(It.IsAny<PriceChangeRequested>(), It.IsAny<CancellationToken>()))
+            .Returns<PriceChangeRequested, CancellationToken>((request, _) =>
+                Task.FromResult(new PriceChangedEvent(request.AggregateId, request.PriceChange, 42, request.OccuredAt)));
     }
 }
