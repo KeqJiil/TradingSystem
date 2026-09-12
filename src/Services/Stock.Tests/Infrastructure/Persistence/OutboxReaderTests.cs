@@ -1,6 +1,5 @@
 using Dapper;
 using Stock.Infrastructure.Persistence.Implementations;
-using Stock.Tests.Infrastructure;
 using Xunit;
 
 namespace Stock.Tests.Infrastructure.Persistence;
