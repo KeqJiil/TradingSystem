@@ -32,7 +32,7 @@ public class StockDataWriter(IDbContext dbContext) : IStockWriter
         await dbContext.EnsureConnectionOpenAsync(ct);
         
         await dbContext.Connection.ExecuteAsync(
-            "UPDATE stock_data SET OpenTime = @OpenTime, CloseTime = @CloseTime WHERE Id = @Id",
+            "UPDATE stock_data SET trading_start_time = @OpenTime, trading_end_time = @CloseTime WHERE Id = @Id",
             new { Id = id, OpenTime = openTime, CloseTime = closeTime },
             dbContext.Transaction
         );
@@ -42,7 +42,7 @@ public class StockDataWriter(IDbContext dbContext) : IStockWriter
     {
         await dbContext.EnsureConnectionOpenAsync(ct);
         await dbContext.Connection.ExecuteAsync(
-            "UPDATE stock_data SET IsOpenToTrade = NOT IsOpenToTrade WHERE Id = @Id",
+            "UPDATE stock_data SET is_open_to_trade = 1 - is_open_to_trade WHERE Id = @Id",
             new { Id = id },
             dbContext.Transaction
         );
