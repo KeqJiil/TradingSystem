@@ -6,6 +6,7 @@ using Stock.Application.Commands.ChangePrice;
 using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Messaging.Consumers.Dlq;
+using System.Reflection;
 using Stock.Infrastructure.Messaging.Consumers.Dlq.Mappers;
 using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
@@ -28,7 +29,7 @@ public class PriceChangeRequestedDlqConsumerTests
 
         var sourceTopic = typeof(PriceChangeRequestedDlqConsumer)
             .GetProperty("SourceTopic",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(sut);
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(sut);
 
         Assert.Equal(TopicNames.PriceChangeRequested, sourceTopic);
     }

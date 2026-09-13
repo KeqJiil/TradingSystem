@@ -91,7 +91,7 @@ public class DeadLetterPublisherTests : IClassFixture<KafkaFixture>, IAsyncLifet
 
         await _sut.PublishUnknownAsync(value, CancellationToken.None);
 
-        var result = Consume<PriceChangedEvent>(_options.UnknownTopic);
+        var result = ConsumeJson<PriceChangedEvent>(_options.UnknownTopic);
 
         Assert.Equal(value, result.Message.Value);
     }
@@ -111,7 +111,25 @@ public class DeadLetterPublisherTests : IClassFixture<KafkaFixture>, IAsyncLifet
         var result = consumer.Consume(TimeSpan.FromSeconds(30));
         Assert.NotNull(result);
         consumer.Close();
-        return result!;
+        return result;
+    }
+
+    private ConsumeResult<string, TValue> ConsumeJson<TValue>(string topic)
+    {
+        using var consumer = new ConsumerBuilder<string, TValue>(new ConsumerConfig
+            {
+                BootstrapServers = _fixture.BootstrapAddress,
+                GroupId = Guid.NewGuid().ToString(),
+                AutoOffsetReset = AutoOffsetReset.Earliest
+            })
+            .SetValueDeserializer(new KafkaJsonDeserializer<TValue>())
+            .Build();
+
+        consumer.Subscribe(topic);
+        var result = consumer.Consume(TimeSpan.FromSeconds(30));
+        Assert.NotNull(result);
+        consumer.Close();
+        return result;
     }
 
     private static string GetHeaderString(Headers headers, string key)

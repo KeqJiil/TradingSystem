@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -28,7 +29,7 @@ public class PriceChangedDlqConsumerTests
 
         var sourceTopic = typeof(PriceChangedDlqConsumer)
             .GetProperty("SourceTopic",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(sut);
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(sut);
 
         Assert.Equal(TopicNames.Price, sourceTopic);
     }

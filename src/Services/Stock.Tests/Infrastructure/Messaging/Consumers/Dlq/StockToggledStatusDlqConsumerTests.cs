@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Moq;
 using Stock.Application.Commands.ToggleStatusReadModel;
 using Stock.Infrastructure.ExternalEvents;
+using System.Reflection;
 using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Messaging.Consumers.Dlq;
 using Stock.Infrastructure.Messaging.Consumers.Dlq.Mappers;
@@ -28,7 +29,7 @@ public class StockToggledStatusDlqConsumerTests
 
         var sourceTopic = typeof(StockToggledStatusDlqConsumer)
             .GetProperty("SourceTopic",
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(sut);
+                BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(sut);
 
         Assert.Equal(TopicNames.StockStatusToggled, sourceTopic);
     }
