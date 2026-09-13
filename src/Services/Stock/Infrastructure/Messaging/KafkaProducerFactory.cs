@@ -8,6 +8,8 @@ namespace Stock.Infrastructure.Messaging;
 public interface IKafkaProducerFactory
 {
     IProducer<string, TValue> Create<TValue>(string clientId);
+
+    IProducer<string, TValue> CreateJson<TValue>(string clientId);
 }
 
 public class KafkaProducerFactory(IOptions<KafkaOptions> options) : IKafkaProducerFactory
@@ -19,5 +21,14 @@ public class KafkaProducerFactory(IOptions<KafkaOptions> options) : IKafkaProduc
                 ClientId = clientId,
             })
             .SetValueSerializer(new ProtobufNetSerializer<TValue>())
+            .Build();
+
+    public IProducer<string, TValue> CreateJson<TValue>(string clientId) =>
+        new ProducerBuilder<string, TValue>(new ProducerConfig
+            {
+                BootstrapServers = options.Value.BootstrapServers,
+                ClientId = clientId,
+            })
+            .SetValueSerializer(new KafkaJsonSerializer<TValue>())
             .Build();
 }

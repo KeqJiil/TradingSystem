@@ -11,10 +11,12 @@ public class DeadLetterPublisher(
     IKafkaProducerFactory kafkaProducerFactory,
     IOptions<DeadLetterOptions> deadLetterOptions) : IDeadLetterPublisher
 {
-    public Task PublishAsync<TValue>(string sourceTopic, TValue value, Exception exception, int attempt, CancellationToken ct)
+    public Task PublishAsync<TValue>(string sourceTopic, TValue value, Exception exception, int attempt,
+        CancellationToken ct)
         where TValue : IExternalEvent
     {
-        var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix + (IsRetryableException(exception) ? ".retry" : ".fatal");
+        var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix +
+                    (IsRetryableException(exception) ? ".retry" : ".fatal");
         var producer = kafkaProducerFactory.Create<TValue>(topic);
 
         var headers = new Headers
@@ -30,7 +32,8 @@ public class DeadLetterPublisher(
             new Message<string, TValue> { Value = value, Key = value.AggregateId.ToString(), Headers = headers }, ct);
     }
 
-    public Task PublishAsync<TValue>(string sourceTopic, TValue value, bool isRetryable, int attempt, CancellationToken ct)
+    public Task PublishAsync<TValue>(string sourceTopic, TValue value, bool isRetryable, int attempt,
+        CancellationToken ct)
         where TValue : IExternalEvent
     {
         var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix + (isRetryable ? ".retry" : ".fatal");
@@ -49,7 +52,7 @@ public class DeadLetterPublisher(
 
     public Task PublishUnknownAsync<TValue>(TValue value, CancellationToken ct)
     {
-        var producer = kafkaProducerFactory.Create<TValue>(deadLetterOptions.Value.UnknownTopic);
+        var producer = kafkaProducerFactory.CreateJson<TValue>(deadLetterOptions.Value.UnknownTopic);
 
         var headers = new Headers
         {

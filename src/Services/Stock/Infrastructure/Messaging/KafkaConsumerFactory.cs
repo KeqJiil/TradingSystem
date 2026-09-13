@@ -21,7 +21,7 @@ public class KafkaConsumerFactory(IOptions<KafkaOptions> options) : IKafkaConsum
                 ClientId = clientId,
                 EnableAutoCommit = false,
                 EnableAutoOffsetStore = false,
-                GroupProtocol = GroupProtocol.Consumer
+                AutoOffsetReset = AutoOffsetReset.Earliest
             })
             .SetValueDeserializer(new ProtobufNetDeserializer<TValue>())
             .Build();
