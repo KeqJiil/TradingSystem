@@ -32,12 +32,13 @@ public class PriceChangeRequestedConsumer(
     {
         while (!ct.IsCancellationRequested)
         {
-            var data = _consumer.Consume(ct).Message.Value;
+            var result = _consumer.Consume(ct);
+            var data = result.Message.Value;
             if (data is null) continue;
 
             await ProcessAsync(data.AggregateId, data, ct);
 
-            _consumer.Commit();
+            _consumer.Commit(result);
         }
     }
 

@@ -84,7 +84,7 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
     {
         var sql = """
                     UPDATE "stock_data_projection"
-                    SET "is_open_to_trade" = NOT "is_open_to_trade" 
+                    SET "is_open_to_trade" = 1 - "is_open_to_trade"
                     WHERE "aggregate_id" = @AggregateId
                   """;
 

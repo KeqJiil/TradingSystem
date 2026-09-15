@@ -31,7 +31,8 @@ public class StockToggleStatusEventConsumer(
     {
         while (!ct.IsCancellationRequested)
         {
-            var data = _consumer.Consume(ct).Message.Value;
+            var result = _consumer.Consume(ct);
+            var data = result.Message.Value;
             if (data is null) return;
 
             var mappedEvent = StockToggledStatusEventMapper.MapFrom(data);
@@ -49,7 +50,7 @@ public class StockToggleStatusEventConsumer(
                 logger.LogWarning(ex, "Error processing StockToggledStatusEvent");
             }
 
-            _consumer.Commit();
+            _consumer.Commit(result);
         }
     }
 }

@@ -11,13 +11,13 @@ public class DeadLetterPublisher(
     IKafkaProducerFactory kafkaProducerFactory,
     IOptions<DeadLetterOptions> deadLetterOptions) : IDeadLetterPublisher
 {
-    public Task PublishAsync<TValue>(string sourceTopic, TValue value, Exception exception, int attempt,
+    public async Task PublishAsync<TValue>(string sourceTopic, TValue value, Exception exception, int attempt,
         CancellationToken ct)
         where TValue : IExternalEvent
     {
         var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix +
                     (IsRetryableException(exception) ? ".retry" : ".fatal");
-        var producer = kafkaProducerFactory.Create<TValue>(topic);
+        using var producer = kafkaProducerFactory.Create<TValue>(topic);
 
         var headers = new Headers
         {
@@ -28,16 +28,16 @@ public class DeadLetterPublisher(
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
 
-        return producer.ProduceAsync(topic,
+        await producer.ProduceAsync(topic,
             new Message<string, TValue> { Value = value, Key = value.AggregateId.ToString(), Headers = headers }, ct);
     }
 
-    public Task PublishAsync<TValue>(string sourceTopic, TValue value, bool isRetryable, int attempt,
+    public async Task PublishAsync<TValue>(string sourceTopic, TValue value, bool isRetryable, int attempt,
         CancellationToken ct)
         where TValue : IExternalEvent
     {
         var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix + (isRetryable ? ".retry" : ".fatal");
-        var producer = kafkaProducerFactory.Create<TValue>(topic);
+        using var producer = kafkaProducerFactory.Create<TValue>(topic);
 
         var headers = new Headers
         {
@@ -46,13 +46,13 @@ public class DeadLetterPublisher(
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
 
-        return producer.ProduceAsync(topic,
+        await producer.ProduceAsync(topic,
             new Message<string, TValue> { Value = value, Key = value.AggregateId.ToString(), Headers = headers }, ct);
     }
 
-    public Task PublishUnknownAsync<TValue>(TValue value, CancellationToken ct)
+    public async Task PublishUnknownAsync<TValue>(TValue value, CancellationToken ct)
     {
-        var producer = kafkaProducerFactory.CreateJson<TValue>(deadLetterOptions.Value.UnknownTopic);
+        using var producer = kafkaProducerFactory.CreateJson<TValue>(deadLetterOptions.Value.UnknownTopic);
 
         var headers = new Headers
         {
@@ -60,7 +60,7 @@ public class DeadLetterPublisher(
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
 
-        return producer.ProduceAsync(deadLetterOptions.Value.UnknownTopic,
+        await producer.ProduceAsync(deadLetterOptions.Value.UnknownTopic,
             new Message<string, TValue> { Value = value, Headers = headers }, ct);
     }
 

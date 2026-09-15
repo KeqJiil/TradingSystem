@@ -28,7 +28,8 @@ public class StockCreatedConsumer(
     {
         while (!ct.IsCancellationRequested)
         {
-            var data = _consumer.Consume(ct).Message.Value;
+            var result = _consumer.Consume(ct);
+            var data = result.Message.Value;
             if (data is null) return;
 
             var mappedEvent = StockCreatedEventMapper.MapFrom(data);
@@ -49,7 +50,7 @@ public class StockCreatedConsumer(
                 logger.LogWarning(ex, "Error processing StockCreatedEvent");
             }
 
-            _consumer.Commit();
+            _consumer.Commit(result);
         }
     }
 }

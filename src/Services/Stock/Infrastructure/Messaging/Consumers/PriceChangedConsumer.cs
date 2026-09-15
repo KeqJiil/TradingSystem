@@ -3,7 +3,6 @@ using MediatR;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.UpdateReadModel;
 using Stock.Infrastructure.ExternalEvents;
-using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
@@ -32,12 +31,13 @@ public class PriceChangedConsumer(
     {
         while (!ct.IsCancellationRequested)
         {
-            var data = _consumer.Consume(ct).Message.Value;
+            var result = _consumer.Consume(ct);
+            var data = result.Message.Value;
             if (data is not { Version: { } version }) continue;
 
             await buffer.TryApplyAsync(data.AggregateId, version, data, ApplyAsync, ct);
 
-            if (!buffer.HasPendingGaps) _consumer.Commit();
+            if (!buffer.HasPendingGaps) _consumer.Commit(result);
         }
     }
 
