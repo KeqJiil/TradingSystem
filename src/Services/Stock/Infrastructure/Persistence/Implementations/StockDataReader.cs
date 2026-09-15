@@ -54,8 +54,10 @@ public class StockDataReader(IDbContext dbContext) : IStockDataReader
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
-        return await dbContext.Connection.QuerySingleOrDefaultAsync<StockMetadata?>(sql, new { Id = id },
+        var rows = await dbContext.Connection.QueryAsync<StockMetadata>(sql, new { Id = id },
             dbContext.Transaction);
+
+        return rows.Select(row => (StockMetadata?)row).SingleOrDefault();
     }
 
     private readonly record struct StockIdRow(Guid AggregateId);

@@ -10,7 +10,7 @@ using Ext = Stock.Infrastructure.ExternalEvents;
 
 namespace Stock.Tests.Infrastructure.Handlers;
 
-public class StockEventKafkaHandlerTests : IClassFixture<KafkaFixture>, IAsyncDisposable
+public class StockEventKafkaHandlerTests : IClassFixture<KafkaFixture>, IDisposable
 {
     private readonly KafkaFixture _fixture;
     private readonly StockEventKafkaHandler _handler;
@@ -36,12 +36,11 @@ public class StockEventKafkaHandlerTests : IClassFixture<KafkaFixture>, IAsyncDi
         _handler = new StockEventKafkaHandler(_stockCreatedProducer, _stockToggledStatusProducer, _priceChangedProducer);
     }
 
-    public ValueTask DisposeAsync()
+    public void Dispose()
     {
         _stockCreatedProducer.Dispose();
         _stockToggledStatusProducer.Dispose();
         _priceChangedProducer.Dispose();
-        return ValueTask.CompletedTask;
     }
 
     [Fact]

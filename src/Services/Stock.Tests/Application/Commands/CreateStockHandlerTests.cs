@@ -35,18 +35,7 @@ public class CreateStockHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifeti
     public async Task InitializeAsync()
     {
         await DbContext.EnsureConnectionOpenAsync(CancellationToken.None);
-        await DbContext.Connection.ExecuteAsync("""
-                                                IF OBJECT_ID('stock_data') IS NULL
-                                                CREATE TABLE stock_data (
-                                                    id UNIQUEIDENTIFIER PRIMARY KEY,
-                                                    name NVARCHAR(100) NOT NULL,
-                                                    is_open_to_trade BIT NOT NULL,
-                                                    trading_start_time TIME NOT NULL,
-                                                    trading_end_time TIME NOT NULL,
-                                                    currency NVARCHAR(10) NOT NULL
-                                                )
-                                                """
-        );
+        await StockTestSchema.EnsureStockDataCreatedAsync(DbContext);
         await OutboxTestSchema.EnsureCreatedAsync(DbContext);
         await DbContext.Connection.ExecuteAsync("DELETE FROM outbox");
     }

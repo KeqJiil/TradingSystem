@@ -47,10 +47,12 @@ public class StockPriceHistoryReader(IDbContext dbContext) : IStockPriceHistoryR
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        return await dbContext.Connection.QuerySingleOrDefaultAsync<PriceHistoryDateOnlyReadModel>(
+        var rows = await dbContext.Connection.QueryAsync<PriceHistoryDateOnlyReadModel>(
             sql,
             new { Date = date, StockId = stockId },
             dbContext.Transaction);
+
+        return rows.Select(row => (PriceHistoryDateOnlyReadModel?)row).SingleOrDefault();
     }
 
     public async Task<HourlyReadModel?> GetHourlyPriceHistoryAsync(Guid stockId, DateTimeOffset from, DateTimeOffset to,

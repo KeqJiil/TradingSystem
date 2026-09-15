@@ -16,7 +16,7 @@ using Xunit;
 
 namespace Stock.Tests.Infrastructure.Messaging.Consumers.Dlq;
 
-public class DlqRetryableConsumerTests : IClassFixture<KafkaFixture>, IAsyncDisposable
+public class DlqRetryableConsumerTests : IClassFixture<KafkaFixture>
 {
     private readonly KafkaFixture _fixture;
     private readonly KafkaProducerFactory _producerFactory;
@@ -32,11 +32,6 @@ public class DlqRetryableConsumerTests : IClassFixture<KafkaFixture>, IAsyncDisp
         });
         _producerFactory = new KafkaProducerFactory(kafkaOptions);
         _consumerFactory = new KafkaConsumerFactory(kafkaOptions);
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
     }
 
     [Fact]

@@ -22,7 +22,9 @@ public class StockReader(IDbContext dbContext) : IStockReader
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
-        return await dbContext.Connection.QuerySingleOrDefaultAsync<StockReadModel?>(sql, new { StockId = stockId },
+        var rows = await dbContext.Connection.QueryAsync<StockReadModel>(sql, new { StockId = stockId },
             dbContext.Transaction);
+
+        return rows.Select(row => (StockReadModel?)row).SingleOrDefault();
     }
 }
