@@ -22,8 +22,7 @@ public class OutboxWriterTests : IClassFixture<MssqlFixture>, IAsyncLifetime
     {
         _dbContext = new TestDbContext(_fixture.ConnectionString);
         await _dbContext.EnsureConnectionOpenAsync(CancellationToken.None);
-        await OutboxTestSchema.EnsureCreatedAsync(_dbContext);
-        await _dbContext.Connection.ExecuteAsync("DELETE FROM outbox");
+        await TestDatabase.ResetAsync(_dbContext);
 
         _sut = new OutboxWriter(_dbContext);
     }

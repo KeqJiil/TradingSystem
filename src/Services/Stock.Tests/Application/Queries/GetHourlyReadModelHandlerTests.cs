@@ -26,12 +26,11 @@ public class GetHourlyReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyn
     public async Task InitializeAsync()
     {
         await DbContext.EnsureConnectionOpenAsync(CancellationToken.None);
-        await StockTestSchema.EnsureEventsStoreCreatedAsync(DbContext);
+        await TestDatabase.ResetAsync(DbContext);
     }
 
     public async Task DisposeAsync()
     {
-        await DbContext.Connection.ExecuteAsync("DROP TABLE IF EXISTS events_store");
         await DbContext.Connection.CloseAsync();
     }
 
@@ -41,10 +40,10 @@ public class GetHourlyReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyn
         var stockId = Guid.NewGuid();
         var from = new DateTimeOffset(2026, 3, 5, 9, 0, 0, TimeSpan.Zero);
         var to = new DateTimeOffset(2026, 3, 5, 17, 0, 0, TimeSpan.Zero);
-        await SeedEvent(stockId, from.AddHours(-1), 100m); 
-        await SeedEvent(stockId, from.AddHours(1), 1.5m); 
-        await SeedEvent(stockId, to, 200m); 
-        await SeedEvent(Guid.NewGuid(), from.AddHours(1), 300m);
+        await SeedEvent(stockId, 1, from.AddHours(-1), 100m);
+        await SeedEvent(stockId, 2, from.AddHours(1), 1.5m);
+        await SeedEvent(stockId, 3, to, 200m);
+        await SeedEvent(Guid.NewGuid(), 1, from.AddHours(1), 300m);
 
         var result = await Handler.Handle(
             new GetHourlyReadModelQuery(stockId, from, to, new TimeOnly(1, 0)), CancellationToken.None);
@@ -55,7 +54,7 @@ public class GetHourlyReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyn
         Assert.Equal(1.5m, priceChange.PriceDifference);
     }
 
-    private async Task SeedEvent(Guid aggregateId, DateTimeOffset occuredAt, decimal priceChange)
+    private async Task SeedEvent(Guid aggregateId, long version, DateTimeOffset occuredAt, decimal priceChange)
     {
         await DbContext.Connection.ExecuteAsync("""
             INSERT INTO events_store
@@ -67,7 +66,7 @@ public class GetHourlyReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyn
             {
                 EventId = Guid.NewGuid(),
                 AggregateId = aggregateId,
-                Version = 1L,
+                Version = version,
                 EventType = "PriceChangedEvent",
                 Payload = "{}",
                 PriceChange = priceChange,

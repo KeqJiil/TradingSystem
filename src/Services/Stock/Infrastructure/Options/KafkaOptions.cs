@@ -1,14 +1,16 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Stock.Infrastructure.Options;
 
 public class KafkaOptions
 {
     public const string Name = "KafkaOptions";
 
-    public string BootstrapServers { get; set; }
-    public string ProducerClientId { get; set; }
+    [Required(AllowEmptyStrings = false)]
+    public string BootstrapServers { get; set; } = null!;
 
-    public string GroupId { get; set; }
-    public string ConsumerClientId { get; set; }
+    [Required(AllowEmptyStrings = false)]
+    public string ProducerClientId { get; set; } = null!;
 }
 
 public static class TopicNames
@@ -17,4 +19,6 @@ public static class TopicNames
     public const string StockStatusToggled = "stock-status-toggled-topic";
     public const string Price = "price-topic";
     public const string PriceChangeRequested = "price-change-requested-topic";
+
+    public static string[] All => [StockCreated, StockStatusToggled, Price, PriceChangeRequested];
 }

@@ -26,12 +26,11 @@ public class ChangeStockTradingTimeHandlerTests : IClassFixture<MssqlFixture>, I
     public async Task InitializeAsync()
     {
         await DbContext.EnsureConnectionOpenAsync(CancellationToken.None);
-        await StockTestSchema.EnsureStockDataCreatedAsync(DbContext);
+        await TestDatabase.ResetAsync(DbContext);
     }
 
     public async Task DisposeAsync()
     {
-        await DbContext.Connection.ExecuteAsync("DROP TABLE IF EXISTS stock_data");
         await DbContext.Connection.CloseAsync();
     }
 

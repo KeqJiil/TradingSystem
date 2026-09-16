@@ -35,15 +35,12 @@ public class CreateStockHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifeti
     public async Task InitializeAsync()
     {
         await DbContext.EnsureConnectionOpenAsync(CancellationToken.None);
-        await StockTestSchema.EnsureStockDataCreatedAsync(DbContext);
-        await OutboxTestSchema.EnsureCreatedAsync(DbContext);
-        await DbContext.Connection.ExecuteAsync("DELETE FROM outbox");
+        await TestDatabase.ResetAsync(DbContext);
     }
 
     public async Task DisposeAsync()
     {
         await UnitOfWork.DisposeAsync();
-        await DbContext.Connection.ExecuteAsync("DROP TABLE IF EXISTS stock_data");
         await DbContext.Connection.CloseAsync();
     }
 

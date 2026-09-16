@@ -83,7 +83,7 @@ public class CreateDailyReadModelHandlerTests
     }
 
     [Fact]
-    public async Task PayloadMapping_UsesStockIdAndDateOnlyFromRequest()
+    public async Task PayloadMapping_UsesStockIdAndDateFromRequest()
     {
         var stockId = Guid.NewGuid();
         var requestDate = new DateTime(2026, 3, 5, 14, 30, 0, DateTimeKind.Utc);
