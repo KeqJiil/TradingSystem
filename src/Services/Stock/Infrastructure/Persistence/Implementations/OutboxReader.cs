@@ -11,18 +11,19 @@ public class OutboxReader(IDbContext context) : IOutboxReader
                         SELECT TOP(@Amount) *
                         FROM outbox WITH (READPAST)
                         WHERE (processed_at IS NULL OR DATEDIFF(MINUTE, processed_at, GETDATE()) > @MaxWaitMinutes) 
-                            AND status != 'COMPLETED' AND attempts < 3
+                            AND status != 'COMPLETED' 
                             )
                     UPDATE cte
                     SET processed_at = GETDATE(), status = 'PROCESSING', attempts = cte.attempts + 1
                     OUTPUT 
                         inserted.id AS Id, inserted.aggregate_id AS AggregateId, inserted.event_type AS EventType,
-                        inserted.status AS Status, inserted.payload AS Payload;
+                        inserted.status AS Status, inserted.payload AS Payload, inserted.attempts AS RetryCount;
                   """;
-        
+
         await context.EnsureConnectionOpenAsync(ct);
 
-        var result = await context.Connection.QueryAsync<OutboxData>(sql, new { Amount = amount, MaxWaitMinutes = maxWaitMinutes }, context.Transaction);
+        var result = await context.Connection.QueryAsync<OutboxData>(sql,
+            new { Amount = amount, MaxWaitMinutes = maxWaitMinutes }, context.Transaction);
         return result.ToList().AsReadOnly();
     }
 };

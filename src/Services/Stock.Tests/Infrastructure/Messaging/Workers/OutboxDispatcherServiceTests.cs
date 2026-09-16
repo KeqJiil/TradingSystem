@@ -115,7 +115,7 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
         await EnsureTopicsExistAsync(_dlqOptions.UnknownTopic);
         await _service.StartAsync(CancellationToken.None);
 
-        var result = ConsumeJson<OutboxData>(_dlqOptions.UnknownTopic);
+        var result = ConsumeJson<OutboxData>(_dlqOptions.UnknownTopic, m => m.Id == id);
         Assert.Equal(id, result.Message.Value.Id);
 
         var status = await WaitForStatusAsync(id, "COMPLETED");
@@ -123,17 +123,17 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
     }
 
     [Fact]
-    public async Task ExecuteAsync_MalformedPayloadForKnownEventType_IsNotMarkedCompleted()
+    public async Task ExecuteAsync_MalformedPayloadForKnownEventType_SendsToUnknownDlqAndMarksCompleted()
     {
         var id = await InsertOutboxRowAsync(EventTypeNames.StockToggledStatus, "not-valid-json");
 
         await _service.StartAsync(CancellationToken.None);
 
-        await Task.Delay(TimeSpan.FromSeconds(3));
-        var status = await _dbContext.Connection.QuerySingleAsync<string>(
-            "SELECT status FROM outbox WHERE id = @Id", new { Id = id });
+        var result = ConsumeJson<OutboxData>(_dlqOptions.UnknownTopic, m => m.Id == id);
+        Assert.Equal(id, result.Message.Value.Id);
 
-        Assert.NotEqual("COMPLETED", status);
+        var status = await WaitForStatusAsync(id, "COMPLETED");
+        Assert.Equal("COMPLETED", status);
     }
 
     [Fact]
@@ -222,7 +222,7 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
         return result;
     }
 
-    private ConsumeResult<string, TValue> ConsumeJson<TValue>(string topic)
+    private ConsumeResult<string, TValue> ConsumeJson<TValue>(string topic, Func<TValue, bool> predicate)
     {
         using var consumer = new ConsumerBuilder<string, TValue>(new ConsumerConfig
             {
@@ -234,9 +234,19 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
             .Build();
 
         consumer.Subscribe(topic);
-        var result = consumer.Consume(TimeSpan.FromSeconds(30));
-        Assert.NotNull(result);
+
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+        while (DateTime.UtcNow < deadline)
+        {
+            var result = consumer.Consume(TimeSpan.FromSeconds(1));
+            if (result is not null && predicate(result.Message.Value))
+            {
+                consumer.Close();
+                return result;
+            }
+        }
+
         consumer.Close();
-        return result;
+        throw new TimeoutException($"No matching message observed on topic '{topic}' within 30s.");
     }
 }

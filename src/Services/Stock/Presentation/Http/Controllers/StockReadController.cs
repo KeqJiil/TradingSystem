@@ -29,11 +29,10 @@ public static class StockReadController
                 [FromRoute] Guid id,
                 [FromQuery] DateTimeOffset from,
                 [FromQuery] DateTimeOffset to,
-                [FromQuery] TimeOnly time,
                 [FromServices] IMediator mediator,
                 CancellationToken cancellationToken) =>
             {
-                var readModel = await mediator.Send(new GetHourlyReadModelQuery(id, from, to, time), cancellationToken);
+                var readModel = await mediator.Send(new GetHourlyReadModelQuery(id, from, to), cancellationToken);
                 return readModel is not null ? Results.Ok(readModel) : Results.NotFound();
             })
             .WithName("GetStockHourlyReadModel")

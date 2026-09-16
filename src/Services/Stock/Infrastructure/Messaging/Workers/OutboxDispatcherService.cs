@@ -1,4 +1,3 @@
-using System.Text.Json;
 using MediatR;
 using Stock.Application.Events;
 using Stock.Infrastructure.Messaging.Publishers;
@@ -25,7 +24,7 @@ public class OutboxDispatcherService(
 
             var semaphore = new SemaphoreSlim(10);
 
-            var tasks = outboxes.Select(async (o) =>
+            var tasks = outboxes.Select(async o =>
             {
                 await semaphore.WaitAsync(stoppingToken);
 
@@ -48,17 +47,33 @@ public class OutboxDispatcherService(
 
     private async Task<(bool, Guid)> ProcessAsync(OutboxData data, CancellationToken ct)
     {
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         try
         {
-            var @event = DispatchOutbox(data.EventType, data.Payload);
+            if (!OutboxEventRegistry.TryGet(data.EventType, out var descriptor))
+            {
+                await dlq.PublishUnknownAsync(data, ct);
+                return (true, data.Id);
+            }
+
+            var @event = descriptor.Deserialize(data.Payload);
             if (@event is null)
             {
                 await dlq.PublishUnknownAsync(data, ct);
                 return (true, data.Id);
             }
 
+            if (!OutboxRetryPolicy.ShouldRetry(data.RetryCount))
+            {
+                if (descriptor.PublishToOwnTopic is not null)
+                    await descriptor.PublishToOwnTopic(dlq, @event, data.RetryCount, ct);
+                else
+                    await dlq.PublishUnknownAsync(data, ct);
+
+                return (true, data.Id);
+            }
+
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
             await mediator.Publish(@event, ct);
             return (true, data.Id);
         }
@@ -67,18 +82,6 @@ public class OutboxDispatcherService(
             logger.LogWarning(ex, "An unexpected error occurred while processing outbox event {OutboxId}", data.Id);
             return (false, data.Id);
         }
-    }
-
-    private BasicEvent? DispatchOutbox(string eventType, string payload)
-    {
-        return eventType switch
-        {
-            EventTypeNames.PriceChanged => JsonSerializer.Deserialize<PriceChangedEvent>(payload),
-            EventTypeNames.StockCreated => JsonSerializer.Deserialize<StockCreatedEvent>(payload),
-            EventTypeNames.StockToggledStatus => JsonSerializer.Deserialize<StockToggledStatusEvent>(payload),
-            EventTypeNames.DailyReadModelRequested => JsonSerializer.Deserialize<DailyReadModelRequested>(payload),
-            _ => null
-        };
     }
 }
 

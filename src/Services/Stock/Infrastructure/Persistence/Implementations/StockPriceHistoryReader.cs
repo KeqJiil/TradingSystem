@@ -54,21 +54,4 @@ public class StockPriceHistoryReader(IDbContext dbContext) : IStockPriceHistoryR
 
         return rows.Select(row => (PriceHistoryDateOnlyReadModel?)row).SingleOrDefault();
     }
-
-    public async Task<HourlyReadModel?> GetHourlyPriceHistoryAsync(Guid stockId, DateTimeOffset from, DateTimeOffset to,
-        CancellationToken ct)
-    {
-        var sql = """
-                    SELECT es.occured_at AS TimeStamp, es.price_change AS PriceDifference
-                    FROM events_store es
-                    WHERE es.occured_at < @DateTo AND es.occured_at >= @DateFrom AND es.aggregate_id = @StockId
-                  """;
-
-        await dbContext.EnsureConnectionOpenAsync(ct);
-
-        var priceChanges = await dbContext.Connection.QueryAsync<PriceChange>(sql,
-            new { DateTo = to, DateFrom = from, StockId = stockId }, dbContext.Transaction);
-
-        return new HourlyReadModel(stockId, priceChanges);
-    }
 }

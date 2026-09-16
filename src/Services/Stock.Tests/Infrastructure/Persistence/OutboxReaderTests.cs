@@ -70,16 +70,6 @@ public class OutboxReaderTests : IClassFixture<MssqlFixture>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetPendingAsync_ExcludesRecordsThatReachedAttemptLimit()
-    {
-        var id = await InsertOutboxRowAsync("PENDING", null, 3);
-
-        var result = await _sut.GetPendingAsync(10, 5, CancellationToken.None);
-
-        Assert.DoesNotContain(result, r => r.Id == id);
-    }
-
-    [Fact]
     public async Task GetPendingAsync_RespectsAmountLimit()
     {
         for (var i = 0; i < 5; i++)
