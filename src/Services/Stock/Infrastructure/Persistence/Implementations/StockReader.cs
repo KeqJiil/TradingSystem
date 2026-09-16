@@ -27,4 +27,18 @@ public class StockReader(IDbContext dbContext) : IStockReader
 
         return rows.Select(row => (StockReadModel?)row).SingleOrDefault();
     }
+
+    public async Task<long?> GetVersionAsync(Guid aggregateId, CancellationToken cancellationToken = default)
+    {
+        var sql = """
+                  SELECT s.version
+                  FROM stock_data_projection s
+                  WHERE s.aggregate_id = @AggregateId
+                  """;
+
+        await dbContext.EnsureConnectionOpenAsync(cancellationToken);
+
+        return await dbContext.Connection.ExecuteScalarAsync<long?>(sql, new { AggregateId = aggregateId },
+            dbContext.Transaction);
+    }
 }

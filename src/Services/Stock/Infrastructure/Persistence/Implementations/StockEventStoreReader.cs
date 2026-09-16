@@ -60,7 +60,7 @@ public class StockEventStoreReader(IDbContext dbContext) : IStockEventStoreReade
                          s.occured_at AS Timestamp, s.version AS Version
                   FROM events_store s
                   WHERE s.aggregate_id = @AggregateId
-                    AND s.version > @From AND s.version < @To
+                    AND s.version > @From AND s.version <= @To
                   ORDER BY s.version ASC
                   """;
 

@@ -4,21 +4,32 @@ using Stock.Application.Abstractions;
 
 namespace Stock.Application.Commands.ReplayReadModel;
 
-public class ReplayReadModelHandler(IStockEventStoreReader reader, ISystemClock clock, IStockReadModelWriter writer)
+public class ReplayReadModelHandler(
+    IStockEventStoreReader reader,
+    IStockReader readModelReader,
+    ISystemClock clock,
+    IStockReadModelWriter writer)
     : IRequestHandler<ReplayReadModelCommand>
 {
     public async Task Handle(ReplayReadModelCommand request, CancellationToken cancellationToken)
     {
-        var lastActualVersion = await reader.GetLastVersionAsync(request.AggregateId, clock.UtcNow, cancellationToken) ?? 0;
+        var appliedVersion = await readModelReader.GetVersionAsync(request.AggregateId, cancellationToken);
+        if (appliedVersion is null) return;
 
-        var events = (await reader.ListEventsByVersionAsync(request.AggregateId, request.MaxVersion,
-            lastActualVersion, cancellationToken)).ToArray();
-        
+        var lastStoredVersion =
+            await reader.GetLastVersionAsync(request.AggregateId, clock.UtcNow, cancellationToken) ?? 0;
+
+        var toVersion = Math.Min(lastStoredVersion, request.MaxVersion);
+        if (toVersion <= appliedVersion.Value) return;
+
+        var events = (await reader.ListEventsByVersionAsync(request.AggregateId, appliedVersion.Value, toVersion,
+            cancellationToken)).ToArray();
+
         if (events.Length == 0) return;
-        
+
         var totalPriceChange = events.Sum(e => e.PriceChange);
-        var toVersion = events[^1].Version!.Value;
-        
-        await writer.ReplayAsync(request.AggregateId, lastActualVersion, toVersion, totalPriceChange, cancellationToken);
+
+        await writer.ReplayAsync(request.AggregateId, appliedVersion.Value, events[^1].Version!.Value, totalPriceChange,
+            cancellationToken);
     }
 }
