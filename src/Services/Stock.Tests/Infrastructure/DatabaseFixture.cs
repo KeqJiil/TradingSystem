@@ -1,4 +1,5 @@
 using Microsoft.Data.SqlClient;
+using Stock.Infrastructure.Persistence;
 using Testcontainers.MsSql;
 using Xunit;
 
@@ -27,6 +28,8 @@ public class MssqlFixture : IAsyncLifetime
         {
             InitialCatalog = _databaseName
         }.ConnectionString;
+
+        await Task.Run(() => DbMigrator.ApplyMigrations(ConnectionString));
     }
 
     public async Task DisposeAsync()

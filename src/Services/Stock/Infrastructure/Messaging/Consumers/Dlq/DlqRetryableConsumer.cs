@@ -14,59 +14,37 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
     IServiceScopeFactory serviceScopeFactory,
     IDlqEventToCommandMapper<TMessage, TCommand> dlqEventToCommandMapper,
     IKafkaConsumerFactory consumerFactory,
-    IDeadLetterPublisher dlq) : BackgroundService where TMessage : IExternalEvent where TCommand : IRequest
+    IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<TMessage>(consumerFactory, logger)
+    where TMessage : IExternalEvent where TCommand : IRequest
 {
     protected abstract string SourceTopic { get; }
-    private IConsumer<string, TMessage> _consumer = null!;
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override string GroupId => $"dlq-retryable-{SourceTopic}-group";
+
+    protected override string ClientId => $"dlq-retryable-{SourceTopic}-consumer";
+
+    protected override string Topic => SourceTopic + dlqOptions.Value.TopicSuffix + ".retry";
+
+    protected override async Task<bool> HandleAsync(TMessage message, Headers headers, CancellationToken ct)
     {
-        var retryTopic = SourceTopic + dlqOptions.Value.TopicSuffix + ".retry";
-        _consumer = consumerFactory.Create<TMessage>(
-            $"dlq-retryable-{SourceTopic}-group",
-            retryTopic,
-            $"dlq-retryable-{SourceTopic}-consumer");
+        var command = dlqEventToCommandMapper.Map(message);
 
-        return Task.Factory.StartNew(
-            () => Consume(stoppingToken),
-            stoppingToken,
-            TaskCreationOptions.LongRunning,
-            TaskScheduler.Default);
-    }
-
-    private async Task Consume(CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
+        if (command is null)
         {
-            var result = _consumer.Consume(ct);
-            var data = result.Message.Value;
-            if (data is null)
-            {
-                _consumer.Commit(result);
-                continue;
-            }
-
-            var command = dlqEventToCommandMapper.Map(data);
-            if (command is null)
-            {
-                logger.LogWarning(
-                    "Message of type {MessageType} for aggregate {AggregateId} could not be mapped to a command, moving straight to fatal DLQ",
-                    typeof(TMessage).Name, data.AggregateId);
-                await dlq.PublishAsync(SourceTopic, data, false, GetAttempt(result.Message.Headers), ct);
-                _consumer.Commit(result);
-                continue;
-            }
-
-            var attempt = GetAttempt(result.Message.Headers) + 1;
-            var ok = await HandleMessageAsync(command, ct);
-
-            if (!ok && attempt < dlqOptions.Value.MaxRetryAttempts)
-                await dlq.PublishAsync(SourceTopic, data, true, attempt, ct);
-            else if (!ok)
-                await dlq.PublishAsync(SourceTopic, data, false, attempt, ct);
-
-            _consumer.Commit(result);
+            logger.LogWarning(
+                "Message of type {MessageType} for aggregate {AggregateId} could not be mapped to a command, moving straight to fatal DLQ",
+                typeof(TMessage).Name, message.AggregateId);
+            await dlq.PublishAsync(SourceTopic, message, false, GetAttempt(headers), ct);
+            return true;
         }
+
+        var attempt = GetAttempt(headers) + 1;
+        var ok = await HandleMessageAsync(command, ct);
+
+        if (!ok)
+            await dlq.PublishAsync(SourceTopic, message, attempt < dlqOptions.Value.MaxRetryAttempts, attempt, ct);
+
+        return true;
     }
 
     private async Task<bool> HandleMessageAsync(TCommand command, CancellationToken cancellationToken)

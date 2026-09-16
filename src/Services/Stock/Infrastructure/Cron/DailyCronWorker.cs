@@ -10,6 +10,6 @@ public class DailyCronWorker(IServiceScopeFactory serviceScopeFactory)
         await using var scope = serviceScopeFactory.CreateAsyncScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
-        await mediator.Send(new CreateDailyReadModelCommand(DateTime.UtcNow.Date), stoppingToken);
+        await mediator.Send(new CreateDailyReadModelCommand(DateTime.UtcNow.Date.AddDays(-1)), stoppingToken);
     }
 }

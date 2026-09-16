@@ -26,6 +26,6 @@ public static class ResilenceBuilder
 
     private static bool IsTransient(SqlException ex)
     {
-        return ex.Number is -2 or 1205 or 20 or 64 or 233 or 10053 or 10054 or 10060 or 4060;
+        return ex.Number is -2 or 1205 or 20 or 64 or 233 or 10053 or 10054 or 10060 or 4060 or 2601;
     }
 }

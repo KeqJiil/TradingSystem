@@ -1,4 +1,5 @@
 using Confluent.Kafka;
+using Microsoft.Data.SqlClient;
 using Polly;
 using Stock.Application.Services;
 using Stock.Infrastructure.ExternalEvents;
@@ -12,55 +13,41 @@ public class PriceChangeRequestedConsumer(
     IServiceScopeFactory serviceScopeFactory,
     ILogger<PriceChangeRequestedConsumer> logger,
     ResiliencePipeline resiliencePipeline,
-    IDeadLetterPublisher dlq
-    ) : BackgroundService
+    IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<PriceChangeRequestedEvent>(consumerFactory, logger)
 {
-    private readonly IConsumer<string, PriceChangeRequestedEvent> _consumer =
-        consumerFactory.Create<PriceChangeRequestedEvent>("price-change-requested-events-group", TopicNames.PriceChangeRequested,
-            "price-change-requested-events-consumer");
+    protected override string GroupId => "price-change-requested-events-group";
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        return Task.Factory.StartNew(
-            () => Consume(stoppingToken),
-            stoppingToken,
-            TaskCreationOptions.LongRunning,
-            TaskScheduler.Default);
-    }
+    protected override string ClientId => "price-change-requested-events-consumer";
 
-    private async Task Consume(CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            var result = _consumer.Consume(ct);
-            var data = result.Message.Value;
-            if (data is null) continue;
+    protected override string Topic => TopicNames.PriceChangeRequested;
 
-            await ProcessAsync(data.AggregateId, data, ct);
-
-            _consumer.Commit(result);
-        }
-    }
-
-    private async Task ProcessAsync(Guid aggregateId, PriceChangeRequestedEvent data,
+    protected override async Task<bool> HandleAsync(PriceChangeRequestedEvent message, Headers headers,
         CancellationToken ct)
     {
         await using var scope = serviceScopeFactory.CreateAsyncScope();
         var eventStore = scope.ServiceProvider.GetRequiredService<EventStoreService>();
-        var mappedEvent = PriceChangeRequestedEventMapper.MapFrom(data);
+        var mappedEvent = PriceChangeRequestedEventMapper.MapFrom(message);
+
         try
         {
-            await resiliencePipeline.ExecuteAsync(async (es, cancellationToken) =>
-            {
-                await es.ChangePriceAppendAsync(mappedEvent, cancellationToken);
-            }, eventStore, ct);
+            await resiliencePipeline.ExecuteAsync(
+                async (es, cancellationToken) => { await es.ChangePriceAppendAsync(mappedEvent, cancellationToken); },
+                eventStore, ct);
+        }
+        catch (SqlException ex) when (ex.Number == 2627)
+        {
+            logger.LogInformation(
+                "Price change event {EventId} for aggregate {AggregateId} is already stored, skipping",
+                mappedEvent.EventId, message.AggregateId);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error occurred while processing price change requested event for aggregate {AggregateId}",
-                aggregateId);
-            await dlq.PublishAsync(TopicNames.PriceChangeRequested, data, ex, attempt: 1, ct);
+            logger.LogError(ex,
+                "Error occurred while processing price change requested event for aggregate {AggregateId}",
+                message.AggregateId);
+            await dlq.PublishAsync(TopicNames.PriceChangeRequested, message, ex, attempt: 1, ct);
         }
+
+        return true;
     }
 }
-

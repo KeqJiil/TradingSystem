@@ -25,12 +25,11 @@ public class ToggleStatusReadModelHandlerTests : IClassFixture<MssqlFixture>, IA
     public async Task InitializeAsync()
     {
         await _dbContext.EnsureConnectionOpenAsync(CancellationToken.None);
-        await StockTestSchema.EnsureStockDataProjectionCreatedAsync(_dbContext);
+        await TestDatabase.ResetAsync(_dbContext);
     }
 
     public async Task DisposeAsync()
     {
-        await _dbContext.Connection.ExecuteAsync("DROP TABLE IF EXISTS stock_data_projection");
         await _dbContext.Connection.CloseAsync();
     }
 

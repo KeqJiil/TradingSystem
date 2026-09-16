@@ -19,8 +19,13 @@ public static class AddKafkaClass
     public static void AddKafka(this WebApplicationBuilder builder)
     {
         builder.Services.AddOptions<KafkaOptions>()
-            .BindConfiguration(KafkaOptions.Name);
-        builder.Services.AddOptions<DeadLetterOptions>().BindConfiguration(DeadLetterOptions.Name).ValidateOnStart();
+            .BindConfiguration(KafkaOptions.Name)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        builder.Services.AddOptions<DeadLetterOptions>()
+            .BindConfiguration(DeadLetterOptions.Name)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         builder.Services.AddSingleton<IProducer<string, string>>(sp =>
         {
@@ -34,6 +39,8 @@ public static class AddKafkaClass
 
         builder.Services.AddSingleton<IKafkaConsumerFactory, KafkaConsumerFactory>();
         builder.Services.AddSingleton<IKafkaProducerFactory, KafkaProducerFactory>();
+        
+        builder.Services.AddHostedService<KafkaTopicsInitializer>();
 
         builder.Services.AddHostedService<StockCreatedConsumer>();
         builder.Services.AddHostedService<StockToggleStatusEventConsumer>();

@@ -11,34 +11,20 @@ public class PriceChangedConsumer(
     IKafkaConsumerFactory consumerFactory,
     IServiceScopeFactory serviceScopeFactory,
     VersionsBuffer<PriceChangedEvent> buffer,
-    ILogger<PriceChangedConsumer> logger
-    ) : BackgroundService
+    ILogger<PriceChangedConsumer> logger) : KafkaBackgroundConsumer<PriceChangedEvent>(consumerFactory, logger)
 {
-    private readonly IConsumer<string, PriceChangedEvent> _consumer =
-        consumerFactory.Create<PriceChangedEvent>("price-change-events-group", TopicNames.Price,
-            "price-change-events-consumer");
+    protected override string GroupId => "price-change-events-group";
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override string ClientId => "price-change-events-consumer";
+
+    protected override string Topic => TopicNames.Price;
+
+    protected override async Task<bool> HandleAsync(PriceChangedEvent message, Headers headers, CancellationToken ct)
     {
-        return Task.Factory.StartNew(
-            () => Consume(stoppingToken),
-            stoppingToken,
-            TaskCreationOptions.LongRunning,
-            TaskScheduler.Default);
-    }
+        if (message is { Version: { } version })
+            await buffer.TryApplyAsync(message.AggregateId, version, message, ApplyAsync, ct);
 
-    private async Task Consume(CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            var result = _consumer.Consume(ct);
-            var data = result.Message.Value;
-            if (data is not { Version: { } version }) continue;
-
-            await buffer.TryApplyAsync(data.AggregateId, version, data, ApplyAsync, ct);
-
-            if (!buffer.HasPendingGaps) _consumer.Commit(result);
-        }
+        return !buffer.HasPendingGaps;
     }
 
     private async Task<ReadModelUpdateOutcome> ApplyAsync(Guid aggregateId, long version, PriceChangedEvent data,

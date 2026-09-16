@@ -11,46 +11,32 @@ public class StockToggleStatusEventConsumer(
     IKafkaConsumerFactory consumerFactory,
     IServiceScopeFactory serviceScopeFactory,
     ILogger<StockToggleStatusEventConsumer> logger,
-    IDeadLetterPublisher dlq) : BackgroundService
+    IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<StockToggledStatusEvent>(consumerFactory, logger)
 {
-    private readonly IConsumer<string, StockToggledStatusEvent> _consumer =
-        consumerFactory.Create<StockToggledStatusEvent>("stock-toggle-events-group", TopicNames.StockStatusToggled,
-            "stock-toggle-events-consumer");
+    protected override string GroupId => "stock-toggle-events-group";
 
+    protected override string ClientId => "stock-toggle-events-consumer";
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override string Topic => TopicNames.StockStatusToggled;
+
+    protected override async Task<bool> HandleAsync(StockToggledStatusEvent message, Headers headers,
+        CancellationToken ct)
     {
-        return Task.Factory.StartNew(
-            () => Consume(stoppingToken),
-            stoppingToken,
-            TaskCreationOptions.LongRunning,
-            TaskScheduler.Default);
-    }
+        var mappedEvent = StockToggledStatusEventMapper.MapFrom(message);
 
-    private async Task Consume(CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
+        await using var scope = serviceScopeFactory.CreateAsyncScope();
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+        try
         {
-            var result = _consumer.Consume(ct);
-            var data = result.Message.Value;
-            if (data is null) return;
-
-            var mappedEvent = StockToggledStatusEventMapper.MapFrom(data);
-
-            await using var scope = serviceScopeFactory.CreateAsyncScope();
-            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-
-            try
-            {
-                await mediator.Send(new ToggleStatusReadModelCommand(mappedEvent.AggregateId), ct);
-            }
-            catch (Exception ex)
-            {
-                await dlq.PublishAsync(TopicNames.StockStatusToggled, data, ex, attempt: 1, ct);
-                logger.LogWarning(ex, "Error processing StockToggledStatusEvent");
-            }
-
-            _consumer.Commit(result);
+            await mediator.Send(new ToggleStatusReadModelCommand(mappedEvent.AggregateId), ct);
         }
+        catch (Exception ex)
+        {
+            await dlq.PublishAsync(TopicNames.StockStatusToggled, message, ex, 1, ct);
+            logger.LogWarning(ex, "Error processing StockToggledStatusEvent");
+        }
+
+        return true;
     }
 }

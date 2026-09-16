@@ -26,12 +26,11 @@ public class UpdateReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
     public async Task InitializeAsync()
     {
         await DbContext.EnsureConnectionOpenAsync(CancellationToken.None);
-        await StockTestSchema.EnsureStockDataProjectionCreatedAsync(DbContext);
+        await TestDatabase.ResetAsync(DbContext);
     }
 
     public async Task DisposeAsync()
     {
-        await DbContext.Connection.ExecuteAsync("DROP TABLE IF EXISTS stock_data_projection");
         await DbContext.Connection.CloseAsync();
     }
 

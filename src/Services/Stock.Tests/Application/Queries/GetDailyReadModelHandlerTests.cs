@@ -26,12 +26,11 @@ public class GetDailyReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsync
     public async Task InitializeAsync()
     {
         await DbContext.EnsureConnectionOpenAsync(CancellationToken.None);
-        await StockTestSchema.EnsureDailyStockDataProjectionCreatedAsync(DbContext);
+        await TestDatabase.ResetAsync(DbContext);
     }
 
     public async Task DisposeAsync()
     {
-        await DbContext.Connection.ExecuteAsync("DROP TABLE IF EXISTS daily_stock_data_projection");
         await DbContext.Connection.CloseAsync();
     }
 
