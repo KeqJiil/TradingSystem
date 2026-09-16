@@ -26,6 +26,11 @@ builder.Services.AddHangfire(config =>
 builder.Services.AddHangfireServer();
 builder.Services.AddSingleton<ISystemClock, SystemClock>();
 
+builder.Services.AddHealthChecks().AddCheck<KafkaHealthCheck>("kafka", tags: ["ready"]).AddSqlServer(
+    builder.Configuration.GetConnectionString("DefaultConnection")!,
+    name: "sqlserver",
+    tags: ["ready"]);
+
 DbMigrator.ApplyMigrations(connectionString);
 
 var app = builder.Build();
@@ -33,6 +38,7 @@ var app = builder.Build();
 app.MapStockController();
 app.MapStockReadController();
 app.MapStockMetadataController();
+app.MapHealthChecksController();
 
 // dev only
 if (app.Environment.IsDevelopment())
