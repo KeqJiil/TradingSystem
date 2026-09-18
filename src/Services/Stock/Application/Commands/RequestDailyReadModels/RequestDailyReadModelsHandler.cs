@@ -2,12 +2,12 @@ using MediatR;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
 
-namespace Stock.Application.Commands.CreateDailyReadModel;
+namespace Stock.Application.Commands.RequestDailyReadModels;
 
-public class CreateDailyReadModelHandler(IOutboxWriter outboxWriter, IStockDataReader stockDataReader)
-    : IRequestHandler<CreateDailyReadModelCommand>
+public class RequestDailyReadModelsHandler(IOutboxWriter outboxWriter, IStockDataReader stockDataReader)
+    : IRequestHandler<RequestDailyReadModelsCommand>
 {
-    public async Task Handle(CreateDailyReadModelCommand request, CancellationToken cancellationToken)
+    public async Task Handle(RequestDailyReadModelsCommand request, CancellationToken cancellationToken)
     {
         const int batchSize = 100;
         var date = DateOnly.FromDateTime(request.Date);

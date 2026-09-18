@@ -1,5 +1,5 @@
 using MediatR;
-using Stock.Application.Commands.CreateDailyReadModel;
+using Stock.Application.Commands.RequestDailyReadModels;
 
 namespace Stock.Infrastructure.Cron;
 
@@ -10,6 +10,6 @@ public class DailyCronWorker(IServiceScopeFactory serviceScopeFactory)
         await using var scope = serviceScopeFactory.CreateAsyncScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
-        await mediator.Send(new CreateDailyReadModelCommand(DateTime.UtcNow.Date.AddDays(-1)), stoppingToken);
+        await mediator.Send(new RequestDailyReadModelsCommand(DateTime.UtcNow.Date.AddDays(-1)), stoppingToken);
     }
 }

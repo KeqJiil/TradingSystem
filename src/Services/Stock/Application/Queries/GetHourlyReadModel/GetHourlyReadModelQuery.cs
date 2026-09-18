@@ -10,4 +10,4 @@ public record GetHourlyReadModelQuery(
 
 public record HourlyReadModel(
     Guid AggregateId,
-    IEnumerable<PriceHistoryReadModel> PriceChanges);
+    IEnumerable<PriceHourReadModel> PriceChanges);

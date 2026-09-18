@@ -2,17 +2,17 @@ namespace Stock.Application.Abstractions;
 
 public interface IStockPriceHourlyReader
 {
-    public Task<PriceHistoryReadModel?> GetHourPriceHistoryAsync(Guid stockId, DateTimeOffset dateTime,
+    public Task<PriceHourReadModel?> GetHourPriceHistoryAsync(Guid stockId, DateTimeOffset dateTime,
         CancellationToken ct);
 
-    public Task<IEnumerable<PriceHistoryReadModel>> GetHourlyPriceHistoryAsync(Guid stockId, DateTimeOffset from,
+    public Task<IEnumerable<PriceHourReadModel>> GetHourlyPriceHistoryAsync(Guid stockId, DateTimeOffset from,
         DateTimeOffset to, CancellationToken ct);
 
-    public Task<PriceHistoryReadModel?> GetLastHourPriceHistoryAsync(Guid stockId, DateTimeOffset before,
+    public Task<PriceHourReadModel?> GetLastHourPriceHistoryAsync(Guid stockId, DateTimeOffset before,
         CancellationToken ct);
 }
 
-public record struct PriceHistoryReadModel(
+public record struct PriceHourReadModel(
     Guid StockId,
     decimal OpenPrice,
     decimal LowPrice,
