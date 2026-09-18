@@ -29,5 +29,7 @@ public static class PersistenceBuilder
 
         builder.Services.AddScoped<IStockEventStore, StockEventStore>();
         builder.Services.AddScoped<IStockEventStoreReader, StockEventStoreReader>();
+        builder.Services.AddScoped<IStockHourlyReadModelWriter, StockHourlyReadModelWriter>();
+        builder.Services.AddScoped<IStockPriceHourlyReader, StockPriceHourlyReader>();
     }
 }

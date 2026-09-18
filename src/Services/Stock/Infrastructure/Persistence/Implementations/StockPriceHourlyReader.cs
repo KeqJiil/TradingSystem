@@ -54,7 +54,7 @@ public class StockPriceHourlyReader(IDbContext dbContext) : IStockPriceHourlyRea
                   FROM hourly_stock_data_projection AS r
                   WHERE r.aggregate_id = @StockId
                     AND r.date_time >= @from
-                    AND r.date_time <= @to
+                    AND r.date_time < @to
                   ORDER BY r.date_time ASC
                   """;
 

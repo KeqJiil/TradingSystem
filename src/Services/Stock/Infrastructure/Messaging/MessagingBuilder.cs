@@ -34,5 +34,7 @@ public static class MessagingBuilder
 
         builder.Services.AddScoped<IJobEventProcessor<DailyReadModelRequested>, DailyReadModelWorker>();
         builder.Services.AddScoped<DailyCronWorker>();
+        builder.Services.AddScoped<IJobEventProcessor<HourlyReadModelRequested>, HourlyReadModelWorker>();
+        builder.Services.AddScoped<HourlyCronWorker>();
     }
 }

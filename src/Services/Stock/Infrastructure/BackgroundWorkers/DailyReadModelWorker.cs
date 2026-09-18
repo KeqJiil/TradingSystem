@@ -6,7 +6,7 @@ namespace Stock.Infrastructure.BackgroundWorkers;
 public class DailyReadModelWorker(
     ILogger<DailyReadModelWorker> logger,
     IStockEventStoreReader eventStoreReader,
-    IStockPriceHistoryReader priceHistoryReader,
+    IStockPriceHourlyReader hourlyReader,
     IStockDailyReadModelWriter writer) : IJobEventProcessor<DailyReadModelRequested>
 {
     public async Task ProcessAsync(DailyReadModelRequested @event, CancellationToken ct)
@@ -17,22 +17,21 @@ public class DailyReadModelWorker(
         logger.LogInformation("DailyReadModelWorker started for {AggregateId} on {Date}", aggregateId, date);
 
         var from = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-        var to = from.AddDays(1);
-
-        var previousDay = await priceHistoryReader.GetDayPriceHistoryAsync(aggregateId, date.AddDays(-1), ct);
-        var cumulativePrice = previousDay?.ClosePrice ?? 0m;
+        var dayEnd = from.AddDays(1);
+        var lastHour = from.AddHours(23);
 
         decimal? open = null;
+        decimal? close = null;
         var high = decimal.MinValue;
         var low = decimal.MaxValue;
         var count = 0;
 
-        await foreach (var priceEvent in eventStoreReader.ListEventsAsync(aggregateId, from, to, ct))
+        foreach (var priceEvent in await hourlyReader.GetHourlyPriceHistoryAsync(aggregateId, from, lastHour, ct))
         {
-            cumulativePrice += priceEvent.PriceChange;
-            open ??= cumulativePrice;
-            if (cumulativePrice > high) high = cumulativePrice;
-            if (cumulativePrice < low) low = cumulativePrice;
+            open ??= priceEvent.OpenPrice;
+            close = priceEvent.ClosePrice;
+            if (priceEvent.HighPrice > high) high = priceEvent.HighPrice;
+            if (priceEvent.LowPrice < low) low = priceEvent.LowPrice;
             count++;
         }
 
@@ -42,11 +41,11 @@ public class DailyReadModelWorker(
             return;
         }
 
-        var lastVersion = await eventStoreReader.GetLastVersionAsync(aggregateId, to, ct) ?? 0;
+        var lastVersion = await eventStoreReader.GetLastVersionAsync(aggregateId, dayEnd, ct) ?? 0;
 
         await writer.CreateDailyReadModelAsync(
-            new DailyReadModelAggregate(aggregateId, date, open.Value, low, high, cumulativePrice,
-                cumulativePrice - open.Value, lastVersion),
+            new DailyReadModelAggregate(aggregateId, date, open.Value, low, high, close.Value,
+                close.Value - open.Value, lastVersion),
             ct);
 
         logger.LogInformation("DailyReadModelWorker finished for {AggregateId} on {Date}", aggregateId, date);

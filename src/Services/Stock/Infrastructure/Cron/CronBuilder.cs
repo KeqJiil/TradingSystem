@@ -12,5 +12,10 @@ public static class CronBuilder
             "daily-read-model",
             worker => worker.ExecuteAsync(CancellationToken.None),
             Hangfire.Cron.Daily());
+        
+        recurringJobManager.AddOrUpdate<HourlyCronWorker>(
+            "hourly-read-model",
+            worker => worker.ExecuteAsync(CancellationToken.None),
+            Hangfire.Cron.Hourly());
     }
 }

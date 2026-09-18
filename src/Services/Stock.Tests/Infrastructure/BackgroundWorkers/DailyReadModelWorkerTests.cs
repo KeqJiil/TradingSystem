@@ -17,6 +17,13 @@ public class DailyReadModelWorkerTests : IClassFixture<MssqlFixture>, IAsyncLife
                                           VALUES (@EventId, @AggregateId, @Version, @EventType, @Payload, @PriceChange, @OccuredAt)
                                           """;
 
+    private const string InsertHourlySql = """
+                                            INSERT INTO hourly_stock_data_projection
+                                                (id, aggregate_id, open_price, low_price, high_price, close_price, price_difference, last_version, date_time)
+                                            VALUES
+                                                (@Id, @AggregateId, @OpenPrice, @LowPrice, @HighPrice, @ClosePrice, @PriceDifference, @LastVersion, @DateTime)
+                                            """;
+
     private TestDbContext DbContext { get; init; }
     private DailyReadModelWorker Worker { get; init; }
 
@@ -27,7 +34,7 @@ public class DailyReadModelWorkerTests : IClassFixture<MssqlFixture>, IAsyncLife
         Worker = new DailyReadModelWorker(
             NullLogger<DailyReadModelWorker>.Instance,
             new StockEventStoreReader(dbContext),
-            new StockPriceHistoryReader(dbContext),
+            new StockPriceHourlyReader(dbContext),
             new StockDailyReadModelWriter(dbContext));
     }
 
@@ -43,44 +50,27 @@ public class DailyReadModelWorkerTests : IClassFixture<MssqlFixture>, IAsyncLife
     }
 
     [Fact]
-    public async Task ProcessAsync_ShouldComputeOhlcFromCumulativePrice()
+    public async Task ProcessAsync_ShouldComputeOhlcFromHourlyReadModels()
     {
         var aggregateId = Guid.NewGuid();
-        await SeedEvent(aggregateId, 1, 10m, DayStart.AddHours(10));
-        await SeedEvent(aggregateId, 2, 5m, DayStart.AddHours(11));
-        await SeedEvent(aggregateId, 3, -3m, DayStart.AddHours(12));
+        await SeedHour(aggregateId, DayStart.AddHours(10), open: 10m, low: 10m, high: 15m, close: 15m);
+        await SeedHour(aggregateId, DayStart.AddHours(11), open: 15m, low: 12m, high: 20m, close: 12m);
+        await SeedHour(aggregateId, DayStart.AddHours(12), open: 12m, low: 9m, high: 12m, close: 9m);
+        await SeedEvent(aggregateId, 3, DayStart.AddHours(12).AddMinutes(30));
 
         await Worker.ProcessAsync(new DailyReadModelRequested(aggregateId, Date), CancellationToken.None);
 
         var row = await ReadDaily(aggregateId);
         Assert.Equal(10m, row.OpenPrice);
-        Assert.Equal(15m, row.HighPrice);
-        Assert.Equal(10m, row.LowPrice);
-        Assert.Equal(12m, row.ClosePrice);
-        Assert.Equal(2m, row.PriceDifference);
+        Assert.Equal(20m, row.HighPrice);
+        Assert.Equal(9m, row.LowPrice);
+        Assert.Equal(9m, row.ClosePrice);
+        Assert.Equal(-1m, row.PriceDifference);
         Assert.Equal(3, row.LastVersion);
     }
 
     [Fact]
-    public async Task ProcessAsync_ShouldContinueFromPreviousDayClosePrice()
-    {
-        var aggregateId = Guid.NewGuid();
-        await SeedPreviousDay(aggregateId, 100m);
-        await SeedEvent(aggregateId, 1, 10m, DayStart.AddHours(9));
-        await SeedEvent(aggregateId, 2, -20m, DayStart.AddHours(10));
-
-        await Worker.ProcessAsync(new DailyReadModelRequested(aggregateId, Date), CancellationToken.None);
-
-        var row = await ReadDaily(aggregateId);
-        Assert.Equal(110m, row.OpenPrice);
-        Assert.Equal(110m, row.HighPrice);
-        Assert.Equal(90m, row.LowPrice);
-        Assert.Equal(90m, row.ClosePrice);
-        Assert.Equal(-20m, row.PriceDifference);
-    }
-
-    [Fact]
-    public async Task ProcessAsync_ShouldWriteNothing_WhenDayHasNoEvents()
+    public async Task ProcessAsync_ShouldWriteNothing_WhenDayHasNoHourlyReadModels()
     {
         var aggregateId = Guid.NewGuid();
 
@@ -93,12 +83,14 @@ public class DailyReadModelWorkerTests : IClassFixture<MssqlFixture>, IAsyncLife
     }
 
     [Fact]
-    public async Task ProcessAsync_ShouldIgnoreEventsOutsideTheDayWindow()
+    public async Task ProcessAsync_ShouldIgnoreHourlyReadModelsOutsideTheDayWindow()
     {
         var aggregateId = Guid.NewGuid();
-        await SeedEvent(aggregateId, 1, 100m, DayStart.AddHours(-1));
-        await SeedEvent(aggregateId, 2, 7m, DayStart);
-        await SeedEvent(aggregateId, 3, 500m, DayStart.AddDays(1));
+        await SeedHour(aggregateId, DayStart.AddHours(-1), open: 999m, low: 999m, high: 999m, close: 999m);
+        await SeedHour(aggregateId, DayStart, open: 7m, low: 7m, high: 7m, close: 7m);
+        await SeedHour(aggregateId, DayStart.AddHours(23), open: 7m, low: 7m, high: 7m, close: 7m);
+        await SeedHour(aggregateId, DayStart.AddDays(1), open: 500m, low: 500m, high: 500m, close: 500m);
+        await SeedEvent(aggregateId, 2, DayStart);
 
         await Worker.ProcessAsync(new DailyReadModelRequested(aggregateId, Date), CancellationToken.None);
 
@@ -110,12 +102,13 @@ public class DailyReadModelWorkerTests : IClassFixture<MssqlFixture>, IAsyncLife
     }
 
     [Fact]
-    public async Task ProcessAsync_ShouldIgnoreEventsOfOtherAggregates()
+    public async Task ProcessAsync_ShouldIgnoreHourlyReadModelsOfOtherAggregates()
     {
         var aggregateId = Guid.NewGuid();
         var otherAggregateId = Guid.NewGuid();
-        await SeedEvent(aggregateId, 1, 4m, DayStart.AddHours(10));
-        await SeedEvent(otherAggregateId, 1, 500m, DayStart.AddHours(10));
+        await SeedHour(aggregateId, DayStart.AddHours(10), open: 4m, low: 4m, high: 4m, close: 4m);
+        await SeedHour(otherAggregateId, DayStart.AddHours(10), open: 500m, low: 500m, high: 500m, close: 500m);
+        await SeedEvent(aggregateId, 1, DayStart.AddHours(10));
 
         await Worker.ProcessAsync(new DailyReadModelRequested(aggregateId, Date), CancellationToken.None);
 
@@ -128,35 +121,24 @@ public class DailyReadModelWorkerTests : IClassFixture<MssqlFixture>, IAsyncLife
         Assert.Equal(0, otherRows);
     }
 
-    [Fact]
-    public async Task ProcessAsync_ShouldReadEveryEvent_WhenDayExceedsOneReaderPage()
+    private async Task SeedHour(Guid aggregateId, DateTimeOffset hourStart, decimal open, decimal low, decimal high,
+        decimal close)
     {
-        var aggregateId = Guid.NewGuid();
-        var events = Enumerable.Range(1, 250).Select(i => new
+        await DbContext.Connection.ExecuteAsync(InsertHourlySql, new
         {
-            EventId = Guid.NewGuid(),
+            Id = Guid.NewGuid(),
             AggregateId = aggregateId,
-            Version = (long)i,
-            EventType = "PriceChangedEvent",
-            Payload = "{}",
-            PriceChange = 1m,
-            OccuredAt = DayStart.AddMinutes(i)
-        }).ToList();
-
-        await DbContext.Connection.ExecuteAsync(InsertEventSql, events);
-
-        await Worker.ProcessAsync(new DailyReadModelRequested(aggregateId, Date), CancellationToken.None);
-
-        var row = await ReadDaily(aggregateId);
-        Assert.Equal(1m, row.OpenPrice);
-        Assert.Equal(250m, row.HighPrice);
-        Assert.Equal(1m, row.LowPrice);
-        Assert.Equal(250m, row.ClosePrice);
-        Assert.Equal(249m, row.PriceDifference);
-        Assert.Equal(250, row.LastVersion);
+            OpenPrice = open,
+            LowPrice = low,
+            HighPrice = high,
+            ClosePrice = close,
+            PriceDifference = close - open,
+            LastVersion = 0L,
+            DateTime = hourStart
+        });
     }
 
-    private async Task SeedEvent(Guid aggregateId, long version, decimal priceChange, DateTimeOffset occuredAt)
+    private async Task SeedEvent(Guid aggregateId, long version, DateTimeOffset occuredAt)
     {
         await DbContext.Connection.ExecuteAsync(InsertEventSql, new
         {
@@ -165,26 +147,9 @@ public class DailyReadModelWorkerTests : IClassFixture<MssqlFixture>, IAsyncLife
             Version = version,
             EventType = "PriceChangedEvent",
             Payload = "{}",
-            PriceChange = priceChange,
+            PriceChange = 0m,
             OccuredAt = occuredAt
         });
-    }
-
-    private async Task SeedPreviousDay(Guid aggregateId, decimal closePrice)
-    {
-        await DbContext.Connection.ExecuteAsync("""
-                                                INSERT INTO daily_stock_data_projection
-                                                    (id, aggregate_id, open_price, low_price, high_price, close_price, price_difference, last_version, date)
-                                                VALUES
-                                                    (@Id, @AggregateId, @Price, @Price, @Price, @Price, 0, 0, @Date)
-                                                """,
-            new
-            {
-                Id = Guid.NewGuid(),
-                AggregateId = aggregateId,
-                Price = closePrice,
-                Date = Date.AddDays(-1)
-            });
     }
 
     private async Task<DailyRow> ReadDaily(Guid aggregateId)
