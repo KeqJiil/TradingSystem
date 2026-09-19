@@ -1,4 +1,5 @@
 using Confluent.Kafka;
+using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.Options;
 using Stock.Infrastructure.ExternalEvents;
@@ -39,27 +40,37 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
         }
 
         var attempt = GetAttempt(headers) + 1;
-        var ok = await HandleMessageAsync(command, ct);
+        var error = await HandleMessageAsync(command, ct);
 
-        if (!ok)
-            await dlq.PublishAsync(SourceTopic, message, attempt < dlqOptions.Value.MaxRetryAttempts, attempt, ct);
+        if (error is null) return true;
+
+        var retryable = error is not ValidationException && attempt < dlqOptions.Value.MaxRetryAttempts;
+
+        await dlq.PublishAsync(SourceTopic, message, retryable, attempt, ct);
 
         return true;
     }
 
-    private async Task<bool> HandleMessageAsync(TCommand command, CancellationToken cancellationToken)
+    private async Task<Exception?> HandleMessageAsync(TCommand command, CancellationToken cancellationToken)
     {
         using var scope = serviceScopeFactory.CreateScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         try
         {
             await mediator.Send(command, cancellationToken);
-            return true;
+            return null;
+        }
+        catch (ValidationException ex)
+        {
+            logger.LogWarning(ex,
+                "Message of type {MessageType} failed validation, moving straight to fatal DLQ",
+                typeof(TMessage).Name);
+            return ex;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error processing message of type {MessageType}. Retrying...", typeof(TMessage).Name);
-            return false;
+            return ex;
         }
     }
 

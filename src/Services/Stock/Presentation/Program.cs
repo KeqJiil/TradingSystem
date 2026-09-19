@@ -6,11 +6,14 @@ using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Persistence;
 using Stock.Presentation.Builder;
 using Stock.Presentation.Http.Controllers;
+using Stock.Presentation.Http.ExceptionHandlers;
 using Stock.Presentation.Kafka;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.AddResilence();
 builder.AddPersistence();
 builder.AddApplication();
@@ -34,6 +37,8 @@ builder.Services.AddHealthChecks().AddCheck<KafkaHealthCheck>("kafka", tags: ["r
 DbMigrator.ApplyMigrations(connectionString);
 
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 app.MapStockController();
 app.MapStockReadController();
