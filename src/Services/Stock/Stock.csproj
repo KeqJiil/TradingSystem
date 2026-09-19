@@ -8,29 +8,31 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="AspNetCore.HealthChecks.SqlServer" Version="9.0.0"/>
-        <PackageReference Include="Confluent.Kafka" Version="2.15.0"/>
-        <PackageReference Include="Dapper" Version="2.1.79"/>
-        <PackageReference Include="dbup-sqlserver" Version="7.2.0"/>
-        <PackageReference Include="Hangfire" Version="1.8.25"/>
-        <PackageReference Include="MediatR" Version="14.2.0"/>
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10"/>
-        <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2"/>
-        <PackageReference Include="Polly" Version="8.7.0"/>
-        <PackageReference Include="protobuf-net" Version="3.4.14"/>
+        <PackageReference Include="AspNetCore.HealthChecks.SqlServer" Version="9.0.0" />
+        <PackageReference Include="Confluent.Kafka" Version="2.15.0" />
+        <PackageReference Include="Dapper" Version="2.1.79" />
+        <PackageReference Include="dbup-sqlserver" Version="7.2.0" />
+        <PackageReference Include="FluentValidation" Version="12.1.1" />
+        <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+        <PackageReference Include="Hangfire" Version="1.8.25" />
+        <PackageReference Include="MediatR" Version="14.2.0" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+        <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+        <PackageReference Include="Polly" Version="8.7.0" />
+        <PackageReference Include="protobuf-net" Version="3.4.14" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Contracts\TradingSystem.Contracts.csproj"/>
+        <ProjectReference Include="..\..\Contracts\TradingSystem.Contracts.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <EmbeddedResource Include="Infrastructure\Persistence\Migrations\*.sql"/>
+        <EmbeddedResource Include="Infrastructure\Persistence\Migrations\*.sql" />
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Presentation\gRpc\"/>
-        <Folder Include="Presentation\Http\"/>
+        <Folder Include="Presentation\gRpc\" />
+        <Folder Include="Presentation\Http\" />
     </ItemGroup>
 
     <ItemGroup>

@@ -1,3 +1,4 @@
+using FluentValidation;
 using MediatR;
 using Stock.Application.Services;
 using Stock.Infrastructure.MediatrPipelines;
@@ -8,9 +9,12 @@ public static class ApplicationBuilder
 {
     public static void AddApplication(this WebApplicationBuilder builder)
     {
+        builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly, includeInternalTypes: true);
+
         builder.Services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
+            cfg.AddOpenBehavior(typeof(ValidationBehaviour<,>));
             cfg.AddOpenBehavior(typeof(ResiliencePipelineBehaviour<,>));
         });
 

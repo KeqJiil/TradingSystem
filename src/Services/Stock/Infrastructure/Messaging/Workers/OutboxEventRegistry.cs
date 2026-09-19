@@ -28,6 +28,10 @@ public static class OutboxEventRegistry
 
             [EventTypeNames.DailyReadModelRequested] = new(
                 payload => payload.TryDeserialize<Ap.DailyReadModelRequested>(),
+                null),
+
+            [EventTypeNames.HourlyReadModelRequested] = new(
+                payload => payload.TryDeserialize<Ap.HourlyReadModelRequested>(),
                 null)
         };
 

@@ -91,4 +91,5 @@ public static class EventTypeNames
     public const string StockCreated = nameof(StockCreatedEvent);
     public const string StockToggledStatus = nameof(StockToggledStatusEvent);
     public const string DailyReadModelRequested = nameof(DailyReadModelRequested);
+    public const string HourlyReadModelRequested = nameof(HourlyReadModelRequested);
 }
