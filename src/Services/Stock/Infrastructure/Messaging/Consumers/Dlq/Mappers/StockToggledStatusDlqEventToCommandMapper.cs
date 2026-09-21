@@ -8,6 +8,6 @@ public class StockToggledStatusDlqEventToCommandMapper
 {
     public ToggleStatusReadModelCommand Map(StockToggledStatusEvent message)
     {
-        return new ToggleStatusReadModelCommand(message.AggregateId);
+        return new ToggleStatusReadModelCommand(message.AggregateId, message.IsOpenToTrade, message.StatusVersion);
     }
 }

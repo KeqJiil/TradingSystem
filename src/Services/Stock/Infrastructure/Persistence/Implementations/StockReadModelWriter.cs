@@ -80,18 +80,23 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
         return result > 0;
     }
 
-    public async Task<bool> ToggleStatusAsync(Guid aggregateId, CancellationToken ct)
+    public async Task<bool> SetStatusAsync(Guid aggregateId, bool isOpenToTrade, long statusVersion,
+        CancellationToken ct)
     {
         var sql = """
                     UPDATE "stock_data_projection"
-                    SET "is_open_to_trade" = 1 - "is_open_to_trade"
-                    WHERE "aggregate_id" = @AggregateId
+                    SET "is_open_to_trade" = @IsOpenToTrade, "status_version" = @StatusVersion
+                    WHERE "aggregate_id" = @AggregateId AND "status_version" < @StatusVersion;
+
+                    SELECT CAST(CASE WHEN EXISTS (
+                        SELECT 1 FROM "stock_data_projection" WHERE "aggregate_id" = @AggregateId
+                    ) THEN 1 ELSE 0 END AS BIT);
                   """;
 
         await context.EnsureConnectionOpenAsync(ct);
 
-        var result = await context.Connection.ExecuteAsync(sql, new { AggregateId = aggregateId }, context.Transaction);
-
-        return result > 0;
+        return await context.Connection.ExecuteScalarAsync<bool>(sql,
+            new { AggregateId = aggregateId, IsOpenToTrade = isOpenToTrade, StatusVersion = statusVersion },
+            context.Transaction);
     }
 }

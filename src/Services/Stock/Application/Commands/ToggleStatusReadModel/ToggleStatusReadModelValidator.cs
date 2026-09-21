@@ -7,5 +7,6 @@ public class ToggleStatusReadModelValidator : AbstractValidator<ToggleStatusRead
     public ToggleStatusReadModelValidator()
     {
         RuleFor(command => command.AggregateId).NotEmpty();
+        RuleFor(command => command.StatusVersion).GreaterThan(0);
     }
 }

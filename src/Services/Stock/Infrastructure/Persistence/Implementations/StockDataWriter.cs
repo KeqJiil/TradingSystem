@@ -38,11 +38,16 @@ public class StockDataWriter(IDbContext dbContext) : IStockWriter
         );
     }
 
-    public async Task ToggleOpenToTrade(Guid id, CancellationToken ct)
+    public async Task<StockStatusChange?> ToggleOpenToTrade(Guid id, CancellationToken ct)
     {
         await dbContext.EnsureConnectionOpenAsync(ct);
-        await dbContext.Connection.ExecuteAsync(
-            "UPDATE stock_data SET is_open_to_trade = 1 - is_open_to_trade WHERE Id = @Id",
+        return await dbContext.Connection.QuerySingleOrDefaultAsync<StockStatusChange>(
+            """
+            UPDATE stock_data
+            SET is_open_to_trade = 1 - is_open_to_trade, status_version = status_version + 1
+            OUTPUT inserted.is_open_to_trade AS IsOpenToTrade, inserted.status_version AS StatusVersion
+            WHERE Id = @Id
+            """,
             new { Id = id },
             dbContext.Transaction
         );

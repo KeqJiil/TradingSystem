@@ -1,6 +1,7 @@
 using Dapper;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.ToggleStatusReadModel;
+using Stock.Application.Exceptions;
 using Stock.Infrastructure.Persistence.Implementations;
 using Stock.Tests.Infrastructure;
 using Xunit;
@@ -34,45 +35,56 @@ public class ToggleStatusReadModelHandlerTests : IClassFixture<MssqlFixture>, IA
     }
 
     [Fact]
-    public async Task Handle_ShouldToggleIsOpenToTradeFromTrueToFalse()
+    public async Task Handle_ShouldSetIsOpenToTradeAndStatusVersion()
     {
         var aggregateId = Guid.NewGuid();
         await Seed(aggregateId, isOpenToTrade: true);
-        var command = new ToggleStatusReadModelCommand(aggregateId);
 
-        await _handler.Handle(command, CancellationToken.None);
+        await _handler.Handle(new ToggleStatusReadModelCommand(aggregateId, false, 1), CancellationToken.None);
 
-        var isOpenToTrade = await _dbContext.Connection.ExecuteScalarAsync<bool>(
-            "SELECT is_open_to_trade FROM stock_data_projection WHERE aggregate_id = @Id",
-            new { Id = aggregateId }
-        );
+        var (isOpenToTrade, statusVersion) = await ReadStatus(aggregateId);
         Assert.False(isOpenToTrade);
+        Assert.Equal(1, statusVersion);
     }
 
     [Fact]
-    public async Task Handle_ShouldToggleIsOpenToTradeFromFalseToTrue()
+    public async Task Handle_Duplicate_ShouldNotFlipStatusBack()
     {
         var aggregateId = Guid.NewGuid();
-        await Seed(aggregateId, isOpenToTrade: false);
-        var command = new ToggleStatusReadModelCommand(aggregateId);
+        await Seed(aggregateId, isOpenToTrade: true);
+        var command = new ToggleStatusReadModelCommand(aggregateId, false, 1);
 
         await _handler.Handle(command, CancellationToken.None);
+        await _handler.Handle(command, CancellationToken.None);
 
-        var isOpenToTrade = await _dbContext.Connection.ExecuteScalarAsync<bool>(
-            "SELECT is_open_to_trade FROM stock_data_projection WHERE aggregate_id = @Id",
-            new { Id = aggregateId }
-        );
-        Assert.True(isOpenToTrade);
+        var (isOpenToTrade, statusVersion) = await ReadStatus(aggregateId);
+        Assert.False(isOpenToTrade);
+        Assert.Equal(1, statusVersion);
     }
 
     [Fact]
-    public async Task Handle_ShouldNotFail_WhenReadModelDoesNotExist()
+    public async Task Handle_OlderVersionAfterNewer_ShouldBeIgnored()
     {
-        var command = new ToggleStatusReadModelCommand(Guid.NewGuid());
+        var aggregateId = Guid.NewGuid();
+        await Seed(aggregateId, isOpenToTrade: true);
 
-        var exception = await Record.ExceptionAsync(() => _handler.Handle(command, CancellationToken.None));
+        await _handler.Handle(new ToggleStatusReadModelCommand(aggregateId, true, 2), CancellationToken.None);
+        await _handler.Handle(new ToggleStatusReadModelCommand(aggregateId, false, 1), CancellationToken.None);
 
-        Assert.Null(exception);
+        var (isOpenToTrade, statusVersion) = await ReadStatus(aggregateId);
+        Assert.True(isOpenToTrade);
+        Assert.Equal(2, statusVersion);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldThrowReadModelNotFound_WhenReadModelDoesNotExist()
+    {
+        var aggregateId = Guid.NewGuid();
+
+        var exception = await Assert.ThrowsAsync<ReadModelNotFoundException>(() =>
+            _handler.Handle(new ToggleStatusReadModelCommand(aggregateId, false, 1), CancellationToken.None));
+
+        Assert.Equal(aggregateId, exception.AggregateId);
     }
 
     [Fact]
@@ -82,15 +94,19 @@ public class ToggleStatusReadModelHandlerTests : IClassFixture<MssqlFixture>, IA
         var otherId = Guid.NewGuid();
         await Seed(toggledId, isOpenToTrade: true);
         await Seed(otherId, isOpenToTrade: true);
-        var command = new ToggleStatusReadModelCommand(toggledId);
 
-        await _handler.Handle(command, CancellationToken.None);
+        await _handler.Handle(new ToggleStatusReadModelCommand(toggledId, false, 1), CancellationToken.None);
 
-        var otherIsOpenToTrade = await _dbContext.Connection.ExecuteScalarAsync<bool>(
-            "SELECT is_open_to_trade FROM stock_data_projection WHERE aggregate_id = @Id",
-            new { Id = otherId }
-        );
+        var (otherIsOpenToTrade, otherStatusVersion) = await ReadStatus(otherId);
         Assert.True(otherIsOpenToTrade);
+        Assert.Equal(0, otherStatusVersion);
+    }
+
+    private Task<(bool IsOpenToTrade, long StatusVersion)> ReadStatus(Guid aggregateId)
+    {
+        return _dbContext.Connection.QuerySingleAsync<(bool IsOpenToTrade, long StatusVersion)>(
+            "SELECT is_open_to_trade, status_version FROM stock_data_projection WHERE aggregate_id = @Id",
+            new { Id = aggregateId });
     }
 
     private async Task Seed(Guid aggregateId, bool isOpenToTrade)

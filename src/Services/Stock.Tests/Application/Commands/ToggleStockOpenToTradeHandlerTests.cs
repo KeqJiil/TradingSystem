@@ -1,7 +1,9 @@
+using System.Text.Json;
 using Dapper;
 using Polly;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.ToggleStockOpenToTrade;
+using Stock.Application.Events;
 using Stock.Infrastructure.Persistence.Implementations;
 using Stock.Tests.Infrastructure;
 using Xunit;
@@ -109,6 +111,40 @@ public class ToggleStockOpenToTradeHandlerTests : IClassFixture<MssqlFixture>, I
             new { Id = stockId }
         );
         Assert.Equal(2, outboxCount);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldWriteEventWithNewStateAndIncrementedStatusVersion()
+    {
+        var stockId = Guid.NewGuid();
+        await Seed(stockId, isOpenToTrade: true);
+        var command = new ToggleStockOpenToTradeCommand(stockId);
+
+        await _handler.Handle(command, CancellationToken.None);
+        await _handler.Handle(command, CancellationToken.None);
+
+        var events = (await DbContext.Connection.QueryAsync<string>(
+                "SELECT payload FROM outbox WHERE aggregate_id = @Id", new { Id = stockId }))
+            .Select(p => JsonSerializer.Deserialize<StockToggledStatusEvent>(p)!)
+            .OrderBy(e => e.StatusVersion)
+            .ToList();
+
+        Assert.Equal([1L, 2L], events.Select(e => e.StatusVersion));
+        Assert.Equal([false, true], events.Select(e => e.IsOpenToTrade));
+    }
+
+    [Fact]
+    public async Task Handle_ShouldNotWriteOutboxEvent_WhenStockDoesNotExist()
+    {
+        var stockId = Guid.NewGuid();
+
+        await _handler.Handle(new ToggleStockOpenToTradeCommand(stockId), CancellationToken.None);
+
+        var outboxCount = await DbContext.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id",
+            new { Id = stockId }
+        );
+        Assert.Equal(0, outboxCount);
     }
 
     private async Task Seed(Guid id, bool isOpenToTrade)

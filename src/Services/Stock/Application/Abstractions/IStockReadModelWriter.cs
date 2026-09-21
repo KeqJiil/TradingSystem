@@ -3,12 +3,13 @@ namespace Stock.Application.Abstractions;
 public interface IStockReadModelWriter
 {
     Task<ReadModelUpdateOutcome> UpdateAsync(Guid aggregateId, long version, decimal priceChange, CancellationToken ct);
-    
-    Task<bool> ReplayAsync(Guid aggregateId, long fromVersion, long toVersion, decimal priceChange, CancellationToken ct);
+
+    Task<bool> ReplayAsync(Guid aggregateId, long fromVersion, long toVersion, decimal priceChange,
+        CancellationToken ct);
 
     Task<bool> CreateAsync(CreateStockReadModelDto data, CancellationToken ct);
 
-    Task<bool> ToggleStatusAsync(Guid aggregateId, CancellationToken ct);
+    Task<bool> SetStatusAsync(Guid aggregateId, bool isOpenToTrade, long statusVersion, CancellationToken ct);
 }
 
 public enum ReadModelUpdateOutcome

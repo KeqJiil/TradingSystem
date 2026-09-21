@@ -11,7 +11,7 @@ public class StockToggleStatusEventConsumer(
     IKafkaConsumerFactory consumerFactory,
     IServiceScopeFactory serviceScopeFactory,
     ILogger<StockToggleStatusEventConsumer> logger,
-    IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<StockToggledStatusEvent>(consumerFactory, logger)
+    IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<StockToggledStatusEvent>(consumerFactory, logger, dlq)
 {
     protected override string GroupId => "stock-toggle-events-group";
 
@@ -29,11 +29,12 @@ public class StockToggleStatusEventConsumer(
 
         try
         {
-            await mediator.Send(new ToggleStatusReadModelCommand(mappedEvent.AggregateId), ct);
+            await mediator.Send(new ToggleStatusReadModelCommand(mappedEvent.AggregateId, mappedEvent.IsOpenToTrade,
+                mappedEvent.StatusVersion), ct);
         }
         catch (Exception ex)
         {
-            try 
+            try
             {
                 await dlq.PublishAsync(TopicNames.StockStatusToggled, message, ex, 1, ct);
             }
@@ -42,6 +43,7 @@ public class StockToggleStatusEventConsumer(
                 logger.LogError(dlqEx, "Failed to publish message to dead letter queue for StockToggledStatusEvent");
                 return false;
             }
+
             logger.LogWarning(ex, "Error processing StockToggledStatusEvent");
         }
 

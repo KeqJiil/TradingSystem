@@ -1,3 +1,7 @@
 namespace Stock.Application.Events;
 
-public record StockToggledStatusEvent(Guid AggregateId, DateTimeOffset ToggledAt) : StockEvent(AggregateId);
+public record StockToggledStatusEvent(
+    Guid AggregateId,
+    DateTimeOffset ToggledAt,
+    bool IsOpenToTrade,
+    long StatusVersion) : StockEvent(AggregateId);

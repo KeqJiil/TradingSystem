@@ -11,9 +11,11 @@ public class ToggleStockOpenToTradeHandler(IStockWriter writer, IOutboxWriter ou
     {
         await uow.ExecuteAsync(async () =>
         {
-            await writer.ToggleOpenToTrade(request.Id, cancellationToken);
+            var change = await writer.ToggleOpenToTrade(request.Id, cancellationToken);
+            if (change is null) return;
 
-            var @event = new StockToggledStatusEvent(request.Id, DateTimeOffset.UtcNow);
+            var @event = new StockToggledStatusEvent(request.Id, DateTimeOffset.UtcNow, change.IsOpenToTrade,
+                change.StatusVersion);
             await outboxWriter.WriteAsync(@event, request.Id, cancellationToken);
         }, cancellationToken);
     }
