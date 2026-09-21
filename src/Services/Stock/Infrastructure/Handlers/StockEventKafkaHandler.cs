@@ -1,3 +1,4 @@
+using System.Text;
 using Confluent.Kafka;
 using MediatR;
 using Stock.Infrastructure.ExternalEvents;
@@ -10,8 +11,8 @@ public class StockEventKafkaHandler(
     IProducer<string, StockToggledStatusEvent> stockToggledStatusProducer,
     IProducer<string, PriceChangedEvent> priceChangedProducer)
     : INotificationHandler<Application.Events.StockCreatedEvent>,
-      INotificationHandler<Application.Events.StockToggledStatusEvent>,
-      INotificationHandler<Application.Events.PriceChangedEvent>
+        INotificationHandler<Application.Events.StockToggledStatusEvent>,
+        INotificationHandler<Application.Events.PriceChangedEvent>
 {
     public Task Handle(Application.Events.StockCreatedEvent @event, CancellationToken ct)
     {
@@ -34,6 +35,23 @@ public class StockEventKafkaHandler(
     private static Task Produce<TExternal>(IProducer<string, TExternal> producer, string topic, Guid key,
         TExternal value, CancellationToken ct)
     {
-        return producer.ProduceAsync(topic, new Message<string, TExternal> { Value = value, Key = key.ToString() }, ct);
+        var headers = new Headers();
+
+        TryAddCorrelationIdHeader(headers);
+
+        return producer.ProduceAsync(topic,
+            new Message<string, TExternal>
+            {
+                Value = value, Key = key.ToString(),
+                Headers = headers
+            }, ct);
+    }
+
+    private static void TryAddCorrelationIdHeader(Headers headers)
+    {
+        var str = CorrelationContext.CorrelationId;
+        if (str is { } id)
+            headers.Add("x-correlation-id",
+                Encoding.UTF8.GetBytes(id.ToString()));
     }
 }

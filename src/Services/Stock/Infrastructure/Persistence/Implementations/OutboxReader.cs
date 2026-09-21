@@ -17,7 +17,8 @@ public class OutboxReader(IDbContext context) : IOutboxReader
                     SET processed_at = GETDATE(), status = 'PROCESSING', attempts = cte.attempts + 1
                     OUTPUT 
                         inserted.id AS Id, inserted.aggregate_id AS AggregateId, inserted.event_type AS EventType,
-                        inserted.status AS Status, inserted.payload AS Payload, inserted.attempts AS RetryCount;
+                        inserted.status AS Status, inserted.payload AS Payload, inserted.attempts AS RetryCount,
+                        inserted.correlation_id AS CorrelationId
                   """;
 
         await context.EnsureConnectionOpenAsync(ct);

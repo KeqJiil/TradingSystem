@@ -12,4 +12,5 @@ public record struct OutboxData(
     string EventType,
     string Status,
     string Payload,
-    int RetryCount);
+    int RetryCount,
+    Guid? CorrelationId);

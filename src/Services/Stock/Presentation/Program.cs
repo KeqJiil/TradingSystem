@@ -7,6 +7,7 @@ using Stock.Infrastructure.Persistence;
 using Stock.Presentation.Builder;
 using Stock.Presentation.Http.Controllers;
 using Stock.Presentation.Http.ExceptionHandlers;
+using Stock.Presentation.Http.Middlewares;
 using Stock.Presentation.Kafka;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,11 +41,6 @@ var app = builder.Build();
 
 app.UseExceptionHandler();
 
-app.MapStockController();
-app.MapStockReadController();
-app.MapStockMetadataController();
-app.MapHealthChecksController();
-
 // dev only
 if (app.Environment.IsDevelopment())
     app.UseHangfireDashboard("/hangfire", new DashboardOptions
@@ -56,6 +52,12 @@ app.UseCronJobs();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
 app.UseHttpsRedirection();
+app.UseMiddleware<CorrelationMiddleware>();
+
+app.MapStockController();
+app.MapStockReadController();
+app.MapStockMetadataController();
+app.MapHealthChecksController();
 
 app.Run();
 

@@ -35,7 +35,17 @@ public class StockCreatedConsumer(
         }
         catch (Exception ex)
         {
-            await dlq.PublishAsync(TopicNames.StockCreated, message, ex, 1, ct);
+            try 
+            {
+                await dlq.PublishAsync(TopicNames.StockCreated, message, ex, 1, ct);
+            }
+            catch (Exception dlqEx) when (!ct.IsCancellationRequested)
+            {
+                logger.LogError(dlqEx,
+                    "Failed to publish stock created event for aggregate {AggregateId} to DLQ",
+                    message.AggregateId);
+                return false;
+            }
             logger.LogWarning(ex, "Error processing StockCreatedEvent");
         }
 

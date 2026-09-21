@@ -33,7 +33,15 @@ public class StockToggleStatusEventConsumer(
         }
         catch (Exception ex)
         {
-            await dlq.PublishAsync(TopicNames.StockStatusToggled, message, ex, 1, ct);
+            try 
+            {
+                await dlq.PublishAsync(TopicNames.StockStatusToggled, message, ex, 1, ct);
+            }
+            catch (Exception dlqEx) when (!ct.IsCancellationRequested)
+            {
+                logger.LogError(dlqEx, "Failed to publish message to dead letter queue for StockToggledStatusEvent");
+                return false;
+            }
             logger.LogWarning(ex, "Error processing StockToggledStatusEvent");
         }
 

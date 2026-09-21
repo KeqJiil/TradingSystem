@@ -28,6 +28,8 @@ public class DeadLetterPublisher(
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
 
+        TryAddCorrelationIdHeader(headers);
+
         await producer.ProduceAsync(topic,
             new Message<string, TValue> { Value = value, Key = value.AggregateId.ToString(), Headers = headers }, ct);
     }
@@ -46,6 +48,8 @@ public class DeadLetterPublisher(
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
 
+        TryAddCorrelationIdHeader(headers);
+
         await producer.ProduceAsync(topic,
             new Message<string, TValue> { Value = value, Key = value.AggregateId.ToString(), Headers = headers }, ct);
     }
@@ -60,11 +64,21 @@ public class DeadLetterPublisher(
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
 
+        TryAddCorrelationIdHeader(headers);
+
         await producer.ProduceAsync(deadLetterOptions.Value.UnknownTopic,
             new Message<string, TValue> { Value = value, Headers = headers }, ct);
     }
 
-    private bool IsRetryableException(Exception ex)
+    private static void TryAddCorrelationIdHeader(Headers headers)
+    {
+        var str = CorrelationContext.CorrelationId;
+        if (str is { } id)
+            headers.Add("x-correlation-id",
+                System.Text.Encoding.UTF8.GetBytes(id.ToString()));
+    }
+
+    private static bool IsRetryableException(Exception ex)
     {
         return ex switch
         {

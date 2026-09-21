@@ -1,10 +1,11 @@
+using System.Text;
 using Confluent.Kafka;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
 
 public abstract class KafkaBackgroundConsumer<TMessage>(
     IKafkaConsumerFactory consumerFactory,
-    ILogger logger) : BackgroundService
+    ILogger<KafkaBackgroundConsumer<TMessage>> logger) : BackgroundService
 {
     private IConsumer<string, TMessage>? _consumer;
 
@@ -39,9 +40,16 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
             }
             catch (ConsumeException ex)
             {
+                if (ex.Error.IsFatal)
+                {
+                    logger.LogCritical(ex, "Fatal error while consuming a message from {Topic}", Topic);
+                    throw;
+                }
                 logger.LogError(ex, "Failed to consume a message from {Topic}", Topic);
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
                 continue;
             }
+            
 
             var message = result.Message.Value;
 
@@ -55,6 +63,12 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
 
             try
             {
+                CorrelationContext.CorrelationId =
+                    result.Message.Headers.TryGetLastBytes("x-correlation-id", out var bytes)
+                    && Guid.TryParse(Encoding.UTF8.GetString(bytes), out var parsed)
+                        ? parsed
+                        : null;
+
                 commit = await HandleAsync(message, result.Message.Headers, ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -64,10 +78,18 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled error while processing a message from {Topic}", Topic);
+                Seek(result);
                 continue;
             }
 
-            if (commit) Commit(result);
+            if (!commit)
+            {
+                Seek(result);
+                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            } else
+            {
+                Commit(result);
+            }
         }
     }
 
@@ -80,6 +102,18 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
         catch (KafkaException ex)
         {
             logger.LogWarning(ex, "Failed to commit an offset for {Topic}", Topic);
+        }
+    }
+    
+    private void Seek(ConsumeResult<string, TMessage> result)
+    {
+        try
+        {
+            _consumer!.Seek(result.TopicPartitionOffset);
+        }
+        catch (KafkaException ex)
+        {
+            logger.LogWarning(ex, "Failed to seek an offset for {Topic}", Topic);
         }
     }
 

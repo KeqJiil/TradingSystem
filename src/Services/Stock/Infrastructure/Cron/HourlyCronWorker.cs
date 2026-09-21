@@ -11,6 +11,8 @@ public class HourlyCronWorker(IServiceScopeFactory serviceScopeFactory, ISystemC
         await using var scope = serviceScopeFactory.CreateAsyncScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
+        CorrelationContext.CorrelationId = Guid.NewGuid();
+
         var previousHour = clock.UtcNow.AddHours(-1);
 
         await mediator.Send(

@@ -45,7 +45,17 @@ public class PriceChangeRequestedConsumer(
             logger.LogError(ex,
                 "Error occurred while processing price change requested event for aggregate {AggregateId}",
                 message.AggregateId);
-            await dlq.PublishAsync(TopicNames.PriceChangeRequested, message, ex, attempt: 1, ct);
+            try
+            {
+                await dlq.PublishAsync(TopicNames.PriceChangeRequested, message, ex, 1, ct);
+            }
+            catch (Exception dlqEx) when (!ct.IsCancellationRequested)
+            {
+                logger.LogError(dlqEx,
+                    "Failed to publish price change requested event for aggregate {AggregateId} to DLQ",
+                    message.AggregateId);
+                return false;
+            }
         }
 
         return true;

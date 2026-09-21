@@ -74,6 +74,9 @@ public class OutboxDispatcherService(
 
             await using var scope = scopeFactory.CreateAsyncScope();
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
+            CorrelationContext.CorrelationId = data.CorrelationId;
+
             await mediator.Publish(@event, ct);
             return (true, data.Id);
         }

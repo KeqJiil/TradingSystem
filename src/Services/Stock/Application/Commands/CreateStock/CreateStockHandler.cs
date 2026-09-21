@@ -18,12 +18,12 @@ public class CreateStockHandler(IStockWriter writer, IOutboxWriter outboxWriter,
             request.TradingEndTime,
             request.Currency);
 
+        var @event = new StockCreatedEvent(id, request.Name, request.IsOpenToTrade, request.Currency,
+            request.TradingStartTime, request.TradingEndTime);
+
         await uow.ExecuteAsync(async () =>
         {
             await writer.CreateAsync(id, dto, cancellationToken);
-
-            var @event = new StockCreatedEvent(id, request.Name, request.IsOpenToTrade, request.Currency,
-                request.TradingStartTime, request.TradingEndTime);
             await outboxWriter.WriteAsync(@event, id, cancellationToken);
         }, cancellationToken);
 

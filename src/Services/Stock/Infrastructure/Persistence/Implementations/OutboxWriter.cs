@@ -14,14 +14,18 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker
         var payload = JsonSerializer.Serialize(@event);
 
         var sql = """
-                    INSERT INTO outbox (id, event_type, payload, aggregate_id)
-                    VALUES (@Id, @Type, @Payload, @AggregateId)
+                    INSERT INTO outbox (id, event_type, payload, aggregate_id, correlation_id)
+                    VALUES (@Id, @Type, @Payload, @AggregateId, @CorrelationId)
                   """;
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
         await dbContext.Connection.ExecuteAsync(sql,
-            new { Id = id, Type = typeof(T).Name, Payload = payload, AggregateId = aggregateId },
+            new
+            {
+                Id = id, Type = typeof(T).Name, Payload = payload, AggregateId = aggregateId,
+                CorrelationId = CorrelationContext.CorrelationId
+            },
             dbContext.Transaction);
     }
 
@@ -29,8 +33,8 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker
         CancellationToken cancellationToken) where T : class
     {
         var sql = """
-                        INSERT INTO outbox (id, event_type, payload, aggregate_id)
-                        SELECT id, event_type, payload, aggregate_id
+                        INSERT INTO outbox (id, event_type, payload, aggregate_id, correlation_id)
+                        SELECT id, event_type, payload, aggregate_id, correlation_id
                         FROM @Events;
                   """;
 
@@ -41,9 +45,10 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker
         table.Columns.Add("event_type", typeof(string));
         table.Columns.Add("payload", typeof(string));
         table.Columns.Add("aggregate_id", typeof(Guid));
-
+        table.Columns.Add("correlation_id", typeof(Guid));
         foreach (var (aggregateId, payload) in events)
-            table.Rows.Add(Guid.NewGuid(), typeof(T).Name, JsonSerializer.Serialize(payload), aggregateId);
+            table.Rows.Add(Guid.NewGuid(), typeof(T).Name, JsonSerializer.Serialize(payload), aggregateId,
+                CorrelationContext.CorrelationId);
 
         var parameters = new DynamicParameters();
         parameters.Add("Events", table.AsTableValuedParameter("dbo.OutboxEventTvp"));
