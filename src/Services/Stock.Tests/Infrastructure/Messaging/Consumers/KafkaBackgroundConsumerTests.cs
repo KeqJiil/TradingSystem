@@ -5,13 +5,14 @@ using Microsoft.Extensions.Options;
 using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Messaging.Consumers;
+using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
 using Stock.Infrastructure.Serialization;
 using Xunit;
 
 namespace Stock.Tests.Infrastructure.Messaging.Consumers;
 
-public class KafkaBackgroundConsumerTests : IClassFixture<KafkaFixture>
+public class KafkaBackgroundConsumerTests : IClassFixture<KafkaFixture>, IDisposable
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(45);
 
@@ -19,6 +20,7 @@ public class KafkaBackgroundConsumerTests : IClassFixture<KafkaFixture>
     private readonly IOptions<KafkaOptions> _kafkaOptions;
     private readonly KafkaConsumerFactory _consumerFactory;
     private readonly KafkaProducerFactory _producerFactory;
+    private readonly DeadLetterPublisher _dlq;
 
     public KafkaBackgroundConsumerTests(KafkaFixture fixture)
     {
@@ -30,6 +32,12 @@ public class KafkaBackgroundConsumerTests : IClassFixture<KafkaFixture>
         });
         _consumerFactory = new KafkaConsumerFactory(_kafkaOptions);
         _producerFactory = new KafkaProducerFactory(_kafkaOptions);
+        _dlq = new DeadLetterPublisher(_producerFactory, Options.Create(new DeadLetterOptions()));
+    }
+
+    public void Dispose()
+    {
+        _dlq.Dispose();
     }
 
     [Fact]
@@ -57,6 +65,64 @@ public class KafkaBackgroundConsumerTests : IClassFixture<KafkaFixture>
 
         Assert.Contains(good, received);
         Assert.DoesNotContain(poison, received);
+
+        var fatal = ConsumeFirst<PriceChangedEvent>(FatalTopic(topic));
+        Assert.Equal(poison, fatal.Message.Value.AggregateId);
+        Assert.Equal(5, BitConverter.ToInt32(fatal.Message.Headers.GetLastBytes("attempt-count")));
+    }
+
+    [Fact]
+    public async Task UndeserializableMessage_IsMovedToFatalAsRawBytes_AndConsumerKeepsGoing()
+    {
+        var topic = UniqueTopic();
+        var group = UniqueGroup();
+        var received = new ConcurrentQueue<Guid>();
+        var good = Guid.NewGuid();
+        var garbage = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0x01 };
+
+        await using var consumer = CreateConsumer(topic, group, message =>
+        {
+            received.Enqueue(message.AggregateId);
+            return Task.FromResult(true);
+        });
+
+        ProduceRaw(topic, garbage);
+        Produce(topic, good);
+
+        await consumer.StartAsync(CancellationToken.None);
+        await Polling.WaitUntilAsync(() => Task.FromResult(received.Contains(good)), Timeout);
+        await consumer.StopAsync(CancellationToken.None);
+
+        Assert.Equal([good], received);
+        Assert.Equal(2L, CommittedOffset(topic, group));
+
+        var fatal = ConsumeFirst<byte[]>(FatalTopic(topic));
+        Assert.Equal(garbage, fatal.Message.Value);
+    }
+
+    [Fact]
+    public async Task Tombstone_IsCommittedWithoutCallingHandler()
+    {
+        var topic = UniqueTopic();
+        var group = UniqueGroup();
+        var received = new ConcurrentQueue<Guid>();
+        var good = Guid.NewGuid();
+
+        await using var consumer = CreateConsumer(topic, group, message =>
+        {
+            received.Enqueue(message.AggregateId);
+            return Task.FromResult(true);
+        });
+
+        ProduceRaw(topic, null);
+        Produce(topic, good);
+
+        await consumer.StartAsync(CancellationToken.None);
+        await Polling.WaitUntilAsync(() => Task.FromResult(received.Contains(good)), Timeout);
+        await consumer.StopAsync(CancellationToken.None);
+
+        Assert.Equal([good], received);
+        Assert.Equal(2L, CommittedOffset(topic, group));
     }
 
     [Fact]
@@ -105,9 +171,55 @@ public class KafkaBackgroundConsumerTests : IClassFixture<KafkaFixture>
         Assert.Equal(Offset.Unset.Value, CommittedOffset(topic, group));
     }
 
-    private TestConsumer CreateConsumer(string topic, string group, Func<PriceChangedEvent, Task<bool>> handle)
+    [Fact]
+    public async Task HoldCommitWhenDeferred_KeepsReading_ButCommitsOnlyWhenHandlerAllows()
     {
-        return new TestConsumer(_consumerFactory, topic, group, handle);
+        var topic = UniqueTopic();
+        var group = UniqueGroup();
+        var received = new ConcurrentQueue<Guid>();
+        var deferred = Guid.NewGuid();
+        var alsoDeferred = Guid.NewGuid();
+        var releasing = Guid.NewGuid();
+
+        await using (var consumer = CreateConsumer(topic, group, message =>
+                     {
+                         received.Enqueue(message.AggregateId);
+                         return Task.FromResult(message.AggregateId == releasing);
+                     }, holdCommitWhenDeferred: true))
+        {
+            Produce(topic, deferred);
+            Produce(topic, alsoDeferred);
+
+            await consumer.StartAsync(CancellationToken.None);
+            await Polling.WaitUntilAsync(() => Task.FromResult(received.Contains(alsoDeferred)), Timeout);
+            await consumer.StopAsync(CancellationToken.None);
+
+            Assert.Equal([deferred, alsoDeferred], received);
+            Assert.Equal(Offset.Unset.Value, CommittedOffset(topic, group));
+        }
+
+        received.Clear();
+        await using (var consumer = CreateConsumer(topic, group, message =>
+                     {
+                         received.Enqueue(message.AggregateId);
+                         return Task.FromResult(message.AggregateId == releasing);
+                     }, holdCommitWhenDeferred: true))
+        {
+            Produce(topic, releasing);
+
+            await consumer.StartAsync(CancellationToken.None);
+            await Polling.WaitUntilAsync(() => Task.FromResult(received.Contains(releasing)), Timeout);
+            await consumer.StopAsync(CancellationToken.None);
+
+            Assert.Equal([deferred, alsoDeferred, releasing], received);
+            Assert.Equal(3L, CommittedOffset(topic, group));
+        }
+    }
+
+    private TestConsumer CreateConsumer(string topic, string group, Func<PriceChangedEvent, Task<bool>> handle,
+        bool holdCommitWhenDeferred = false)
+    {
+        return new TestConsumer(_consumerFactory, _dlq, topic, group, handle, holdCommitWhenDeferred);
     }
 
     private void Produce(string topic, Guid aggregateId)
@@ -119,6 +231,37 @@ public class KafkaBackgroundConsumerTests : IClassFixture<KafkaFixture>
             Value = new PriceChangedEvent(aggregateId, 1m, 1, DateTimeOffset.UtcNow)
         });
         producer.Flush(TimeSpan.FromSeconds(10));
+    }
+
+    private void ProduceRaw(string topic, byte[]? value)
+    {
+        using var producer = _producerFactory.CreateRaw($"seed-{Guid.NewGuid()}");
+        producer.Produce(topic, new Message<string, byte[]> { Key = Guid.NewGuid().ToString(), Value = value! });
+        producer.Flush(TimeSpan.FromSeconds(10));
+    }
+
+    private ConsumeResult<string, TValue> ConsumeFirst<TValue>(string topic)
+    {
+        var builder = new ConsumerBuilder<string, TValue>(new ConsumerConfig
+        {
+            BootstrapServers = _fixture.BootstrapAddress,
+            GroupId = $"monitor-{Guid.NewGuid()}",
+            AutoOffsetReset = AutoOffsetReset.Earliest
+        });
+        if (typeof(TValue) != typeof(byte[]))
+            builder.SetValueDeserializer(new ProtobufNetDeserializer<TValue>());
+
+        using var consumer = builder.Build();
+        consumer.Subscribe(topic);
+        var result = consumer.Consume(TimeSpan.FromSeconds(30));
+        Assert.NotNull(result);
+        consumer.Close();
+        return result;
+    }
+
+    private static string FatalTopic(string topic)
+    {
+        return topic + new DeadLetterOptions().TopicSuffix + ".fatal";
     }
 
     private long CommittedOffset(string topic, string group)
@@ -148,10 +291,12 @@ public class KafkaBackgroundConsumerTests : IClassFixture<KafkaFixture>
 
     private sealed class TestConsumer(
         IKafkaConsumerFactory consumerFactory,
+        IDeadLetterPublisher dlq,
         string topic,
         string group,
-        Func<PriceChangedEvent, Task<bool>> handle)
-        : KafkaBackgroundConsumer<PriceChangedEvent>(consumerFactory, NullLogger<TestConsumer>.Instance),
+        Func<PriceChangedEvent, Task<bool>> handle,
+        bool holdCommitWhenDeferred)
+        : KafkaBackgroundConsumer<PriceChangedEvent>(consumerFactory, NullLogger<TestConsumer>.Instance, dlq),
             IAsyncDisposable
     {
         protected override string GroupId => group;
@@ -159,6 +304,8 @@ public class KafkaBackgroundConsumerTests : IClassFixture<KafkaFixture>
         protected override string ClientId => $"{group}-client";
 
         protected override string Topic => topic;
+
+        protected override bool HoldCommitWhenDeferred => holdCommitWhenDeferred;
 
         protected override Task<bool> HandleAsync(PriceChangedEvent message, Headers headers, CancellationToken ct)
         {

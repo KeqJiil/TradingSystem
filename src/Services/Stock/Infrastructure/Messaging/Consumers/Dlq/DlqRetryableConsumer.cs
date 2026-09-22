@@ -15,9 +15,11 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
     IServiceScopeFactory serviceScopeFactory,
     IDlqEventToCommandMapper<TMessage, TCommand> dlqEventToCommandMapper,
     IKafkaConsumerFactory consumerFactory,
-    IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<TMessage>(consumerFactory, logger)
+    IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<TMessage>(consumerFactory, logger, dlq)
     where TMessage : IExternalEvent where TCommand : IRequest
 {
+    private static readonly TimeSpan _maxWaitPerPoll = TimeSpan.FromSeconds(30);
+
     protected abstract string SourceTopic { get; }
 
     protected override string GroupId => $"dlq-retryable-{SourceTopic}-group";
@@ -26,8 +28,12 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
 
     protected override string Topic => SourceTopic + dlqOptions.Value.TopicSuffix + ".retry";
 
+    protected override string DeadLetterSourceTopic => SourceTopic;
+
     protected override async Task<bool> HandleAsync(TMessage message, Headers headers, CancellationToken ct)
     {
+        if (!await WaitUntilDueAsync(headers, ct)) return false;
+
         var command = dlqEventToCommandMapper.Map(message);
 
         if (command is null)
@@ -35,7 +41,18 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
             logger.LogWarning(
                 "Message of type {MessageType} for aggregate {AggregateId} could not be mapped to a command, moving straight to fatal DLQ",
                 typeof(TMessage).Name, message.AggregateId);
-            await dlq.PublishAsync(SourceTopic, message, false, GetAttempt(headers), ct);
+            try
+            {
+                await dlq.PublishAsync(SourceTopic, message, false, GetAttempt(headers), ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                logger.LogError(ex,
+                    "Failed to publish message of type {MessageType} for aggregate {AggregateId} to fatal DLQ",
+                    typeof(TMessage).Name, message.AggregateId);
+                return false;
+            }
+
             return true;
         }
 
@@ -46,14 +63,24 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
 
         var retryable = error is not ValidationException && attempt < dlqOptions.Value.MaxRetryAttempts;
 
-        await dlq.PublishAsync(SourceTopic, message, retryable, attempt, ct);
+        try
+        {
+            await dlq.PublishAsync(SourceTopic, message, retryable, attempt, ct);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogError(ex,
+                "Failed to publish message of type {MessageType} for aggregate {AggregateId} to DLQ",
+                typeof(TMessage).Name, message.AggregateId);
+            return false;
+        }
 
         return true;
     }
 
     private async Task<Exception?> HandleMessageAsync(TCommand command, CancellationToken cancellationToken)
     {
-        using var scope = serviceScopeFactory.CreateScope();
+        await using var scope = serviceScopeFactory.CreateAsyncScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         try
         {
@@ -72,6 +99,25 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
             logger.LogError(ex, "Error processing message of type {MessageType}. Retrying...", typeof(TMessage).Name);
             return ex;
         }
+    }
+
+    private async Task<bool> WaitUntilDueAsync(Headers headers, CancellationToken ct)
+    {
+        if (!headers.TryGetLastBytes("timestamp", out var bytes)) return true;
+
+        var publishedAt = DateTimeOffset.FromUnixTimeMilliseconds(BitConverter.ToInt64(bytes));
+        var remaining = publishedAt + dlqOptions.Value.RetryDelay - DateTimeOffset.UtcNow;
+
+        if (remaining <= TimeSpan.Zero) return true;
+
+        if (remaining > _maxWaitPerPoll)
+        {
+            await Task.Delay(_maxWaitPerPoll, ct);
+            return false;
+        }
+
+        await Task.Delay(remaining, ct);
+        return true;
     }
 
     private static int GetAttempt(Headers headers)

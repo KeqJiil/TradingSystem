@@ -11,7 +11,7 @@ public class StockCreatedConsumer(
     IKafkaConsumerFactory consumerFactory,
     IServiceScopeFactory serviceScopeFactory,
     ILogger<StockCreatedConsumer> logger,
-    IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<StockCreatedEvent>(consumerFactory, logger)
+    IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<StockCreatedEvent>(consumerFactory, logger, dlq)
 {
     protected override string GroupId => "stock-created-events-group";
 
@@ -35,7 +35,7 @@ public class StockCreatedConsumer(
         }
         catch (Exception ex)
         {
-            try 
+            try
             {
                 await dlq.PublishAsync(TopicNames.StockCreated, message, ex, 1, ct);
             }
@@ -46,6 +46,7 @@ public class StockCreatedConsumer(
                     message.AggregateId);
                 return false;
             }
+
             logger.LogWarning(ex, "Error processing StockCreatedEvent");
         }
 

@@ -1,6 +1,5 @@
 using Confluent.Kafka;
 using Microsoft.Data.SqlClient;
-using Polly;
 using Stock.Application.Services;
 using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Messaging.Publishers;
@@ -12,8 +11,7 @@ public class PriceChangeRequestedConsumer(
     IKafkaConsumerFactory consumerFactory,
     IServiceScopeFactory serviceScopeFactory,
     ILogger<PriceChangeRequestedConsumer> logger,
-    ResiliencePipeline resiliencePipeline,
-    IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<PriceChangeRequestedEvent>(consumerFactory, logger)
+    IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<PriceChangeRequestedEvent>(consumerFactory, logger, dlq)
 {
     protected override string GroupId => "price-change-requested-events-group";
 
@@ -30,9 +28,7 @@ public class PriceChangeRequestedConsumer(
 
         try
         {
-            await resiliencePipeline.ExecuteAsync(
-                async (es, cancellationToken) => { await es.ChangePriceAppendAsync(mappedEvent, cancellationToken); },
-                eventStore, ct);
+            await eventStore.ChangePriceAppendAsync(mappedEvent, ct);
         }
         catch (SqlException ex) when (ex.Number == 2627)
         {

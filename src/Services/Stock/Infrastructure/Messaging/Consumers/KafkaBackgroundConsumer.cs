@@ -1,19 +1,31 @@
 using System.Text;
 using Confluent.Kafka;
+using Stock.Infrastructure.ExternalEvents;
+using Stock.Infrastructure.Messaging.Publishers;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
 
 public abstract class KafkaBackgroundConsumer<TMessage>(
     IKafkaConsumerFactory consumerFactory,
-    ILogger<KafkaBackgroundConsumer<TMessage>> logger) : BackgroundService
+    ILogger<KafkaBackgroundConsumer<TMessage>> logger,
+    IDeadLetterPublisher dlq) : BackgroundService
+    where TMessage : IExternalEvent
 {
     private IConsumer<string, TMessage>? _consumer;
+    private TopicPartitionOffset? _failingOffset;
+    private int _failedAttempts;
 
     protected abstract string GroupId { get; }
 
     protected abstract string ClientId { get; }
 
     protected abstract string Topic { get; }
+
+    protected virtual string DeadLetterSourceTopic => Topic;
+
+    protected virtual int MaxHandleAttempts => 5;
+
+    protected virtual bool HoldCommitWhenDeferred => false;
 
     protected abstract Task<bool> HandleAsync(TMessage message, Headers headers, CancellationToken ct);
 
@@ -38,6 +50,13 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
             {
                 break;
             }
+            catch (ConsumeException ex) when (ex.Error.Code is ErrorCode.Local_ValueDeserialization
+                                                  or ErrorCode.Local_KeyDeserialization
+                                              && ex.ConsumerRecord is not null)
+            {
+                await MovePoisonToDeadLetterAsync(ex, ct);
+                continue;
+            }
             catch (ConsumeException ex)
             {
                 if (ex.Error.IsFatal)
@@ -45,17 +64,17 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
                     logger.LogCritical(ex, "Fatal error while consuming a message from {Topic}", Topic);
                     throw;
                 }
+
                 logger.LogError(ex, "Failed to consume a message from {Topic}", Topic);
                 await Task.Delay(TimeSpan.FromSeconds(1), ct);
                 continue;
             }
-            
 
             var message = result.Message.Value;
 
             if (message is null)
             {
-                Commit(result);
+                Commit(result.TopicPartitionOffset);
                 continue;
             }
 
@@ -78,38 +97,103 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Unhandled error while processing a message from {Topic}", Topic);
-                Seek(result);
+
+                if (RegisterFailure(result.TopicPartitionOffset) >= MaxHandleAttempts
+                    && await TryMoveToFatalAsync(message, ex, ct))
+                {
+                    Commit(result.TopicPartitionOffset);
+                    continue;
+                }
+
+                Seek(result.TopicPartitionOffset);
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
                 continue;
             }
 
             if (!commit)
             {
-                Seek(result);
+                if (HoldCommitWhenDeferred) continue;
+
+                Seek(result.TopicPartitionOffset);
                 await Task.Delay(TimeSpan.FromSeconds(5), ct);
-            } else
+            }
+            else
             {
-                Commit(result);
+                Commit(result.TopicPartitionOffset);
             }
         }
     }
 
-    private void Commit(ConsumeResult<string, TMessage> result)
+    private async Task MovePoisonToDeadLetterAsync(ConsumeException ex, CancellationToken ct)
     {
+        var record = ex.ConsumerRecord;
+        logger.LogError(ex, "Message at {Offset} from {Topic} can't be deserialized, moving it to fatal DLQ",
+            record.TopicPartitionOffset, Topic);
+
         try
         {
-            _consumer!.Commit(result);
+            await dlq.PublishPoisonAsync(DeadLetterSourceTopic, record.Message, ex, ct);
+            Commit(record.TopicPartitionOffset);
+        }
+        catch (Exception dlqEx) when (!ct.IsCancellationRequested)
+        {
+            logger.LogError(dlqEx, "Failed to move an undeserializable message from {Topic} to DLQ", Topic);
+            Seek(record.TopicPartitionOffset);
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+        }
+    }
+
+    private async Task<bool> TryMoveToFatalAsync(TMessage message, Exception ex, CancellationToken ct)
+    {
+        logger.LogError(
+            "Message for aggregate {AggregateId} from {Topic} failed {Attempts} times, moving it to fatal DLQ",
+            message.AggregateId, Topic, _failedAttempts);
+
+        try
+        {
+            await dlq.PublishFatalAsync(DeadLetterSourceTopic, message, ex, _failedAttempts, ct);
+            return true;
+        }
+        catch (Exception dlqEx) when (!ct.IsCancellationRequested)
+        {
+            logger.LogError(dlqEx, "Failed to move a message from {Topic} to fatal DLQ", Topic);
+            return false;
+        }
+    }
+
+    private int RegisterFailure(TopicPartitionOffset offset)
+    {
+        if (_failingOffset is null
+            || _failingOffset.TopicPartition != offset.TopicPartition
+            || _failingOffset.Offset != offset.Offset)
+        {
+            _failingOffset = offset;
+            _failedAttempts = 0;
+        }
+
+        return ++_failedAttempts;
+    }
+
+    private void Commit(TopicPartitionOffset handled)
+    {
+        _failingOffset = null;
+        _failedAttempts = 0;
+
+        try
+        {
+            _consumer!.Commit([new TopicPartitionOffset(handled.TopicPartition, handled.Offset + 1)]);
         }
         catch (KafkaException ex)
         {
             logger.LogWarning(ex, "Failed to commit an offset for {Topic}", Topic);
         }
     }
-    
-    private void Seek(ConsumeResult<string, TMessage> result)
+
+    private void Seek(TopicPartitionOffset offset)
     {
         try
         {
-            _consumer!.Seek(result.TopicPartitionOffset);
+            _consumer!.Seek(offset);
         }
         catch (KafkaException ex)
         {

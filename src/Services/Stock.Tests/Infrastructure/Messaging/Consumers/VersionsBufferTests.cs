@@ -168,6 +168,96 @@ public class VersionsBufferTests
 
         Assert.True(_versionsBuffer.HasPendingGaps);
     }
+
+    [Fact]
+    public async Task StuckGap_ExpiresOnEventOfAnotherAggregate()
+    {
+        var stuckAggregateId = Guid.NewGuid();
+        var otherAggregateId = Guid.NewGuid();
+        var gapEvent = new PriceChangedEvent(stuckAggregateId, -10, 3, DateTimeOffset.UtcNow);
+
+        await _versionsBuffer.TryApplyAsync(stuckAggregateId, 3, gapEvent,
+            _fakeApplier.ApplyAsync, CancellationToken.None);
+
+        _clock.UtcNow += TimeSpan.FromMinutes(3);
+
+        await _versionsBuffer.TryApplyAsync(otherAggregateId, 1,
+            new PriceChangedEvent(otherAggregateId, -10, 1, DateTimeOffset.UtcNow),
+            _fakeApplier.ApplyAsync, CancellationToken.None);
+
+        Assert.False(_versionsBuffer.HasPendingGaps);
+        var (expiredAggregateId, expired) = Assert.Single(_expired);
+        Assert.Equal(stuckAggregateId, expiredAggregateId);
+        Assert.Equal([gapEvent], expired);
+    }
+
+    [Fact]
+    public async Task PartiallyDrainedBuffer_StillExpires_CountingFromLastProgress()
+    {
+        var aggregateId = Guid.NewGuid();
+
+        await _versionsBuffer.TryApplyAsync(aggregateId, 2,
+            new PriceChangedEvent(aggregateId, -10, 2, DateTimeOffset.UtcNow),
+            _fakeApplier.ApplyAsync, CancellationToken.None);
+        var stuckEvent = new PriceChangedEvent(aggregateId, -10, 4, DateTimeOffset.UtcNow);
+        await _versionsBuffer.TryApplyAsync(aggregateId, 4, stuckEvent,
+            _fakeApplier.ApplyAsync, CancellationToken.None);
+
+        _clock.UtcNow += TimeSpan.FromMinutes(1);
+        await _versionsBuffer.TryApplyAsync(aggregateId, 1,
+            new PriceChangedEvent(aggregateId, -10, 1, DateTimeOffset.UtcNow),
+            _fakeApplier.ApplyAsync, CancellationToken.None);
+
+        _clock.UtcNow += TimeSpan.FromMinutes(1.5);
+        await _versionsBuffer.TryApplyAsync(Guid.NewGuid(), 1,
+            new PriceChangedEvent(Guid.NewGuid(), -10, 1, DateTimeOffset.UtcNow),
+            _fakeApplier.ApplyAsync, CancellationToken.None);
+
+        Assert.True(_versionsBuffer.HasPendingGaps);
+        Assert.Empty(_expired);
+
+        _clock.UtcNow += TimeSpan.FromMinutes(1);
+        await _versionsBuffer.TryApplyAsync(Guid.NewGuid(), 1,
+            new PriceChangedEvent(Guid.NewGuid(), -10, 1, DateTimeOffset.UtcNow),
+            _fakeApplier.ApplyAsync, CancellationToken.None);
+
+        Assert.False(_versionsBuffer.HasPendingGaps);
+        var (_, expired) = Assert.Single(_expired);
+        Assert.Equal([stuckEvent], expired);
+    }
+
+    [Fact]
+    public async Task ExpireFails_EventsStayBuffered_AndAreHandedOverOnNextAttempt()
+    {
+        var failExpire = true;
+        var handedOver = new List<PriceChangedEvent>();
+        var buffer = new VersionsBuffer<PriceChangedEvent>(Logger, _clock, (_, expired, _) =>
+        {
+            if (failExpire) throw new InvalidOperationException("DLQ is down");
+            handedOver.AddRange(expired);
+            return Task.CompletedTask;
+        });
+        var aggregateId = Guid.NewGuid();
+        var gapEvent = new PriceChangedEvent(aggregateId, -10, 3, DateTimeOffset.UtcNow);
+
+        await buffer.TryApplyAsync(aggregateId, 3, gapEvent, _fakeApplier.ApplyAsync, CancellationToken.None);
+        _clock.UtcNow += TimeSpan.FromMinutes(3);
+
+        await buffer.TryApplyAsync(Guid.NewGuid(), 1,
+            new PriceChangedEvent(Guid.NewGuid(), -10, 1, DateTimeOffset.UtcNow),
+            _fakeApplier.ApplyAsync, CancellationToken.None);
+
+        Assert.True(buffer.HasPendingGaps);
+        Assert.Empty(handedOver);
+
+        failExpire = false;
+        await buffer.TryApplyAsync(Guid.NewGuid(), 1,
+            new PriceChangedEvent(Guid.NewGuid(), -10, 1, DateTimeOffset.UtcNow),
+            _fakeApplier.ApplyAsync, CancellationToken.None);
+
+        Assert.False(buffer.HasPendingGaps);
+        Assert.Equal([gapEvent], handedOver);
+    }
 }
 
 internal class FakeSystemClock(DateTimeOffset utcNow) : ISystemClock
