@@ -22,7 +22,6 @@ public class VersionsBuffer<T>(
         switch (outcome)
         {
             case ReadModelUpdateOutcome.Applied:
-                _firstGapSeenAt.Remove(aggregateId);
                 await DrainBufferAsync(aggregateId, applyAsync, ct);
                 break;
 
@@ -31,9 +30,10 @@ public class VersionsBuffer<T>(
 
             case ReadModelUpdateOutcome.Gap:
                 BufferEvent(aggregateId, version, data);
-                await CheckStuckGapAsync(aggregateId, ct);
                 break;
         }
+
+        await ExpireStuckGapsAsync(ct);
     }
 
     private void BufferEvent(Guid aggregateId, long version, T data)
@@ -64,19 +64,40 @@ public class VersionsBuffer<T>(
             _pending.Remove(aggregateId);
             _firstGapSeenAt.Remove(aggregateId);
         }
+        else
+        {
+            _firstGapSeenAt[aggregateId] = clock.UtcNow;
+        }
     }
 
-    private async Task CheckStuckGapAsync(Guid aggregateId, CancellationToken ct)
+    private async Task ExpireStuckGapsAsync(CancellationToken ct)
     {
-        if (!_firstGapSeenAt.TryGetValue(aggregateId, out var since) || clock.UtcNow - since <= _gapTimeout)
-            return;
+        var now = clock.UtcNow;
+        var stuck = _firstGapSeenAt
+            .Where(gap => now - gap.Value > _gapTimeout)
+            .Select(gap => gap.Key)
+            .ToList();
 
-        logger.LogWarning("{aggregateId} haven't been restored ordering for {gapTimeout} minutes", aggregateId,
-            _gapTimeout);
+        foreach (var aggregateId in stuck)
+        {
+            if (!_pending.TryGetValue(aggregateId, out var buffer)) continue;
 
-        _firstGapSeenAt.Remove(aggregateId);
+            logger.LogWarning("{aggregateId} haven't been restored ordering for {gapTimeout} minutes", aggregateId,
+                _gapTimeout);
 
-        if (_pending.Remove(aggregateId, out var buffer))
-            await onExpire(aggregateId, buffer.Values.ToList(), ct);
+            try
+            {
+                await onExpire(aggregateId, buffer.Values.ToList(), ct);
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                logger.LogError(ex, "Failed to hand over expired events of {AggregateId}, keeping them buffered",
+                    aggregateId);
+                continue;
+            }
+
+            _pending.Remove(aggregateId);
+            _firstGapSeenAt.Remove(aggregateId);
+        }
     }
 }

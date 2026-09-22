@@ -42,6 +42,8 @@ public class ProtobufNetDeserializer<T> : IDeserializer<T>
 {
     public T Deserialize(ReadOnlySpan<byte> data, bool isNull, SerializationContext context)
     {
+        if (isNull) return default!;
+
         using var stream = new MemoryStream(data.ToArray());
         return Serializer.Deserialize<T>(stream);
     }

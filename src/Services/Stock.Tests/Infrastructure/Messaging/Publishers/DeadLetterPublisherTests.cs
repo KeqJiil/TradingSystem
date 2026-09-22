@@ -37,6 +37,7 @@ public class DeadLetterPublisherTests : IClassFixture<KafkaFixture>, IAsyncLifet
 
     public Task DisposeAsync()
     {
+        _sut.Dispose();
         return Task.CompletedTask;
     }
 
@@ -85,6 +86,46 @@ public class DeadLetterPublisherTests : IClassFixture<KafkaFixture>, IAsyncLifet
     }
 
     [Fact]
+    public async Task PublishFatalAsync_WithRetryableException_StillSendsToFatalTopicWithExceptionHeaders()
+    {
+        var value = new PriceChangedEvent(Guid.NewGuid(), 5m, 1, DateTimeOffset.UtcNow);
+        var expectedTopic = _sourceTopic + _options.TopicSuffix + ".fatal";
+
+        await _sut.PublishFatalAsync(_sourceTopic, value, new TimeoutException("always slow"), 5,
+            CancellationToken.None);
+
+        var result = Consume<PriceChangedEvent>(expectedTopic);
+
+        Assert.Equal(value, result.Message.Value);
+        Assert.Equal(5, BitConverter.ToInt32(result.Message.Headers.GetLastBytes("attempt-count")));
+        Assert.Contains("always slow", GetHeaderString(result.Message.Headers, "exception-message"));
+    }
+
+    [Fact]
+    public async Task PublishPoisonAsync_SendsRawBytesToFatalTopic_KeepingOriginalKeyAndHeaders()
+    {
+        var expectedTopic = _sourceTopic + _options.TopicSuffix + ".fatal";
+        var garbage = new byte[] { 0xFF, 0x00, 0x13, 0x37 };
+        var message = new Message<byte[], byte[]>
+        {
+            Key = Encoding.UTF8.GetBytes("some-key"),
+            Value = garbage,
+            Headers = new Headers { { "x-correlation-id", Encoding.UTF8.GetBytes("corr") } }
+        };
+
+        await _sut.PublishPoisonAsync(_sourceTopic, message, new InvalidDataException("cannot deserialize"),
+            CancellationToken.None);
+
+        var result = ConsumeRaw(expectedTopic);
+
+        Assert.Equal("some-key", result.Message.Key);
+        Assert.Equal(garbage, result.Message.Value);
+        Assert.Equal("corr", GetHeaderString(result.Message.Headers, "x-correlation-id"));
+        Assert.Equal(_sourceTopic, GetHeaderString(result.Message.Headers, "original-topic"));
+        Assert.Contains("cannot deserialize", GetHeaderString(result.Message.Headers, "exception-message"));
+    }
+
+    [Fact]
     public async Task PublishUnknownAsync_SendsToUnknownTopic()
     {
         var value = new PriceChangedEvent(Guid.NewGuid(), 5m, 1, DateTimeOffset.UtcNow);
@@ -105,6 +146,23 @@ public class DeadLetterPublisherTests : IClassFixture<KafkaFixture>, IAsyncLifet
                 AutoOffsetReset = AutoOffsetReset.Earliest
             })
             .SetValueDeserializer(new ProtobufNetDeserializer<TValue>())
+            .Build();
+
+        consumer.Subscribe(topic);
+        var result = consumer.Consume(TimeSpan.FromSeconds(30));
+        Assert.NotNull(result);
+        consumer.Close();
+        return result;
+    }
+
+    private ConsumeResult<string, byte[]> ConsumeRaw(string topic)
+    {
+        using var consumer = new ConsumerBuilder<string, byte[]>(new ConsumerConfig
+            {
+                BootstrapServers = _fixture.BootstrapAddress,
+                GroupId = Guid.NewGuid().ToString(),
+                AutoOffsetReset = AutoOffsetReset.Earliest
+            })
             .Build();
 
         consumer.Subscribe(topic);

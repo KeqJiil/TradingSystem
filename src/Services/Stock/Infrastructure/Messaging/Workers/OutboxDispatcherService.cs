@@ -15,33 +15,40 @@ public class OutboxDispatcherService(
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
         do
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var reader = scope.ServiceProvider.GetRequiredService<IOutboxReader>();
-            var marker = scope.ServiceProvider.GetRequiredService<IOutboxMarker>();
-
-
-            var outboxes = await reader.GetPendingAsync(50, 10, stoppingToken);
-
-            var semaphore = new SemaphoreSlim(10);
-
-            var tasks = outboxes.Select(async o =>
+            try
             {
-                await semaphore.WaitAsync(stoppingToken);
+                await using var scope = scopeFactory.CreateAsyncScope();
+                var reader = scope.ServiceProvider.GetRequiredService<IOutboxReader>();
+                var marker = scope.ServiceProvider.GetRequiredService<IOutboxMarker>();
 
-                try
+
+                var outboxes = await reader.GetPendingAsync(50, 10, stoppingToken);
+
+                var semaphore = new SemaphoreSlim(10);
+
+                var tasks = outboxes.Select(async o =>
                 {
-                    return await ProcessAsync(o, stoppingToken);
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-            }).ToList();
+                    await semaphore.WaitAsync(stoppingToken);
 
-            var result = await Task.WhenAll(tasks);
-            var ids = result.Where(x => x.Item1).Select(x => x.Item2).ToList();
+                    try
+                    {
+                        return await ProcessAsync(o, stoppingToken);
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }).ToList();
 
-            await marker.MarkCompletedAsync(ids, stoppingToken);
+                var result = await Task.WhenAll(tasks);
+                var ids = result.Where(x => x.Item1).Select(x => x.Item2).ToList();
+
+                await marker.MarkCompletedAsync(ids, stoppingToken);
+            }
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+            {
+                logger.LogError(ex, "An unexpected error occurred while dispatching outbox events");
+            }
         } while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 

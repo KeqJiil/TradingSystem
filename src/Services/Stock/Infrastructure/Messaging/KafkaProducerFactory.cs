@@ -10,6 +10,8 @@ public interface IKafkaProducerFactory
     IProducer<string, TValue> Create<TValue>(string clientId);
 
     IProducer<string, TValue> CreateJson<TValue>(string clientId);
+
+    IProducer<string, byte[]> CreateRaw(string clientId);
 }
 
 public class KafkaProducerFactory(IOptions<KafkaOptions> options) : IKafkaProducerFactory
@@ -30,5 +32,13 @@ public class KafkaProducerFactory(IOptions<KafkaOptions> options) : IKafkaProduc
                 ClientId = clientId,
             })
             .SetValueSerializer(new KafkaJsonSerializer<TValue>())
+            .Build();
+
+    public IProducer<string, byte[]> CreateRaw(string clientId) =>
+        new ProducerBuilder<string, byte[]>(new ProducerConfig
+            {
+                BootstrapServers = options.Value.BootstrapServers,
+                ClientId = clientId,
+            })
             .Build();
 }

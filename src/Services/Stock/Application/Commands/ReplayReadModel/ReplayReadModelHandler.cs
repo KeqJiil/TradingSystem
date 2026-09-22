@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.Extensions.Internal;
 using Stock.Application.Abstractions;
+using Stock.Application.Exceptions;
 
 namespace Stock.Application.Commands.ReplayReadModel;
 
@@ -14,7 +15,7 @@ public class ReplayReadModelHandler(
     public async Task Handle(ReplayReadModelCommand request, CancellationToken cancellationToken)
     {
         var appliedVersion = await readModelReader.GetVersionAsync(request.AggregateId, cancellationToken);
-        if (appliedVersion is null) return;
+        if (appliedVersion is null) throw new ReadModelNotFoundException(request.AggregateId);
 
         var lastStoredVersion =
             await reader.GetLastVersionAsync(request.AggregateId, clock.UtcNow, cancellationToken) ?? 0;

@@ -1,81 +1,131 @@
 using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
 using Confluent.Kafka;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
+using Stock.Application.Exceptions;
 using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Options;
+using Stock.Infrastructure.Serialization;
 
 namespace Stock.Infrastructure.Messaging.Publishers;
 
-public class DeadLetterPublisher(
+public sealed class DeadLetterPublisher(
     IKafkaProducerFactory kafkaProducerFactory,
-    IOptions<DeadLetterOptions> deadLetterOptions) : IDeadLetterPublisher
+    IOptions<DeadLetterOptions> deadLetterOptions) : IDeadLetterPublisher, IDisposable
 {
-    public async Task PublishAsync<TValue>(string sourceTopic, TValue value, Exception exception, int attempt,
+    private readonly IProducer<string, byte[]> _producer = kafkaProducerFactory.CreateRaw("dead-letter-producer");
+
+    public Task PublishAsync<TValue>(string sourceTopic, TValue value, Exception exception, int attempt,
         CancellationToken ct)
         where TValue : IExternalEvent
     {
-        var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix +
-                    (IsRetryableException(exception) ? ".retry" : ".fatal");
-        using var producer = kafkaProducerFactory.Create<TValue>(topic);
+        var headers = CreateHeaders(sourceTopic, attempt);
+        AddExceptionHeaders(headers, exception);
 
-        var headers = new Headers
-        {
-            { "exception-message", System.Text.Encoding.UTF8.GetBytes(exception.Message) },
-            { "exception-stacktrace", System.Text.Encoding.UTF8.GetBytes(exception.StackTrace ?? string.Empty) },
-            { "original-topic", System.Text.Encoding.UTF8.GetBytes(sourceTopic) },
-            { "attempt-count", BitConverter.GetBytes(attempt) },
-            { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
-        };
-
-        TryAddCorrelationIdHeader(headers);
-
-        await producer.ProduceAsync(topic,
-            new Message<string, TValue> { Value = value, Key = value.AggregateId.ToString(), Headers = headers }, ct);
+        return ProduceAsync(DeadLetterTopic(sourceTopic, IsRetryableException(exception)), value, headers, ct);
     }
 
-    public async Task PublishAsync<TValue>(string sourceTopic, TValue value, bool isRetryable, int attempt,
+    public Task PublishAsync<TValue>(string sourceTopic, TValue value, bool isRetryable, int attempt,
         CancellationToken ct)
         where TValue : IExternalEvent
     {
-        var topic = sourceTopic + deadLetterOptions.Value.TopicSuffix + (isRetryable ? ".retry" : ".fatal");
-        using var producer = kafkaProducerFactory.Create<TValue>(topic);
+        return ProduceAsync(DeadLetterTopic(sourceTopic, isRetryable), value, CreateHeaders(sourceTopic, attempt), ct);
+    }
 
-        var headers = new Headers
-        {
-            { "original-topic", System.Text.Encoding.UTF8.GetBytes(sourceTopic) },
-            { "attempt-count", BitConverter.GetBytes(attempt) },
-            { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
-        };
+    public Task PublishFatalAsync<TValue>(string sourceTopic, TValue value, Exception exception, int attempt,
+        CancellationToken ct)
+        where TValue : IExternalEvent
+    {
+        var headers = CreateHeaders(sourceTopic, attempt);
+        AddExceptionHeaders(headers, exception);
 
-        TryAddCorrelationIdHeader(headers);
+        return ProduceAsync(DeadLetterTopic(sourceTopic, false), value, headers, ct);
+    }
 
-        await producer.ProduceAsync(topic,
-            new Message<string, TValue> { Value = value, Key = value.AggregateId.ToString(), Headers = headers }, ct);
+    public async Task PublishPoisonAsync(string sourceTopic, Message<byte[], byte[]> message, Exception exception,
+        CancellationToken ct)
+    {
+        var headers = new Headers();
+        foreach (var header in message.Headers ?? [])
+            headers.Add(header.Key, header.GetValueBytes());
+
+        headers.Add("original-topic", Encoding.UTF8.GetBytes(sourceTopic));
+        headers.Add("timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
+        AddExceptionHeaders(headers, exception);
+
+        await _producer.ProduceAsync(DeadLetterTopic(sourceTopic, false),
+            new Message<string, byte[]>
+            {
+                Key = message.Key is null ? null! : Encoding.UTF8.GetString(message.Key),
+                Value = message.Value,
+                Headers = headers
+            }, ct);
     }
 
     public async Task PublishUnknownAsync<TValue>(TValue value, CancellationToken ct)
     {
-        using var producer = kafkaProducerFactory.CreateJson<TValue>(deadLetterOptions.Value.UnknownTopic);
-
+        var topic = deadLetterOptions.Value.UnknownTopic;
         var headers = new Headers
         {
-            { "original-topic", System.Text.Encoding.UTF8.GetBytes(deadLetterOptions.Value.UnknownTopic) },
+            { "original-topic", Encoding.UTF8.GetBytes(topic) },
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
 
         TryAddCorrelationIdHeader(headers);
 
-        await producer.ProduceAsync(deadLetterOptions.Value.UnknownTopic,
-            new Message<string, TValue> { Value = value, Headers = headers }, ct);
+        await _producer.ProduceAsync(topic,
+            new Message<string, byte[]>
+                { Key = null!, Value = JsonSerializer.SerializeToUtf8Bytes(value), Headers = headers },
+            ct);
+    }
+
+    public void Dispose()
+    {
+        _producer.Flush(TimeSpan.FromSeconds(5));
+        _producer.Dispose();
+    }
+
+    private async Task ProduceAsync<TValue>(string topic, TValue value, Headers headers, CancellationToken ct)
+        where TValue : IExternalEvent
+    {
+        var bytes = new ProtobufNetSerializer<TValue>()
+            .Serialize(value, new SerializationContext(MessageComponentType.Value, topic, headers));
+
+        await _producer.ProduceAsync(topic,
+            new Message<string, byte[]> { Key = value.AggregateId.ToString(), Value = bytes, Headers = headers }, ct);
+    }
+
+    private string DeadLetterTopic(string sourceTopic, bool isRetryable)
+    {
+        return sourceTopic + deadLetterOptions.Value.TopicSuffix + (isRetryable ? ".retry" : ".fatal");
+    }
+
+    private static Headers CreateHeaders(string sourceTopic, int attempt)
+    {
+        var headers = new Headers
+        {
+            { "original-topic", Encoding.UTF8.GetBytes(sourceTopic) },
+            { "attempt-count", BitConverter.GetBytes(attempt) },
+            { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
+        };
+
+        TryAddCorrelationIdHeader(headers);
+        return headers;
+    }
+
+    private static void AddExceptionHeaders(Headers headers, Exception exception)
+    {
+        headers.Add("exception-message", Encoding.UTF8.GetBytes(exception.Message));
+        headers.Add("exception-stacktrace", Encoding.UTF8.GetBytes(exception.StackTrace ?? string.Empty));
     }
 
     private static void TryAddCorrelationIdHeader(Headers headers)
     {
         var str = CorrelationContext.CorrelationId;
         if (str is { } id)
-            headers.Add("x-correlation-id",
-                System.Text.Encoding.UTF8.GetBytes(id.ToString()));
+            headers.Add("x-correlation-id", Encoding.UTF8.GetBytes(id.ToString()));
     }
 
     private static bool IsRetryableException(Exception ex)
@@ -88,6 +138,7 @@ public class DeadLetterPublisher(
                 or 49918 or 49919 or 49920 or 233 or 10053 or 10054 or 10060
                 or 921 or 922 or 923 or 924 or 926
             } => true,
+            ReadModelNotFoundException => true,
             KafkaException kex => !kex.Error.IsFatal && IsRetryableKafkaCode(kex.Error.Code),
             TimeoutException => true,
             SocketException => true,

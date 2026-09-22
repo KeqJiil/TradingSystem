@@ -1,6 +1,7 @@
 using Dapper;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.ReplayReadModel;
+using Stock.Application.Exceptions;
 using Stock.Infrastructure.Persistence.Implementations;
 using Stock.Tests.Infrastructure;
 using Stock.Tests.Infrastructure.Messaging.Consumers;
@@ -228,12 +229,13 @@ public class ReplayReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
     }
 
     [Fact]
-    public async Task Handle_ShouldNotCreateProjection_WhenItDoesNotExistYet()
+    public async Task Handle_ShouldThrowAndNotCreateProjection_WhenItDoesNotExistYet()
     {
         var aggregateId = Guid.NewGuid();
         await SeedEvent(aggregateId, version: 1, priceChange: 4m);
 
-        await Handler.Handle(new ReplayReadModelCommand(aggregateId, 1), CancellationToken.None);
+        await Assert.ThrowsAsync<ReadModelNotFoundException>(() =>
+            Handler.Handle(new ReplayReadModelCommand(aggregateId, 1), CancellationToken.None));
 
         var rows = await DbContext.Connection.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM stock_data_projection WHERE aggregate_id = @AggregateId",

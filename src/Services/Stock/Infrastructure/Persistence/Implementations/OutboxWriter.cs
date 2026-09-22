@@ -61,7 +61,7 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker
         var sql = """
                     UPDATE outbox
                     SET status = 'COMPLETED'
-                    WHERE id IN (@Ids)
+                    WHERE id IN @Ids
                   """;
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);

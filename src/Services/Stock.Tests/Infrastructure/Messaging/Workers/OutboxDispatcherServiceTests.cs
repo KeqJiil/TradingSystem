@@ -95,7 +95,7 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
         var aggregateId = Guid.NewGuid();
         var id = await InsertOutboxRowAsync(
             EventTypeNames.StockToggledStatus,
-            JsonSerializer.Serialize(new AppEvents.StockToggledStatusEvent(aggregateId, DateTimeOffset.UtcNow)));
+            JsonSerializer.Serialize(new AppEvents.StockToggledStatusEvent(aggregateId, DateTimeOffset.UtcNow, false, 1)));
 
         await EnsureTopicsExistAsync(TopicNames.StockStatusToggled);
         await _service.StartAsync(CancellationToken.None);

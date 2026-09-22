@@ -118,13 +118,55 @@ public class DlqRetryableConsumerTests : IClassFixture<KafkaFixture>
         Assert.Equal(0, handler.ReceivedCount);
     }
 
+    [Fact]
+    public async Task Consume_MessageNotDueYet_WaitsForBackoffBeforeHandling()
+    {
+        var sourceTopic = UniqueTopic();
+        var handler = new StubHandler();
+
+        await EnsureTopicsExistAsync(RetryTopic(sourceTopic), FatalTopic(sourceTopic));
+        await using var harness = CreateHarness(sourceTopic, new StockCreatedDlqEventToCommandMapper(), handler,
+            retryDelay: TimeSpan.FromSeconds(6));
+        Seed(sourceTopic, NewStockCreatedEvent(), attempt: 1, publishedAt: DateTimeOffset.UtcNow);
+
+        await harness.Sut.StartAsync(CancellationToken.None);
+
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        Assert.Equal(0, handler.ReceivedCount);
+
+        await WaitUntilAsync(() => handler.ReceivedCount >= 1);
+        Assert.Equal(1, handler.ReceivedCount);
+    }
+
+    [Fact]
+    public async Task Consume_MessageAlreadyDue_IsHandledImmediately()
+    {
+        var sourceTopic = UniqueTopic();
+        var handler = new StubHandler();
+
+        await EnsureTopicsExistAsync(RetryTopic(sourceTopic), FatalTopic(sourceTopic));
+        await using var harness = CreateHarness(sourceTopic, new StockCreatedDlqEventToCommandMapper(), handler,
+            retryDelay: TimeSpan.FromMinutes(1));
+        Seed(sourceTopic, NewStockCreatedEvent(), attempt: 1, publishedAt: DateTimeOffset.UtcNow.AddMinutes(-2));
+
+        await harness.Sut.StartAsync(CancellationToken.None);
+        await WaitUntilAsync(() => handler.ReceivedCount >= 1, timeoutSeconds: 10);
+
+        Assert.Equal(1, handler.ReceivedCount);
+    }
+
     private TestHarness CreateHarness(
         string sourceTopic,
         IDlqEventToCommandMapper<StockCreatedEvent, CreateReadModelCommand> mapper,
         StubHandler handler,
-        int maxRetryAttempts = 5)
+        int maxRetryAttempts = 5,
+        TimeSpan? retryDelay = null)
     {
-        var dlqOptions = Options.Create(new DeadLetterOptions { MaxRetryAttempts = maxRetryAttempts });
+        var dlqOptions = Options.Create(new DeadLetterOptions
+        {
+            MaxRetryAttempts = maxRetryAttempts,
+            RetryDelay = retryDelay ?? TimeSpan.Zero
+        });
         var dlq = new DeadLetterPublisher(_producerFactory, dlqOptions);
 
         var services = new ServiceCollection();
@@ -197,12 +239,15 @@ public class DlqRetryableConsumerTests : IClassFixture<KafkaFixture>
         }
     }
 
-    private void Seed(string sourceTopic, StockCreatedEvent @event, int? attempt = null)
+    private void Seed(string sourceTopic, StockCreatedEvent @event, int? attempt = null,
+        DateTimeOffset? publishedAt = null)
     {
         using var producer = _producerFactory.Create<StockCreatedEvent>($"seed-{Guid.NewGuid()}");
         var headers = new Headers();
         if (attempt is not null)
             headers.Add("attempt-count", BitConverter.GetBytes(attempt.Value));
+        if (publishedAt is not null)
+            headers.Add("timestamp", BitConverter.GetBytes(publishedAt.Value.ToUnixTimeMilliseconds()));
 
         producer.Produce(RetryTopic(sourceTopic),
             new Message<string, StockCreatedEvent>

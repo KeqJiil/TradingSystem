@@ -3,6 +3,7 @@ using MediatR;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.UpdateReadModel;
 using Stock.Infrastructure.ExternalEvents;
+using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
@@ -11,13 +12,16 @@ public class PriceChangedConsumer(
     IKafkaConsumerFactory consumerFactory,
     IServiceScopeFactory serviceScopeFactory,
     VersionsBuffer<PriceChangedEvent> buffer,
-    ILogger<PriceChangedConsumer> logger) : KafkaBackgroundConsumer<PriceChangedEvent>(consumerFactory, logger)
+    ILogger<PriceChangedConsumer> logger,
+    IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<PriceChangedEvent>(consumerFactory, logger, dlq)
 {
     protected override string GroupId => "price-change-events-group";
 
     protected override string ClientId => "price-change-events-consumer";
 
     protected override string Topic => TopicNames.Price;
+
+    protected override bool HoldCommitWhenDeferred => true;
 
     protected override async Task<bool> HandleAsync(PriceChangedEvent message, Headers headers, CancellationToken ct)
     {

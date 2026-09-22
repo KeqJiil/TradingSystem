@@ -65,7 +65,7 @@ public class StockEventKafkaHandlerTests : IClassFixture<KafkaFixture>, IDisposa
     [Fact]
     public async Task Handle_StockToggledStatusEvent_ProducesExternalEventToStockStatusToggledTopic()
     {
-        var @event = new AppEvents.StockToggledStatusEvent(Guid.NewGuid(), DateTimeOffset.UtcNow);
+        var @event = new AppEvents.StockToggledStatusEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, false, 3);
 
         await _handler.Handle(@event, CancellationToken.None);
 
@@ -73,6 +73,8 @@ public class StockEventKafkaHandlerTests : IClassFixture<KafkaFixture>, IDisposa
 
         Assert.Equal(@event.AggregateId.ToString(), result.Message.Key);
         Assert.Equal(@event.AggregateId, result.Message.Value.AggregateId);
+        Assert.Equal(@event.IsOpenToTrade, result.Message.Value.IsOpenToTrade);
+        Assert.Equal(@event.StatusVersion, result.Message.Value.StatusVersion);
     }
 
     [Fact]
