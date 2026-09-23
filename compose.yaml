@@ -10,6 +10,7 @@ services:
       - ConnectionStrings__DefaultConnection=${ConnectionStrings__DefaultConnection}
       - KafkaOptions__BootstrapServers=kafka:29092
       - KafkaOptions__ProducerClientId=stock-producer
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
     depends_on:
       stock-db:
         condition: service_healthy
@@ -29,12 +30,21 @@ services:
     volumes:
       - mssql-data:/var/opt/mssql/stock
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\""]
+      test: [ "CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\"" ]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 30s
     restart: unless-stopped
+  
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:latest
+    profiles: [ observability ]
+    ports:
+      - "18888:18888"
+      - "4317:18889"
+    environment:
+      - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
 
   kafka:
     image: confluentinc/cp-kafka:7.6.0
@@ -58,7 +68,7 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092 > /dev/null 2>&1"]
+      test: [ "CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092 > /dev/null 2>&1" ]
       interval: 10s
       timeout: 10s
       retries: 12

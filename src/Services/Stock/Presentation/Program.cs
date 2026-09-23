@@ -6,6 +6,7 @@ using Stock.Infrastructure.Handlers;
 using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Persistence;
 using Stock.Presentation.Builder;
+using Stock.Presentation.Builder.Observability;
 using Stock.Presentation.Http.Controllers;
 using Stock.Presentation.Http.ExceptionHandlers;
 using Stock.Presentation.Http.Middlewares;
@@ -21,6 +22,7 @@ builder.AddPersistence();
 builder.AddApplication();
 builder.AddKafka();
 builder.AddMessaging();
+builder.AddObservability();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
                        ?? throw new InvalidOperationException(

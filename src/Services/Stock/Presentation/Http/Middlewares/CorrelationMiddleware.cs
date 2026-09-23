@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Stock.Infrastructure;
 
 namespace Stock.Presentation.Http.Middlewares;
@@ -11,6 +12,7 @@ public class CorrelationMiddleware(RequestDelegate next)
             : Guid.NewGuid();
 
         CorrelationContext.CorrelationId = correlationId;
+        Activity.Current?.SetTag("correlation.id", correlationId.ToString());
 
         context.Response.OnStarting(() =>
         {
