@@ -34,17 +34,19 @@ public class StockToggleStatusEventConsumer(
         }
         catch (Exception ex)
         {
+            logger.LogWarning(ex, "Error processing StockToggledStatusEvent with id {AggregateId}", message.AggregateId);
+
             try
             {
                 await dlq.PublishAsync(TopicNames.StockStatusToggled, message, ex, 1, ct);
             }
             catch (Exception dlqEx) when (!ct.IsCancellationRequested)
             {
-                logger.LogError(dlqEx, "Failed to publish message to dead letter queue for StockToggledStatusEvent");
+                logger.LogError(dlqEx,
+                    "Failed to publish stock toggled status event for aggregate {AggregateId} to DLQ",
+                    message.AggregateId);
                 return false;
             }
-
-            logger.LogWarning(ex, "Error processing StockToggledStatusEvent");
         }
 
         return true;

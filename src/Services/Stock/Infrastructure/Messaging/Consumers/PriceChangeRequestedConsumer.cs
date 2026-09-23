@@ -32,7 +32,7 @@ public class PriceChangeRequestedConsumer(
         }
         catch (SqlException ex) when (ex.Number == 2627)
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "Price change event {EventId} for aggregate {AggregateId} is already stored, skipping",
                 mappedEvent.EventId, message.AggregateId);
         }

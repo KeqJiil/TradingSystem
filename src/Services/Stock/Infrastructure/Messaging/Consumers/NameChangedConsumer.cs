@@ -34,6 +34,8 @@ public class NameChangedConsumer(
         }
         catch (Exception ex)
         {
+            logger.LogWarning(ex, "Error processing NameChangedEvent with id {AggregateId}", message.AggregateId);
+
             try
             {
                 await dlq.PublishAsync(TopicNames.StockNameChanged, message, ex, 1, ct);
@@ -45,8 +47,6 @@ public class NameChangedConsumer(
                     message.AggregateId);
                 return false;
             }
-
-            logger.LogWarning(ex, "Error processing NameChangedEvent");
         }
 
         return true;

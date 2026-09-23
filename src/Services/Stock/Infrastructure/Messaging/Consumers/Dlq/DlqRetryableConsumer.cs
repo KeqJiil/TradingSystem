@@ -96,7 +96,7 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error processing message of type {MessageType}. Retrying...", typeof(TMessage).Name);
+            logger.LogWarning(ex, "Error processing message of type {MessageType}. Retrying...", typeof(TMessage).Name);
             return ex;
         }
     }

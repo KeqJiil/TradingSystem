@@ -15,7 +15,7 @@ public class HourlyReadModelWorker(
         var hourStart = new DateTimeOffset(@event.Date.ToDateTime(new TimeOnly(@event.Hour, 0)), TimeSpan.Zero);
         var hourEnd = hourStart.AddHours(1);
 
-        logger.LogInformation("HourlyReadModelWorker started for {AggregateId} on {Date}", aggregateId, hourStart);
+        logger.LogDebug("HourlyReadModelWorker started for {AggregateId} on {Date}", aggregateId, hourStart);
 
         var previousHour = await priceHistoryReader.GetLastHourPriceHistoryAsync(aggregateId, hourStart, ct);
         var gapFrom = previousHour is null ? DateTimeOffset.MinValue : previousHour.Value.DateTime.AddHours(1);
@@ -39,7 +39,7 @@ public class HourlyReadModelWorker(
 
         if (count == 0)
         {
-            logger.LogInformation("No events for {AggregateId} on {Date}, skipping", aggregateId, hourStart);
+            logger.LogDebug("No events for {AggregateId} on {Date}, skipping", aggregateId, hourStart);
             return;
         }
 
@@ -50,7 +50,7 @@ public class HourlyReadModelWorker(
                 cumulativePrice - open.Value, lastVersion),
             ct);
 
-        logger.LogInformation("HourlyReadModelWorker finished for {AggregateId} on {Date}", aggregateId,
+        logger.LogDebug("HourlyReadModelWorker finished for {AggregateId} on {Date}", aggregateId,
             hourStart);
     }
 }

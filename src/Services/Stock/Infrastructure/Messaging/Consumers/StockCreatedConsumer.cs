@@ -35,6 +35,8 @@ public class StockCreatedConsumer(
         }
         catch (Exception ex)
         {
+            logger.LogWarning(ex, "Error processing StockCreatedEvent with id {AggregateId}", message.AggregateId);
+
             try
             {
                 await dlq.PublishAsync(TopicNames.StockCreated, message, ex, 1, ct);
@@ -46,8 +48,6 @@ public class StockCreatedConsumer(
                     message.AggregateId);
                 return false;
             }
-
-            logger.LogWarning(ex, "Error processing StockCreatedEvent");
         }
 
         return true;

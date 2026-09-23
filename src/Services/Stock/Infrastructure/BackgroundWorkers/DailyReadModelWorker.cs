@@ -14,7 +14,7 @@ public class DailyReadModelWorker(
         var aggregateId = @event.AggregateId;
         var date = @event.Date;
 
-        logger.LogInformation("DailyReadModelWorker started for {AggregateId} on {Date}", aggregateId, date);
+        logger.LogDebug("DailyReadModelWorker started for {AggregateId} on {Date}", aggregateId, date);
 
         var from = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         var dayEnd = from.AddDays(1);
@@ -36,7 +36,7 @@ public class DailyReadModelWorker(
 
         if (count == 0)
         {
-            logger.LogInformation("No events for {AggregateId} on {Date}, skipping", aggregateId, date);
+            logger.LogDebug("No events for {AggregateId} on {Date}, skipping", aggregateId, date);
             return;
         }
 
@@ -47,6 +47,6 @@ public class DailyReadModelWorker(
                 close.Value - open.Value, lastVersion),
             ct);
 
-        logger.LogInformation("DailyReadModelWorker finished for {AggregateId} on {Date}", aggregateId, date);
+        logger.LogDebug("DailyReadModelWorker finished for {AggregateId} on {Date}", aggregateId, date);
     }
 }

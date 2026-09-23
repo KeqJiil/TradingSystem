@@ -96,10 +96,15 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Unhandled error while processing a message from {Topic}", Topic);
+                var attempt = RegisterFailure(result.TopicPartitionOffset);
 
-                if (RegisterFailure(result.TopicPartitionOffset) >= MaxHandleAttempts
-                    && await TryMoveToFatalAsync(message, ex, ct))
+                if (attempt < MaxHandleAttempts)
+                {
+                    logger.LogWarning(ex,
+                        "Unhandled error while processing a message at {Offset} from {Topic}, attempt {Attempt}/{MaxAttempts}",
+                        result.TopicPartitionOffset, Topic, attempt, MaxHandleAttempts);
+                }
+                else if (await TryMoveToFatalAsync(message, ex, ct))
                 {
                     Commit(result.TopicPartitionOffset);
                     continue;
@@ -145,7 +150,7 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
 
     private async Task<bool> TryMoveToFatalAsync(TMessage message, Exception ex, CancellationToken ct)
     {
-        logger.LogError(
+        logger.LogError(ex,
             "Message for aggregate {AggregateId} from {Topic} failed {Attempts} times, moving it to fatal DLQ",
             message.AggregateId, Topic, _failedAttempts);
 

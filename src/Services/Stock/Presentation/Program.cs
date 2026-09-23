@@ -2,6 +2,7 @@ using Hangfire;
 using Hangfire.Dashboard;
 using Microsoft.Extensions.Internal;
 using Stock.Infrastructure.Cron;
+using Stock.Infrastructure.Handlers;
 using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Persistence;
 using Stock.Presentation.Builder;
@@ -26,7 +27,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
                            "Connection string 'DefaultConnection' is not configured.");
 
 builder.Services.AddHangfire(config =>
-    config.UseSqlServerStorage(connectionString));
+    config.UseSqlServerStorage(connectionString).UseFilter(new CorrelationJobFilter()));
 builder.Services.AddHangfireServer();
 builder.Services.AddSingleton<ISystemClock, SystemClock>();
 
@@ -38,6 +39,8 @@ builder.Services.AddHealthChecks().AddCheck<KafkaHealthCheck>("kafka", tags: ["r
 DbMigrator.ApplyMigrations(connectionString);
 
 var app = builder.Build();
+
+app.UseMiddleware<CorrelationMiddleware>();
 
 app.UseExceptionHandler();
 
@@ -52,7 +55,6 @@ app.UseCronJobs();
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
 app.UseHttpsRedirection();
-app.UseMiddleware<CorrelationMiddleware>();
 
 app.MapStockController();
 app.MapStockReadController();

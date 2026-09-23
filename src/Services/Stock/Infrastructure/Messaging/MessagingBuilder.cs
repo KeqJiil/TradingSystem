@@ -17,17 +17,21 @@ public static class MessagingBuilder
     {
         builder.Services.AddSingleton(sp =>
         {
-            var logger = sp.GetRequiredService<ILogger<VersionsBuffer<PriceChangedEvent>>>();
+            var logger = sp.GetRequiredService<ILogger<VersionsBuffer<MessageEnvelope<PriceChangedEvent>>>>();
             var clock = sp.GetRequiredService<ISystemClock>();
             var dlq = sp.GetRequiredService<IDeadLetterPublisher>();
 
-            async Task OnExpire(Guid aggregateId, IReadOnlyCollection<PriceChangedEvent> expired, CancellationToken ct)
+            async Task OnExpire(Guid aggregateId, IReadOnlyCollection<MessageEnvelope<PriceChangedEvent>> expired,
+                CancellationToken ct)
             {
                 foreach (var evt in expired)
-                    await dlq.PublishAsync(TopicNames.Price, evt, isRetryable: true, attempt: 1, ct);
+                {
+                    CorrelationContext.CorrelationId = evt.CorrelationId;
+                    await dlq.PublishAsync(TopicNames.Price, evt.Message, true, 1, ct);
+                }
             }
 
-            return new VersionsBuffer<PriceChangedEvent>(logger, clock, OnExpire);
+            return new VersionsBuffer<MessageEnvelope<PriceChangedEvent>>(logger, clock, OnExpire);
         });
 
         builder.Services.AddHostedService<OutboxDispatcherService>();

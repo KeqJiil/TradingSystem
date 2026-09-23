@@ -11,7 +11,7 @@ namespace Stock.Infrastructure.Messaging.Consumers;
 public class PriceChangedConsumer(
     IKafkaConsumerFactory consumerFactory,
     IServiceScopeFactory serviceScopeFactory,
-    VersionsBuffer<PriceChangedEvent> buffer,
+    VersionsBuffer<MessageEnvelope<PriceChangedEvent>> buffer,
     ILogger<PriceChangedConsumer> logger,
     IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<PriceChangedEvent>(consumerFactory, logger, dlq)
 {
@@ -26,19 +26,21 @@ public class PriceChangedConsumer(
     protected override async Task<bool> HandleAsync(PriceChangedEvent message, Headers headers, CancellationToken ct)
     {
         if (message is { Version: { } version })
-            await buffer.TryApplyAsync(message.AggregateId, version, message, ApplyAsync, ct);
+            await buffer.TryApplyAsync(message.AggregateId, version, new MessageEnvelope<PriceChangedEvent>(message, CorrelationContext.CorrelationId), ApplyAsync, ct);
 
         return !buffer.HasPendingGaps;
     }
 
-    private async Task<ReadModelUpdateOutcome> ApplyAsync(Guid aggregateId, long version, PriceChangedEvent data,
+    private async Task<ReadModelUpdateOutcome> ApplyAsync(Guid aggregateId, long version, MessageEnvelope<PriceChangedEvent> data,
         CancellationToken ct)
     {
+        CorrelationContext.CorrelationId = data.CorrelationId;
+
         await using var scope = serviceScopeFactory.CreateAsyncScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         try
         {
-            return await mediator.Send(new UpdateReadModelCommand(aggregateId, data.PriceChange, version), ct);
+            return await mediator.Send(new UpdateReadModelCommand(aggregateId, data.Message.PriceChange, version), ct);
         }
         catch (Exception ex)
         {

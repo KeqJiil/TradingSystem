@@ -15,7 +15,8 @@ public class VersionsBuffer<T>(
     public bool HasPendingGaps => _pending.Count > 0;
 
     public async Task TryApplyAsync(Guid aggregateId, long version, T data,
-        Func<Guid, long, T, CancellationToken, Task<ReadModelUpdateOutcome>> applyAsync, CancellationToken ct)
+        Func<Guid, long, T, CancellationToken, Task<ReadModelUpdateOutcome>> applyAsync,
+        CancellationToken ct)
     {
         var outcome = await applyAsync(aggregateId, version, data, ct);
 
@@ -46,7 +47,8 @@ public class VersionsBuffer<T>(
     }
 
     private async Task DrainBufferAsync(Guid aggregateId,
-        Func<Guid, long, T, CancellationToken, Task<ReadModelUpdateOutcome>> applyAsync, CancellationToken ct)
+        Func<Guid, long, T, CancellationToken, Task<ReadModelUpdateOutcome>> applyAsync,
+        CancellationToken ct)
     {
         if (!_pending.TryGetValue(aggregateId, out var buffer)) return;
 
@@ -82,8 +84,9 @@ public class VersionsBuffer<T>(
         {
             if (!_pending.TryGetValue(aggregateId, out var buffer)) continue;
 
-            logger.LogWarning("{aggregateId} haven't been restored ordering for {gapTimeout} minutes", aggregateId,
-                _gapTimeout);
+            logger.LogWarning(
+                "Ordering for {AggregateId} hasn't been restored for {GapTimeoutMinutes} minutes, handing over {BufferedCount} buffered events",
+                aggregateId, _gapTimeout.TotalMinutes, buffer.Count);
 
             try
             {

@@ -56,8 +56,13 @@ public class OutboxDispatcherService(
     {
         try
         {
+            CorrelationContext.CorrelationId = data.CorrelationId;
+
             if (!OutboxEventRegistry.TryGet(data.EventType, out var descriptor))
             {
+                logger.LogWarning(
+                    "Outbox event {OutboxId} of unknown type {EventType} for aggregate {AggregateId}, moving it to unknown DLQ",
+                    data.Id, data.EventType, data.AggregateId);
                 await dlq.PublishUnknownAsync(data, ct);
                 return (true, data.Id);
             }
@@ -65,12 +70,19 @@ public class OutboxDispatcherService(
             var @event = descriptor.Deserialize(data.Payload);
             if (@event is null)
             {
+                logger.LogWarning(
+                    "Outbox event {OutboxId} of type {EventType} for aggregate {AggregateId} can't be deserialized, moving it to unknown DLQ",
+                    data.Id, data.EventType, data.AggregateId);
                 await dlq.PublishUnknownAsync(data, ct);
                 return (true, data.Id);
             }
 
             if (!OutboxRetryPolicy.ShouldRetry(data.RetryCount))
             {
+                logger.LogWarning(
+                    "Outbox event {OutboxId} of type {EventType} for aggregate {AggregateId} exhausted {Attempts} attempts, moving it to DLQ",
+                    data.Id, data.EventType, data.AggregateId, data.RetryCount);
+
                 if (descriptor.PublishToOwnTopic is not null)
                     await descriptor.PublishToOwnTopic(dlq, @event, data.RetryCount, ct);
                 else
@@ -82,14 +94,14 @@ public class OutboxDispatcherService(
             await using var scope = scopeFactory.CreateAsyncScope();
             var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
-            CorrelationContext.CorrelationId = data.CorrelationId;
-
             await mediator.Publish(@event, ct);
             return (true, data.Id);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "An unexpected error occurred while processing outbox event {OutboxId}", data.Id);
+            logger.LogWarning(ex,
+                "An unexpected error occurred while processing outbox event {OutboxId}, type {EventType}, aggregate {AggregateId}, attempts {Attempts}",
+                data.Id, data.EventType, data.AggregateId, data.RetryCount);
             return (false, data.Id);
         }
     }

@@ -35,6 +35,8 @@ public class TimeChangedConsumer(
         }
         catch (Exception ex)
         {
+            logger.LogWarning(ex, "Error processing TimeChangedEvent with id {AggregateId}", message.AggregateId);
+
             try
             {
                 await dlq.PublishAsync(TopicNames.StockTradingTimeChanged, message, ex, 1, ct);
@@ -46,8 +48,6 @@ public class TimeChangedConsumer(
                     message.AggregateId);
                 return false;
             }
-
-            logger.LogWarning(ex, "Error processing TimeChangedEvent");
         }
 
         return true;
