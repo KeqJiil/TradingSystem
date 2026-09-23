@@ -5,7 +5,7 @@ using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker
+public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker, IOutboxCleaner
 {
     public async Task WriteAsync<T>(T @event, Guid aggregateId, CancellationToken cancellationToken) where T : class
 
@@ -56,8 +56,10 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker
         await dbContext.Connection.ExecuteAsync(sql, parameters, dbContext.Transaction);
     }
 
-    public async Task MarkCompletedAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken)
+    public async ValueTask MarkCompletedAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken)
     {
+        if (ids.Count == 0) return;
+
         var sql = """
                     UPDATE outbox
                     SET status = 'COMPLETED'
@@ -67,5 +69,27 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
         await dbContext.Connection.ExecuteAsync(sql, new { Ids = ids }, dbContext.Transaction);
+    }
+
+    public async Task<int> CleanupAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken)
+    {
+        var sql = """
+                    DELETE TOP (@BatchSize) FROM outbox
+                    WHERE status = 'COMPLETED' AND created_at < @OlderThan
+                  """;
+
+        await dbContext.EnsureConnectionOpenAsync(cancellationToken);
+
+        var total = 0;
+        int deleted;
+
+        do
+        {
+            deleted = await dbContext.Connection.ExecuteAsync(sql,
+                new { BatchSize = batchSize, OlderThan = olderThan }, dbContext.Transaction);
+            total += deleted;
+        } while (deleted == batchSize && !cancellationToken.IsCancellationRequested);
+
+        return total;
     }
 }

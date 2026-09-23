@@ -19,6 +19,9 @@ public static class TopicNames
     public const string StockStatusToggled = "stock-status-toggled-topic";
     public const string Price = "price-topic";
     public const string PriceChangeRequested = "price-change-requested-topic";
+    public const string StockNameChanged = "stock-name-changed-topic";
+    public const string StockTradingTimeChanged = "stock-trading-time-changed-topic";
 
-    public static string[] All => [StockCreated, StockStatusToggled, Price, PriceChangeRequested];
+    public static string[] All =>
+        [StockCreated, StockStatusToggled, Price, PriceChangeRequested, StockNameChanged, StockTradingTimeChanged];
 }

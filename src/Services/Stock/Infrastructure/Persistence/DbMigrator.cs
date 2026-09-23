@@ -13,13 +13,11 @@ public static class DbMigrator
             .SqlDatabase(connectionString)
             .WithScriptsEmbeddedInAssembly(Assembly.GetExecutingAssembly())
             .LogToConsole()
+            .WithTransactionPerScript()
             .Build();
 
         var result = upgrader.PerformUpgrade();
 
-        if (!result.Successful)
-        {
-            throw new InvalidOperationException("Database migration failed.", result.Error);
-        }
+        if (!result.Successful) throw new InvalidOperationException("Database migration failed.", result.Error);
     }
 }

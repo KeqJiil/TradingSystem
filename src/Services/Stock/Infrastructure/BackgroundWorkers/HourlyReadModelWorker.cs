@@ -12,21 +12,23 @@ public class HourlyReadModelWorker(
     public async Task ProcessAsync(HourlyReadModelRequested @event, CancellationToken ct)
     {
         var aggregateId = @event.AggregateId;
-        var dateTime = @event.Date.ToDateTime(new TimeOnly(@event.Hour, 0));
-        var dateTimeOffset = new DateTimeOffset(dateTime, TimeSpan.Zero);
+        var hourStart = new DateTimeOffset(@event.Date.ToDateTime(new TimeOnly(@event.Hour, 0)), TimeSpan.Zero);
+        var hourEnd = hourStart.AddHours(1);
 
-        logger.LogInformation("HourlyReadModelWorker started for {AggregateId} on {Date}", aggregateId, dateTimeOffset);
+        logger.LogInformation("HourlyReadModelWorker started for {AggregateId} on {Date}", aggregateId, hourStart);
 
-        var previousDay = await priceHistoryReader.GetLastHourPriceHistoryAsync(aggregateId, dateTimeOffset, ct);
-        var cumulativePrice = previousDay?.ClosePrice ?? 0m;
+        var previousHour = await priceHistoryReader.GetLastHourPriceHistoryAsync(aggregateId, hourStart, ct);
+        var gapFrom = previousHour is null ? DateTimeOffset.MinValue : previousHour.Value.DateTime.AddHours(1);
+        var gap = await eventStoreReader.SumPriceChangeAsync(aggregateId, gapFrom, hourStart, ct);
+        var cumulativePrice = (previousHour?.ClosePrice ?? 0m) + gap;
 
         decimal? open = null;
         var high = decimal.MinValue;
         var low = decimal.MaxValue;
         var count = 0;
 
-        await foreach (var priceEvent in eventStoreReader.ListEventsAsync(aggregateId, dateTimeOffset.AddHours(-1),
-                           dateTimeOffset, ct))
+        await foreach (var priceEvent in eventStoreReader.ListEventsAsync(aggregateId, hourStart,
+                           hourEnd, ct))
         {
             cumulativePrice += priceEvent.PriceChange;
             open ??= cumulativePrice;
@@ -37,18 +39,18 @@ public class HourlyReadModelWorker(
 
         if (count == 0)
         {
-            logger.LogInformation("No events for {AggregateId} on {Date}, skipping", aggregateId, dateTimeOffset);
+            logger.LogInformation("No events for {AggregateId} on {Date}, skipping", aggregateId, hourStart);
             return;
         }
 
-        var lastVersion = await eventStoreReader.GetLastVersionAsync(aggregateId, dateTimeOffset, ct) ?? 0;
+        var lastVersion = await eventStoreReader.GetLastVersionAsync(aggregateId, hourEnd, ct) ?? 0;
 
         await writer.CreateHourlyReadModelAsync(
-            new HourlyReadModelAggregate(aggregateId, dateTimeOffset, open.Value, low, high, cumulativePrice,
+            new HourlyReadModelAggregate(aggregateId, hourStart, open.Value, low, high, cumulativePrice,
                 cumulativePrice - open.Value, lastVersion),
             ct);
 
         logger.LogInformation("HourlyReadModelWorker finished for {AggregateId} on {Date}", aggregateId,
-            dateTimeOffset);
+            hourStart);
     }
 }

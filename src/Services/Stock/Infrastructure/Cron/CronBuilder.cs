@@ -8,14 +8,13 @@ public static class CronBuilder
     {
         var recurringJobManager = app.Services.GetRequiredService<IRecurringJobManager>();
 
-        recurringJobManager.AddOrUpdate<DailyCronWorker>(
-            "daily-read-model",
-            worker => worker.ExecuteAsync(CancellationToken.None),
-            Hangfire.Cron.Daily());
-        
-        recurringJobManager.AddOrUpdate<HourlyCronWorker>(
-            "hourly-read-model",
-            worker => worker.ExecuteAsync(CancellationToken.None),
-            Hangfire.Cron.Hourly());
+        recurringJobManager.AddOrUpdate<DailyCronWorker>("daily-read-model",
+            w => w.ExecuteAsync(CancellationToken.None), "0 1 * * *");
+
+        recurringJobManager.AddOrUpdate<HourlyCronWorker>("hourly-read-model",
+            w => w.ExecuteAsync(CancellationToken.None), "5 * * * *");
+
+        recurringJobManager.AddOrUpdate<OutboxCleanupCronWorker>("outbox-cleanup",
+            w => w.ExecuteAsync(CancellationToken.None), "0 3 * * *");
     }
 }

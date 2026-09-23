@@ -18,7 +18,6 @@ public class DailyReadModelWorker(
 
         var from = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
         var dayEnd = from.AddDays(1);
-        var lastHour = from.AddHours(23);
 
         decimal? open = null;
         decimal? close = null;
@@ -26,7 +25,7 @@ public class DailyReadModelWorker(
         var low = decimal.MaxValue;
         var count = 0;
 
-        foreach (var priceEvent in await hourlyReader.GetHourlyPriceHistoryAsync(aggregateId, from, lastHour, ct))
+        foreach (var priceEvent in await hourlyReader.GetHourlyPriceHistoryAsync(aggregateId, from, dayEnd, ct))
         {
             open ??= priceEvent.OpenPrice;
             close = priceEvent.ClosePrice;

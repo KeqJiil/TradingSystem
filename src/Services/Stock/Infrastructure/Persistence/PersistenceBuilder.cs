@@ -18,6 +18,7 @@ public static class PersistenceBuilder
         builder.Services.AddScoped<IOutboxReader, OutboxReader>();
         builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
         builder.Services.AddScoped<IOutboxMarker, OutboxWriter>();
+        builder.Services.AddScoped<IOutboxCleaner, OutboxWriter>();
 
         builder.Services.AddScoped<IStockReader, StockReader>();
         builder.Services.AddScoped<IStockWriter, StockDataWriter>();

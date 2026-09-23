@@ -2,5 +2,5 @@ namespace Stock.Infrastructure.Persistence;
 
 public interface IOutboxMarker
 {
-    Task MarkCompletedAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken);
+    ValueTask MarkCompletedAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken);
 }
