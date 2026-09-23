@@ -26,6 +26,16 @@ public static class OutboxEventRegistry
                 (dlq, e, attempt, ct) => dlq.PublishAsync(TopicNames.StockStatusToggled,
                     Ex.StockToggledStatusEventMapper.MapToExternal((Ap.StockToggledStatusEvent)e), false, attempt, ct)),
 
+            [EventTypeNames.NameChanged] = new(
+                payload => payload.TryDeserialize<Ap.NameChangedEvent>(),
+                (dlq, e, attempt, ct) => dlq.PublishAsync(TopicNames.StockNameChanged,
+                    Ex.NameChangedEventMapper.MapToExternal((Ap.NameChangedEvent)e), false, attempt, ct)),
+
+            [EventTypeNames.TimeChanged] = new(
+                payload => payload.TryDeserialize<Ap.TimeChangedEvent>(),
+                (dlq, e, attempt, ct) => dlq.PublishAsync(TopicNames.StockTradingTimeChanged,
+                    Ex.TimeChangedEventMapper.MapToExternal((Ap.TimeChangedEvent)e), false, attempt, ct)),
+
             [EventTypeNames.DailyReadModelRequested] = new(
                 payload => payload.TryDeserialize<Ap.DailyReadModelRequested>(),
                 null),

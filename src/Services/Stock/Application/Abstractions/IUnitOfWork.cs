@@ -2,7 +2,7 @@ namespace Stock.Application.Abstractions;
 
 public interface IUnitOfWork : IAsyncDisposable
 {
-    public Task StartTransactionAsync(CancellationToken ct);
+    public ValueTask<bool> StartTransactionAsync(CancellationToken ct);
     public ValueTask CommitAsync(CancellationToken ct);
     public ValueTask RollbackAsync(CancellationToken ct);
 }

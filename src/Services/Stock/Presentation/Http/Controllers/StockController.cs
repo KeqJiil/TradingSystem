@@ -39,14 +39,15 @@ public static class StockController
                 [FromServices] IMediator mediator,
                 CancellationToken cancellationToken) =>
             {
-                await mediator.Send(new ChangeStockNameCommand(id, request.Name), cancellationToken);
-                return Results.NoContent();
+                var found = await mediator.Send(new ChangeStockNameCommand(id, request.Name), cancellationToken);
+                return found ? Results.NoContent() : Results.NotFound();
             })
             .WithName("ChangeStockName")
             .WithTags("Stock")
             .WithDescription("Changes a stock's name")
             .Produces(204)
-            .Produces(400);
+            .Produces(400)
+            .Produces(404);
 
         app.MapPatch("/api/stock/{id:Guid}/trading-time", async (
                 [FromRoute] Guid id,
@@ -54,29 +55,31 @@ public static class StockController
                 [FromServices] IMediator mediator,
                 CancellationToken cancellationToken) =>
             {
-                await mediator.Send(
+                var found = await mediator.Send(
                     new ChangeStockTradingTimeCommand(id, request.OpenTime, request.CloseTime), cancellationToken);
-                return Results.NoContent();
+                return found ? Results.NoContent() : Results.NotFound();
             })
             .WithName("ChangeStockTradingTime")
             .WithTags("Stock")
             .WithDescription("Changes a stock's trading hours")
             .Produces(204)
-            .Produces(400);
+            .Produces(400)
+            .Produces(404);
 
         app.MapPost("/api/stock/{id:Guid}/toggle-open-to-trade", async (
                 [FromRoute] Guid id,
                 [FromServices] IMediator mediator,
                 CancellationToken cancellationToken) =>
             {
-                await mediator.Send(new ToggleStockOpenToTradeCommand(id), cancellationToken);
-                return Results.NoContent();
+                var found = await mediator.Send(new ToggleStockOpenToTradeCommand(id), cancellationToken);
+                return found ? Results.NoContent() : Results.NotFound();
             })
             .WithName("ToggleStockOpenToTrade")
             .WithTags("Stock")
             .WithDescription("Toggles whether a stock is open to trade")
             .Produces(204)
-            .Produces(400);
+            .Produces(400)
+            .Produces(404);
     }
 }
 

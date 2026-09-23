@@ -6,15 +6,13 @@ namespace Stock.Infrastructure.Persistence.Implementations;
 
 public class UnitOfWork : IUnitOfWork, IDbContext
 {
-    private readonly IDbConnectionFactory _connectionFactory;
     private bool _disposed;
     public DbConnection Connection { get; private set; }
     public DbTransaction? Transaction { get; private set; }
 
     public UnitOfWork(IDbConnectionFactory connectionFactory)
     {
-        _connectionFactory = connectionFactory;
-        Connection = _connectionFactory.CreateConnection();
+        Connection = connectionFactory.CreateConnection();
     }
 
     public async Task EnsureConnectionOpenAsync(CancellationToken ct)
@@ -22,24 +20,40 @@ public class UnitOfWork : IUnitOfWork, IDbContext
         if (Connection.State == ConnectionState.Closed) await Connection.OpenAsync(ct);
     }
 
-    public async Task StartTransactionAsync(CancellationToken ct)
+    public async ValueTask<bool> StartTransactionAsync(CancellationToken ct)
     {
+        if (Transaction is not null) return false;
         await EnsureConnectionOpenAsync(ct);
         Transaction = await Connection.BeginTransactionAsync(ct);
+        return true;
     }
 
     public async ValueTask CommitAsync(CancellationToken ct)
     {
         if (Transaction is null) return;
-        try { await Transaction.CommitAsync(ct); }
-        finally { await Transaction.DisposeAsync(); Transaction = null; }
+        try
+        {
+            await Transaction.CommitAsync(ct);
+        }
+        finally
+        {
+            await Transaction.DisposeAsync();
+            Transaction = null;
+        }
     }
 
     public async ValueTask RollbackAsync(CancellationToken ct)
     {
         if (Transaction is null) return;
-        try { await Transaction.RollbackAsync(ct); }
-        finally { await Transaction.DisposeAsync(); Transaction = null; }
+        try
+        {
+            await Transaction.RollbackAsync(ct);
+        }
+        finally
+        {
+            await Transaction.DisposeAsync();
+            Transaction = null;
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -47,10 +61,10 @@ public class UnitOfWork : IUnitOfWork, IDbContext
         if (_disposed) return;
         _disposed = true;
 
+        if (Transaction != null) await Transaction.DisposeAsync();
+
         await Connection.CloseAsync();
         await Connection.DisposeAsync();
-
-        if (Transaction != null) await Transaction.DisposeAsync();
 
         GC.SuppressFinalize(this);
     }

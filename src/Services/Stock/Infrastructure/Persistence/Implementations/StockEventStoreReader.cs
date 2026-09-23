@@ -94,5 +94,20 @@ public class StockEventStoreReader(IDbContext dbContext) : IStockEventStoreReade
             sql, new { AggregateId = aggregateId, Before = before }, dbContext.Transaction);
     }
 
+    public async Task<decimal> SumPriceChangeAsync(Guid aggregateId, DateTimeOffset from, DateTimeOffset to,
+        CancellationToken ct = default)
+    {
+        var sql = """
+                  SELECT COALESCE(SUM(price_change), 0)
+                  FROM events_store
+                  WHERE aggregate_id = @AggregateId AND occured_at >= @From AND occured_at < @To
+                  """;
+
+        await dbContext.EnsureConnectionOpenAsync(ct);
+
+        return await dbContext.Connection.ExecuteScalarAsync<decimal>(
+            sql, new { AggregateId = aggregateId, From = from, To = to }, dbContext.Transaction);
+    }
+
     private readonly record struct EventRow(Guid StockId, decimal PriceChange, DateTimeOffset Timestamp, long Version);
 }

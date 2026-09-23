@@ -3,17 +3,11 @@ using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class UnitOfWorkDecorator : IUnitOfWorkDecorator
+public class UnitOfWorkDecorator(
+    IUnitOfWork unitOfWork,
+    ResiliencePipeline pipeline,
+    ILogger<UnitOfWorkDecorator> logger) : IUnitOfWorkDecorator
 {
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ResiliencePipeline _pipeline;
-
-    public UnitOfWorkDecorator(IUnitOfWork unitOfWork, ResiliencePipeline pipeline)
-    {
-        _unitOfWork = unitOfWork;
-        _pipeline = pipeline;
-    }
-
     public async Task ExecuteAsync(Func<Task> action, CancellationToken ct)
     {
         if (ResilienceScope.IsActive)
@@ -22,7 +16,7 @@ public class UnitOfWorkDecorator : IUnitOfWorkDecorator
             return;
         }
 
-        await _pipeline.ExecuteAsync(async (state, token) =>
+        await pipeline.ExecuteAsync(async (state, token) =>
         {
             ResilienceScope.IsActive = true;
             await state.Decorator.RunInTransactionAsync(state.Action, token);
@@ -31,16 +25,28 @@ public class UnitOfWorkDecorator : IUnitOfWorkDecorator
 
     private async Task RunInTransactionAsync(Func<Task> action, CancellationToken ct)
     {
-        await _unitOfWork.StartTransactionAsync(ct);
+        if (!await unitOfWork.StartTransactionAsync(ct))
+        {
+            await action();
+            return;
+        }
 
         try
         {
             await action();
-            await _unitOfWork.CommitAsync(ct);
+            await unitOfWork.CommitAsync(ct);
         }
         catch
         {
-            await _unitOfWork.RollbackAsync(ct);
+            try
+            {
+                await unitOfWork.RollbackAsync(CancellationToken.None);
+            }
+            catch (Exception rbEx)
+            {
+                logger.LogError(rbEx, "Rollback failed");
+            }
+
             throw;
         }
     }

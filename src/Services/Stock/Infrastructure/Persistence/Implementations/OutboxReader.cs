@@ -11,11 +11,12 @@ public class OutboxReader(IDbContext context) : IOutboxReader
                         SELECT TOP(@Amount) *
                         FROM outbox WITH (READPAST)
                         WHERE (processed_at IS NULL OR DATEDIFF(MINUTE, processed_at, GETDATE()) > @MaxWaitMinutes) 
-                            AND status != 'COMPLETED' 
+                            AND status != 'COMPLETED'
+                        ORDER BY created_at
                             )
                     UPDATE cte
                     SET processed_at = GETDATE(), status = 'PROCESSING', attempts = cte.attempts + 1
-                    OUTPUT 
+                    OUTPUT
                         inserted.id AS Id, inserted.aggregate_id AS AggregateId, inserted.event_type AS EventType,
                         inserted.status AS Status, inserted.payload AS Payload, inserted.attempts AS RetryCount,
                         inserted.correlation_id AS CorrelationId

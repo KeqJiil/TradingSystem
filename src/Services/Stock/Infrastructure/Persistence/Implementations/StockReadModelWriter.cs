@@ -19,7 +19,7 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
 
         var sql = """
                     UPDATE "stock_data_projection"
-                    SET "price" = "price" + @PriceChange, "version" = "version" + 1
+                    SET "price" = "price" + @PriceChange, "version" = "version" + 1, "updated_at" = SYSDATETIMEOFFSET()
                     WHERE "version" = @OldVersion AND "aggregate_id" = @AggregateId
                   """;
 
@@ -35,7 +35,7 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
     {
         var sql = """
                     UPDATE "stock_data_projection"
-                    SET "price" = "price" + @PriceChange, "version" = @ToVersion
+                    SET "price" = "price" + @PriceChange, "version" = @ToVersion, "updated_at" = SYSDATETIMEOFFSET()
                     WHERE "aggregate_id" = @AggregateId AND "version" = @FromVersion
                   """;
 
@@ -85,7 +85,7 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
     {
         var sql = """
                     UPDATE "stock_data_projection"
-                    SET "is_open_to_trade" = @IsOpenToTrade, "status_version" = @StatusVersion
+                    SET "is_open_to_trade" = @IsOpenToTrade, "status_version" = @StatusVersion, "updated_at" = SYSDATETIMEOFFSET()
                     WHERE "aggregate_id" = @AggregateId AND "status_version" < @StatusVersion;
 
                     SELECT CAST(CASE WHEN EXISTS (
@@ -97,6 +97,50 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
 
         return await context.Connection.ExecuteScalarAsync<bool>(sql,
             new { AggregateId = aggregateId, IsOpenToTrade = isOpenToTrade, StatusVersion = statusVersion },
+            context.Transaction);
+    }
+
+    public async Task<bool> SetNewTimeAsync(Guid aggregateId, TimeOnly tradingStartTime, TimeOnly tradingCloseTime,
+        long timeVersion, CancellationToken ct)
+    {
+        var sql = """
+                    UPDATE "stock_data_projection"
+                    SET "trading_start_time" = @TradingStartTime, "trading_end_time" = @TradingCloseTime,
+                        "trading_time_version" = @TimeVersion, "updated_at" = SYSDATETIMEOFFSET()
+                    WHERE "aggregate_id" = @AggregateId AND "trading_time_version" < @TimeVersion;
+
+                    SELECT CAST(CASE WHEN EXISTS (
+                        SELECT 1 FROM "stock_data_projection" WHERE "aggregate_id" = @AggregateId
+                    ) THEN 1 ELSE 0 END AS BIT);
+                  """;
+
+        await context.EnsureConnectionOpenAsync(ct);
+
+        return await context.Connection.ExecuteScalarAsync<bool>(sql,
+            new
+            {
+                AggregateId = aggregateId, TradingStartTime = tradingStartTime, TradingCloseTime = tradingCloseTime,
+                TimeVersion = timeVersion
+            },
+            context.Transaction);
+    }
+
+    public async Task<bool> SetNewNameAsync(Guid aggregateId, string newName, long nameVersion, CancellationToken ct)
+    {
+        var sql = """
+                    UPDATE "stock_data_projection"
+                    SET "name" = @NewName, "name_version" = @NameVersion, "updated_at" = SYSDATETIMEOFFSET()
+                    WHERE "aggregate_id" = @AggregateId AND "name_version" < @NameVersion;
+
+                    SELECT CAST(CASE WHEN EXISTS (
+                        SELECT 1 FROM "stock_data_projection" WHERE "aggregate_id" = @AggregateId
+                    ) THEN 1 ELSE 0 END AS BIT);
+                  """;
+
+        await context.EnsureConnectionOpenAsync(ct);
+
+        return await context.Connection.ExecuteScalarAsync<bool>(sql,
+            new { AggregateId = aggregateId, NewName = newName, NameVersion = nameVersion },
             context.Transaction);
     }
 }

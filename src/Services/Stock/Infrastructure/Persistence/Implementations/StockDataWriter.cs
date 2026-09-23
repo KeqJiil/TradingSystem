@@ -5,13 +5,17 @@ namespace Stock.Infrastructure.Persistence.Implementations;
 
 public class StockDataWriter(IDbContext dbContext) : IStockWriter
 {
-    
-    public async Task ChangeName(Guid id, string name, CancellationToken ct)
+    public async Task<long?> ChangeName(Guid id, string name, CancellationToken ct)
     {
         await dbContext.EnsureConnectionOpenAsync(ct);
-        
-        await dbContext.Connection.ExecuteAsync(
-            "UPDATE stock_data SET Name = @Name WHERE Id = @Id",
+
+        return await dbContext.Connection.QuerySingleOrDefaultAsync<long?>(
+            """
+            UPDATE stock_data
+            SET name = @Name, status_version = status_version + 1
+            OUTPUT inserted.status_version
+            WHERE id = @Id
+            """,
             new { Id = id, Name = name },
             dbContext.Transaction
         );
@@ -27,12 +31,18 @@ public class StockDataWriter(IDbContext dbContext) : IStockWriter
         );
     }
 
-    public async Task ChangeTime(Guid id, TimeOnly openTime, TimeOnly closeTime, CancellationToken ct)
+    public async Task<long?> ChangeTime(Guid id, TimeOnly openTime, TimeOnly closeTime, CancellationToken ct)
     {
         await dbContext.EnsureConnectionOpenAsync(ct);
-        
-        await dbContext.Connection.ExecuteAsync(
-            "UPDATE stock_data SET trading_start_time = @OpenTime, trading_end_time = @CloseTime WHERE Id = @Id",
+
+        return await dbContext.Connection.QuerySingleOrDefaultAsync<long?>(
+            """
+            UPDATE stock_data
+            SET trading_start_time = @OpenTime, trading_end_time = @CloseTime,
+                status_version = status_version + 1
+            OUTPUT inserted.status_version
+            WHERE id = @Id
+            """,
             new { Id = id, OpenTime = openTime, CloseTime = closeTime },
             dbContext.Transaction
         );

@@ -9,10 +9,14 @@ namespace Stock.Infrastructure.Handlers;
 public class StockEventKafkaHandler(
     IProducer<string, StockCreatedEvent> stockCreatedProducer,
     IProducer<string, StockToggledStatusEvent> stockToggledStatusProducer,
-    IProducer<string, PriceChangedEvent> priceChangedProducer)
+    IProducer<string, PriceChangedEvent> priceChangedProducer,
+    IProducer<string, NameChangedEvent> nameChangedProducer,
+    IProducer<string, TimeChangedEvent> timeChangedProducer)
     : INotificationHandler<Application.Events.StockCreatedEvent>,
         INotificationHandler<Application.Events.StockToggledStatusEvent>,
-        INotificationHandler<Application.Events.PriceChangedEvent>
+        INotificationHandler<Application.Events.PriceChangedEvent>,
+        INotificationHandler<Application.Events.NameChangedEvent>,
+        INotificationHandler<Application.Events.TimeChangedEvent>
 {
     public Task Handle(Application.Events.StockCreatedEvent @event, CancellationToken ct)
     {
@@ -30,6 +34,18 @@ public class StockEventKafkaHandler(
     {
         return Produce(priceChangedProducer, TopicNames.Price, @event.AggregateId,
             PriceChangedEventMapper.MapToExternal(@event), ct);
+    }
+
+    public Task Handle(Application.Events.NameChangedEvent @event, CancellationToken ct)
+    {
+        return Produce(nameChangedProducer, TopicNames.StockNameChanged, @event.AggregateId,
+            NameChangedEventMapper.MapToExternal(@event), ct);
+    }
+
+    public Task Handle(Application.Events.TimeChangedEvent @event, CancellationToken ct)
+    {
+        return Produce(timeChangedProducer, TopicNames.StockTradingTimeChanged, @event.AggregateId,
+            TimeChangedEventMapper.MapToExternal(@event), ct);
     }
 
     private static Task Produce<TExternal>(IProducer<string, TExternal> producer, string topic, Guid key,

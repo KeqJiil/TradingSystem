@@ -10,6 +10,11 @@ public interface IStockReadModelWriter
     Task<bool> CreateAsync(CreateStockReadModelDto data, CancellationToken ct);
 
     Task<bool> SetStatusAsync(Guid aggregateId, bool isOpenToTrade, long statusVersion, CancellationToken ct);
+
+    Task<bool> SetNewTimeAsync(Guid aggregateId, TimeOnly tradingStartTime, TimeOnly tradingCloseTime,
+        long timeVersion, CancellationToken ct);
+
+    Task<bool> SetNewNameAsync(Guid aggregateId, string newName, long nameVersion, CancellationToken ct);
 }
 
 public enum ReadModelUpdateOutcome

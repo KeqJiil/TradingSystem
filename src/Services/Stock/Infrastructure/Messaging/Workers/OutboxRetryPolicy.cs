@@ -4,6 +4,6 @@ public static class OutboxRetryPolicy
 {
     public static bool ShouldRetry(int retries)
     {
-        return retries < 3;
+        return retries <= 3;
     }
 }
