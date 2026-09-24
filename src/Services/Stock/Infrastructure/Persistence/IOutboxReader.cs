@@ -13,4 +13,7 @@ public record struct OutboxData(
     string Status,
     string Payload,
     int RetryCount,
-    Guid? CorrelationId);
+    Guid? CorrelationId,
+    string? TraceParent,
+    string? TraceState,
+    DateTimeOffset CreatedAt);

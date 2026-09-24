@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using MediatR;
 using Stock.Application.Events;
 using Stock.Infrastructure.Messaging.Publishers;
+using Stock.Infrastructure.Observability;
 using Stock.Infrastructure.Persistence;
 
 namespace Stock.Infrastructure.Messaging.Workers;
@@ -54,12 +56,16 @@ public class OutboxDispatcherService(
 
     private async Task<(bool, Guid)> ProcessAsync(OutboxData data, CancellationToken ct)
     {
+        CorrelationContext.CorrelationId = data.CorrelationId;
+
+        var known = OutboxEventRegistry.TryGet(data.EventType, out var descriptor);
+        using var activity = OutboxTelemetry.StartDispatch(data, startNewTrace: known && descriptor.IsJob);
+
         try
         {
-            CorrelationContext.CorrelationId = data.CorrelationId;
-
-            if (!OutboxEventRegistry.TryGet(data.EventType, out var descriptor))
+            if (!known)
             {
+                activity?.SetStatus(ActivityStatusCode.Error, "Unknown event type");
                 logger.LogWarning(
                     "Outbox event {OutboxId} of unknown type {EventType} for aggregate {AggregateId}, moving it to unknown DLQ",
                     data.Id, data.EventType, data.AggregateId);
@@ -70,6 +76,7 @@ public class OutboxDispatcherService(
             var @event = descriptor.Deserialize(data.Payload);
             if (@event is null)
             {
+                activity?.SetStatus(ActivityStatusCode.Error, "Payload can't be deserialized");
                 logger.LogWarning(
                     "Outbox event {OutboxId} of type {EventType} for aggregate {AggregateId} can't be deserialized, moving it to unknown DLQ",
                     data.Id, data.EventType, data.AggregateId);
@@ -79,6 +86,7 @@ public class OutboxDispatcherService(
 
             if (!OutboxRetryPolicy.ShouldRetry(data.RetryCount))
             {
+                activity?.SetStatus(ActivityStatusCode.Error, "Retry attempts exhausted");
                 logger.LogWarning(
                     "Outbox event {OutboxId} of type {EventType} for aggregate {AggregateId} exhausted {Attempts} attempts, moving it to DLQ",
                     data.Id, data.EventType, data.AggregateId, data.RetryCount);
@@ -99,6 +107,8 @@ public class OutboxDispatcherService(
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.AddException(ex);
             logger.LogWarning(ex,
                 "An unexpected error occurred while processing outbox event {OutboxId}, type {EventType}, aggregate {AggregateId}, attempts {Attempts}",
                 data.Id, data.EventType, data.AggregateId, data.RetryCount);

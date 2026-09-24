@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics;
 using System.Text.Json;
 using Dapper;
 using Stock.Application.Abstractions;
@@ -14,8 +15,8 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker, 
         var payload = JsonSerializer.Serialize(@event);
 
         var sql = """
-                    INSERT INTO outbox (id, event_type, payload, aggregate_id, correlation_id)
-                    VALUES (@Id, @Type, @Payload, @AggregateId, @CorrelationId)
+                    INSERT INTO outbox (id, event_type, payload, aggregate_id, correlation_id, trace_parent, trace_state)
+                    VALUES (@Id, @Type, @Payload, @AggregateId, @CorrelationId, @TraceParent, @TraceState)
                   """;
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
@@ -24,7 +25,8 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker, 
             new
             {
                 Id = id, Type = typeof(T).Name, Payload = payload, AggregateId = aggregateId,
-                CorrelationId = CorrelationContext.CorrelationId
+                CorrelationId = CorrelationContext.CorrelationId,
+                TraceParent = Activity.Current?.Id, TraceState = Activity.Current?.TraceStateString
             },
             dbContext.Transaction);
     }
@@ -33,8 +35,8 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker, 
         CancellationToken cancellationToken) where T : class
     {
         var sql = """
-                        INSERT INTO outbox (id, event_type, payload, aggregate_id, correlation_id)
-                        SELECT id, event_type, payload, aggregate_id, correlation_id
+                        INSERT INTO outbox (id, event_type, payload, aggregate_id, correlation_id, trace_parent, trace_state)
+                        SELECT id, event_type, payload, aggregate_id, correlation_id, trace_parent, trace_state
                         FROM @Events;
                   """;
 
@@ -46,9 +48,14 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker, 
         table.Columns.Add("payload", typeof(string));
         table.Columns.Add("aggregate_id", typeof(Guid));
         table.Columns.Add("correlation_id", typeof(Guid));
+        table.Columns.Add("trace_parent", typeof(string));
+        table.Columns.Add("trace_state", typeof(string));
+
+        var traceParent = Activity.Current?.Id;
+        var traceState = Activity.Current?.TraceStateString;
         foreach (var (aggregateId, payload) in events)
             table.Rows.Add(Guid.NewGuid(), typeof(T).Name, JsonSerializer.Serialize(payload), aggregateId,
-                CorrelationContext.CorrelationId);
+                CorrelationContext.CorrelationId, traceParent, traceState);
 
         var parameters = new DynamicParameters();
         parameters.Add("Events", table.AsTableValuedParameter("dbo.OutboxEventTvp"));

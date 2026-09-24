@@ -19,7 +19,8 @@ public class OutboxReader(IDbContext context) : IOutboxReader
                     OUTPUT
                         inserted.id AS Id, inserted.aggregate_id AS AggregateId, inserted.event_type AS EventType,
                         inserted.status AS Status, inserted.payload AS Payload, inserted.attempts AS RetryCount,
-                        inserted.correlation_id AS CorrelationId
+                        inserted.correlation_id AS CorrelationId, inserted.trace_parent AS TraceParent,
+                        inserted.trace_state AS TraceState, inserted.created_at AS CreatedAt
                   """;
 
         await context.EnsureConnectionOpenAsync(ct);

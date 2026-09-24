@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Dapper;
+using Stock.Infrastructure;
 using Stock.Infrastructure.Persistence.Implementations;
 using Xunit;
 
@@ -94,6 +96,56 @@ public class OutboxReaderTests : IClassFixture<MssqlFixture>, IAsyncLifetime
         Assert.Equal(2, row.Attempts);
     }
 
+    [Fact]
+    public async Task GetPendingAsync_ReturnsTraceContextWrittenByWriteAsync()
+    {
+        using var activity = new Activity("test").SetIdFormat(ActivityIdFormat.W3C).Start();
+        activity.TraceStateString = "vendor=value";
+
+        await new OutboxWriter(_dbContext).WriteAsync(new TracePayload(1), Guid.NewGuid(), CancellationToken.None);
+
+        var row = Assert.Single(await _sut.GetPendingAsync(10, 5, CancellationToken.None));
+        Assert.Equal(activity.Id, row.TraceParent);
+        Assert.Equal("vendor=value", row.TraceState);
+    }
+
+    [Fact]
+    public async Task GetPendingAsync_ReturnsTraceAndCorrelationWrittenByWriteManyAsync()
+    {
+        var correlationId = Guid.NewGuid();
+        CorrelationContext.CorrelationId = correlationId;
+        using var activity = new Activity("test").SetIdFormat(ActivityIdFormat.W3C).Start();
+
+        try
+        {
+            await new OutboxWriter(_dbContext).WriteManyAsync(
+                [(Guid.NewGuid(), new TracePayload(1)), (Guid.NewGuid(), new TracePayload(2))],
+                CancellationToken.None);
+        }
+        finally
+        {
+            CorrelationContext.CorrelationId = null;
+        }
+
+        var rows = await _sut.GetPendingAsync(10, 5, CancellationToken.None);
+
+        Assert.Equal(2, rows.Count);
+        Assert.All(rows, row =>
+        {
+            Assert.Equal(activity.Id, row.TraceParent);
+            Assert.Equal(correlationId, row.CorrelationId);
+        });
+    }
+
+    [Fact]
+    public async Task GetPendingAsync_ReturnsNullTraceParentWhenWrittenWithoutActivity()
+    {
+        await new OutboxWriter(_dbContext).WriteAsync(new TracePayload(1), Guid.NewGuid(), CancellationToken.None);
+
+        var row = Assert.Single(await _sut.GetPendingAsync(10, 5, CancellationToken.None));
+        Assert.Null(row.TraceParent);
+    }
+
     private async Task<Guid> InsertOutboxRowAsync(string status, DateTimeOffset? processedAt, int attempts = 0)
     {
         var id = Guid.NewGuid();
@@ -114,4 +166,6 @@ public class OutboxReaderTests : IClassFixture<MssqlFixture>, IAsyncLifetime
 
         return id;
     }
+
+    private sealed record TracePayload(int Value);
 }

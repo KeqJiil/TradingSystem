@@ -68,17 +68,17 @@ public static class AddKafkaClass
 
         builder.Services.AddSingleton<IDeadLetterPublisher, DeadLetterPublisher>();
 
-        builder.Services.AddScoped<IDlqEventToCommandMapper<StockCreatedEvent, CreateReadModelCommand>,
+        builder.Services.AddSingleton<IDlqEventToCommandMapper<StockCreatedEvent, CreateReadModelCommand>,
             StockCreatedDlqEventToCommandMapper>();
-        builder.Services.AddScoped<IDlqEventToCommandMapper<StockToggledStatusEvent, ToggleStatusReadModelCommand>,
+        builder.Services.AddSingleton<IDlqEventToCommandMapper<StockToggledStatusEvent, ToggleStatusReadModelCommand>,
             StockToggledStatusDlqEventToCommandMapper>();
-        builder.Services.AddScoped<IDlqEventToCommandMapper<PriceChangeRequestedEvent, ChangePriceCommand>,
+        builder.Services.AddSingleton<IDlqEventToCommandMapper<PriceChangeRequestedEvent, ChangePriceCommand>,
             PriceChangeRequestedDlqEventToCommandMapper>();
-        builder.Services.AddScoped<IDlqEventToCommandMapper<PriceChangedEvent, ReplayReadModelCommand>,
+        builder.Services.AddSingleton<IDlqEventToCommandMapper<PriceChangedEvent, ReplayReadModelCommand>,
             PriceChangedDlqEventToCommandMapper>();
-        builder.Services.AddScoped<IDlqEventToCommandMapper<NameChangedEvent, UpdateNameReadModelCommand>,
+        builder.Services.AddSingleton<IDlqEventToCommandMapper<NameChangedEvent, UpdateNameReadModelCommand>,
             NameChangedDlqEventToCommandMapper>();
-        builder.Services.AddScoped<IDlqEventToCommandMapper<TimeChangedEvent, UpdateTradingTimeCommand>,
+        builder.Services.AddSingleton<IDlqEventToCommandMapper<TimeChangedEvent, UpdateTradingTimeCommand>,
             TimeChangedDlqEventToCommandMapper>();
 
         builder.Services.AddHostedService<StockCreatedDlqConsumer>();

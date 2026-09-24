@@ -38,11 +38,13 @@ public static class OutboxEventRegistry
 
             [EventTypeNames.DailyReadModelRequested] = new(
                 payload => payload.TryDeserialize<Ap.DailyReadModelRequested>(),
-                null),
+                null,
+                IsJob: true),
 
             [EventTypeNames.HourlyReadModelRequested] = new(
                 payload => payload.TryDeserialize<Ap.HourlyReadModelRequested>(),
-                null)
+                null,
+                IsJob: true)
         };
 
     public static bool TryGet(string eventType, out OutboxEventDescriptor descriptor)
@@ -53,4 +55,5 @@ public static class OutboxEventRegistry
 
 public sealed record OutboxEventDescriptor(
     Func<string, Ap.BasicEvent?> Deserialize,
-    Func<IDeadLetterPublisher, Ap.BasicEvent, int, CancellationToken, Task>? PublishToOwnTopic);
+    Func<IDeadLetterPublisher, Ap.BasicEvent, int, CancellationToken, Task>? PublishToOwnTopic,
+    bool IsJob = false);

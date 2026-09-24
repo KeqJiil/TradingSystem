@@ -6,7 +6,7 @@ using Stock.Infrastructure.Observability;
 namespace Stock.Infrastructure.MediatrPipelines;
 
 public class TracingBehaviour<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : IRequest<TResponse>
+    where TRequest : notnull
 {
     private static readonly string SpanName = $"mediatr {typeof(TRequest).Name}";
 

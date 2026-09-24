@@ -5,7 +5,7 @@ namespace Stock.Infrastructure.MediatrPipelines;
 
 public class ResiliencePipelineBehaviour<TRequest, TResponse>(ResiliencePipeline resiliencePipeline)
     : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : IRequest<TResponse>
+    where TRequest : notnull
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
