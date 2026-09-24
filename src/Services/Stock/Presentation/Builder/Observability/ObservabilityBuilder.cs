@@ -3,6 +3,7 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Stock.Infrastructure.Observability;
 
 namespace Stock.Presentation.Builder.Observability;
 
@@ -14,7 +15,7 @@ public static class ObservabilityBuilder
             .ConfigureResource(res => res.AddService("Stock"))
             .WithTracing(tracing =>
             {
-                tracing.AddSource("Stock")
+                tracing.AddSource(StockTelemetry.SourceName)
                     .AddAspNetCoreInstrumentation(options =>
                         options.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health"))
                     .AddHttpClientInstrumentation()
@@ -24,12 +25,17 @@ public static class ObservabilityBuilder
             })
             .WithMetrics(metrics =>
             {
-                metrics.AddMeter("Stock")
+                metrics.AddMeter(StockTelemetry.SourceName)
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation();
             })
-            .WithLogging(logging => { logging.AddProcessor(new CorrelationLogProcessor()); })
+            .WithLogging(logging => { logging.AddProcessor(new CorrelationLogProcessor()); },
+                options =>
+                {
+                    options.IncludeScopes = true;
+                    options.IncludeFormattedMessage = true;
+                })
             .UseOtlpExporter();
     }
 }

@@ -1,7 +1,7 @@
-using System.Text;
 using Confluent.Kafka;
 using MediatR;
 using Stock.Infrastructure.ExternalEvents;
+using Stock.Infrastructure.Observability;
 using Stock.Infrastructure.Options;
 
 namespace Stock.Infrastructure.Handlers;
@@ -51,23 +51,7 @@ public class StockEventKafkaHandler(
     private static Task Produce<TExternal>(IProducer<string, TExternal> producer, string topic, Guid key,
         TExternal value, CancellationToken ct)
     {
-        var headers = new Headers();
-
-        TryAddCorrelationIdHeader(headers);
-
-        return producer.ProduceAsync(topic,
-            new Message<string, TExternal>
-            {
-                Value = value, Key = key.ToString(),
-                Headers = headers
-            }, ct);
-    }
-
-    private static void TryAddCorrelationIdHeader(Headers headers)
-    {
-        var str = CorrelationContext.CorrelationId;
-        if (str is { } id)
-            headers.Add("x-correlation-id",
-                Encoding.UTF8.GetBytes(id.ToString()));
+        return producer.ProduceTracedAsync(topic,
+            new Message<string, TExternal> { Value = value, Key = key.ToString() }, ct);
     }
 }

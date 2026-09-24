@@ -1,7 +1,8 @@
-using System.Text;
+using System.Diagnostics;
 using Confluent.Kafka;
 using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Messaging.Publishers;
+using Stock.Infrastructure.Observability;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
 
@@ -54,6 +55,10 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
                                                   or ErrorCode.Local_KeyDeserialization
                                               && ex.ConsumerRecord is not null)
             {
+                CorrelationContext.CorrelationId = KafkaTelemetry.ExtractCorrelationId(ex.ConsumerRecord.Message.Headers);
+                using var poisonActivity = KafkaTelemetry.StartProcess(ex.ConsumerRecord, GroupId);
+                poisonActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+
                 await MovePoisonToDeadLetterAsync(ex, ct);
                 continue;
             }
@@ -78,16 +83,13 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
                 continue;
             }
 
+            CorrelationContext.CorrelationId = KafkaTelemetry.ExtractCorrelationId(result.Message.Headers);
+            using var activity = KafkaTelemetry.StartProcess(result, GroupId);
+
             bool commit;
 
             try
             {
-                CorrelationContext.CorrelationId =
-                    result.Message.Headers.TryGetLastBytes("x-correlation-id", out var bytes)
-                    && Guid.TryParse(Encoding.UTF8.GetString(bytes), out var parsed)
-                        ? parsed
-                        : null;
-
                 commit = await HandleAsync(message, result.Message.Headers, ct);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -96,6 +98,8 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
             }
             catch (Exception ex)
             {
+                activity?.AddException(ex);
+
                 var attempt = RegisterFailure(result.TopicPartitionOffset);
 
                 if (attempt < MaxHandleAttempts)
@@ -104,13 +108,19 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
                         "Unhandled error while processing a message at {Offset} from {Topic}, attempt {Attempt}/{MaxAttempts}",
                         result.TopicPartitionOffset, Topic, attempt, MaxHandleAttempts);
                 }
-                else if (await TryMoveToFatalAsync(message, ex, ct))
+                else
                 {
-                    Commit(result.TopicPartitionOffset);
-                    continue;
+                    activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+
+                    if (await TryMoveToFatalAsync(message, ex, ct))
+                    {
+                        Commit(result.TopicPartitionOffset);
+                        continue;
+                    }
                 }
 
                 Seek(result.TopicPartitionOffset);
+                activity?.Dispose();
                 await Task.Delay(TimeSpan.FromSeconds(1), ct);
                 continue;
             }
@@ -120,6 +130,7 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
                 if (HoldCommitWhenDeferred) continue;
 
                 Seek(result.TopicPartitionOffset);
+                activity?.Dispose();
                 await Task.Delay(TimeSpan.FromSeconds(5), ct);
             }
             else

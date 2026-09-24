@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
 using Stock.Application.Exceptions;
 using Stock.Infrastructure.ExternalEvents;
+using Stock.Infrastructure.Observability;
 using Stock.Infrastructure.Options;
 using Stock.Infrastructure.Serialization;
 
@@ -55,7 +56,7 @@ public sealed class DeadLetterPublisher(
         headers.Add("timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
         AddExceptionHeaders(headers, exception);
 
-        await _producer.ProduceAsync(DeadLetterTopic(sourceTopic, false),
+        await _producer.ProduceTracedAsync(DeadLetterTopic(sourceTopic, false),
             new Message<string, byte[]>
             {
                 Key = message.Key is null ? null! : Encoding.UTF8.GetString(message.Key),
@@ -73,9 +74,7 @@ public sealed class DeadLetterPublisher(
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
 
-        TryAddCorrelationIdHeader(headers);
-
-        await _producer.ProduceAsync(topic,
+        await _producer.ProduceTracedAsync(topic,
             new Message<string, byte[]>
                 { Key = null!, Value = JsonSerializer.SerializeToUtf8Bytes(value), Headers = headers },
             ct);
@@ -93,7 +92,7 @@ public sealed class DeadLetterPublisher(
         var bytes = new ProtobufNetSerializer<TValue>()
             .Serialize(value, new SerializationContext(MessageComponentType.Value, topic, headers));
 
-        await _producer.ProduceAsync(topic,
+        await _producer.ProduceTracedAsync(topic,
             new Message<string, byte[]> { Key = value.AggregateId.ToString(), Value = bytes, Headers = headers }, ct);
     }
 
@@ -104,28 +103,18 @@ public sealed class DeadLetterPublisher(
 
     private static Headers CreateHeaders(string sourceTopic, int attempt)
     {
-        var headers = new Headers
+        return new Headers
         {
             { "original-topic", Encoding.UTF8.GetBytes(sourceTopic) },
             { "attempt-count", BitConverter.GetBytes(attempt) },
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
-
-        TryAddCorrelationIdHeader(headers);
-        return headers;
     }
 
     private static void AddExceptionHeaders(Headers headers, Exception exception)
     {
         headers.Add("exception-message", Encoding.UTF8.GetBytes(exception.Message));
         headers.Add("exception-stacktrace", Encoding.UTF8.GetBytes(exception.StackTrace ?? string.Empty));
-    }
-
-    private static void TryAddCorrelationIdHeader(Headers headers)
-    {
-        var str = CorrelationContext.CorrelationId;
-        if (str is { } id)
-            headers.Add("x-correlation-id", Encoding.UTF8.GetBytes(id.ToString()));
     }
 
     private static bool IsRetryableException(Exception ex)
