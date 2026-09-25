@@ -6,6 +6,8 @@ public class CreateStockValidator : AbstractValidator<CreateStockCommand>
 {
     public CreateStockValidator()
     {
+        RuleFor(command => command.Id).NotEmpty();
+
         RuleFor(command => command.Name)
             .NotEmpty()
             .MaximumLength(StockFieldLimits.NameMaxLength);

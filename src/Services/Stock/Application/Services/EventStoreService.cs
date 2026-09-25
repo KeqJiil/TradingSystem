@@ -16,14 +16,19 @@ public class EventStoreService
         _outboxWriter = outboxWriter;
     }
 
-    public async Task<Guid> ChangePriceAppendAsync(PriceChangeRequested request, CancellationToken ct)
+    public async Task<bool> ChangePriceAppendAsync(PriceChangeRequested request, CancellationToken ct)
     {
+        var stored = false;
+
         await _uow.ExecuteAsync(async () =>
         {
             var @event = await _stockEventStore.AppendAsync(request, ct);
-            await _outboxWriter.WriteAsync(@event, @event.AggregateId, ct);
+            stored = @event is not null;
+            if (!stored) return;
+
+            await _outboxWriter.WriteAsync(@event!, @event!.AggregateId, ct);
         }, ct);
 
-        return request.AggregateId;
+        return stored;
     }
 }

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Dapper;
+using Microsoft.Data.SqlClient;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
 
@@ -8,10 +9,17 @@ namespace Stock.Infrastructure.Persistence.Implementations;
 
 public class StockEventStore(IDbContext dbContext) : IStockEventStore
 {
-    public async Task<PriceChangedEvent> AppendAsync(PriceChangeRequested stockEvent, CancellationToken ct)
+    public async Task<PriceChangedEvent?> AppendAsync(PriceChangeRequested stockEvent, CancellationToken ct)
     {
-        var result = await AppendAsync([stockEvent], ct);
-        return result.Single();
+        try
+        {
+            var result = await AppendAsync([stockEvent], ct);
+            return result.Single();
+        }
+        catch (SqlException ex) when (ex.Number == 2627)
+        {
+            return null;
+        }
     }
 
     public async Task<IEnumerable<PriceChangedEvent>> AppendAsync(IEnumerable<PriceChangeRequested> stockEvents,

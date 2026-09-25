@@ -1,6 +1,6 @@
 using Confluent.Kafka;
-using Microsoft.Data.SqlClient;
-using Stock.Application.Services;
+using MediatR;
+using Stock.Application.Commands.ChangePrice;
 using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
@@ -23,18 +23,14 @@ public class PriceChangeRequestedConsumer(
         CancellationToken ct)
     {
         await using var scope = serviceScopeFactory.CreateAsyncScope();
-        var eventStore = scope.ServiceProvider.GetRequiredService<EventStoreService>();
+        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
         var mappedEvent = PriceChangeRequestedEventMapper.MapFrom(message);
 
         try
         {
-            await eventStore.ChangePriceAppendAsync(mappedEvent, ct);
-        }
-        catch (SqlException ex) when (ex.Number == 2627)
-        {
-            logger.LogDebug(
-                "Price change event {EventId} for aggregate {AggregateId} is already stored, skipping",
-                mappedEvent.EventId, message.AggregateId);
+            await mediator.Send(
+                new ChangePriceCommand(mappedEvent.EventId, mappedEvent.AggregateId, mappedEvent.PriceChange,
+                    mappedEvent.OccuredAt), ct);
         }
         catch (Exception ex)
         {

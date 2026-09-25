@@ -5,12 +5,10 @@ using Stock.Application.Events;
 namespace Stock.Application.Commands.CreateStock;
 
 public class CreateStockHandler(IStockWriter writer, IOutboxWriter outboxWriter, IUnitOfWorkDecorator uow)
-    : IRequestHandler<CreateStockCommand, Guid>
+    : IRequestHandler<CreateStockCommand, bool>
 {
-    public async Task<Guid> Handle(CreateStockCommand request, CancellationToken cancellationToken)
+    public async Task<bool> Handle(CreateStockCommand request, CancellationToken cancellationToken)
     {
-        var id = Guid.NewGuid();
-
         var dto = new CreateStockDto(
             request.Name,
             request.IsOpenToTrade,
@@ -18,15 +16,19 @@ public class CreateStockHandler(IStockWriter writer, IOutboxWriter outboxWriter,
             request.TradingEndTime,
             request.Currency);
 
-        var @event = new StockCreatedEvent(id, request.Name, request.IsOpenToTrade, request.Currency,
+        var @event = new StockCreatedEvent(request.Id, request.Name, request.IsOpenToTrade, request.Currency,
             request.TradingStartTime, request.TradingEndTime);
+
+        var created = false;
 
         await uow.ExecuteAsync(async () =>
         {
-            await writer.CreateAsync(id, dto, cancellationToken);
-            await outboxWriter.WriteAsync(@event, id, cancellationToken);
+            created = await writer.CreateAsync(request.Id, dto, cancellationToken);
+            if (!created) return;
+
+            await outboxWriter.WriteAsync(@event, request.Id, cancellationToken);
         }, cancellationToken);
 
-        return id;
+        return created;
     }
 }
