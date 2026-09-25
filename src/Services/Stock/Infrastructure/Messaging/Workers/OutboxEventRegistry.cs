@@ -14,27 +14,27 @@ public static class OutboxEventRegistry
             [EventTypeNames.PriceChanged] = new(
                 payload => payload.TryDeserialize<Ap.PriceChangedEvent>(),
                 (dlq, e, attempt, ct) => dlq.PublishAsync(TopicNames.Price,
-                    Ex.PriceChangedEventMapper.MapToExternal((Ap.PriceChangedEvent)e), false, attempt, ct)),
+                    Ex.PriceChangedEventMapper.MapToExternal((Ap.PriceChangedEvent)e), false, attempt, null, ct)),
 
             [EventTypeNames.StockCreated] = new(
                 payload => payload.TryDeserialize<Ap.StockCreatedEvent>(),
                 (dlq, e, attempt, ct) => dlq.PublishAsync(TopicNames.StockCreated,
-                    Ex.StockCreatedEventMapper.MapToExternal((Ap.StockCreatedEvent)e), false, attempt, ct)),
+                    Ex.StockCreatedEventMapper.MapToExternal((Ap.StockCreatedEvent)e), false, attempt, null, ct)),
 
             [EventTypeNames.StockToggledStatus] = new(
                 payload => payload.TryDeserialize<Ap.StockToggledStatusEvent>(),
                 (dlq, e, attempt, ct) => dlq.PublishAsync(TopicNames.StockStatusToggled,
-                    Ex.StockToggledStatusEventMapper.MapToExternal((Ap.StockToggledStatusEvent)e), false, attempt, ct)),
+                    Ex.StockToggledStatusEventMapper.MapToExternal((Ap.StockToggledStatusEvent)e), false, attempt, null, ct)),
 
             [EventTypeNames.NameChanged] = new(
                 payload => payload.TryDeserialize<Ap.NameChangedEvent>(),
                 (dlq, e, attempt, ct) => dlq.PublishAsync(TopicNames.StockNameChanged,
-                    Ex.NameChangedEventMapper.MapToExternal((Ap.NameChangedEvent)e), false, attempt, ct)),
+                    Ex.NameChangedEventMapper.MapToExternal((Ap.NameChangedEvent)e), false, attempt, null, ct)),
 
             [EventTypeNames.TimeChanged] = new(
                 payload => payload.TryDeserialize<Ap.TimeChangedEvent>(),
                 (dlq, e, attempt, ct) => dlq.PublishAsync(TopicNames.StockTradingTimeChanged,
-                    Ex.TimeChangedEventMapper.MapToExternal((Ap.TimeChangedEvent)e), false, attempt, ct)),
+                    Ex.TimeChangedEventMapper.MapToExternal((Ap.TimeChangedEvent)e), false, attempt, null, ct)),
 
             [EventTypeNames.DailyReadModelRequested] = new(
                 payload => payload.TryDeserialize<Ap.DailyReadModelRequested>(),

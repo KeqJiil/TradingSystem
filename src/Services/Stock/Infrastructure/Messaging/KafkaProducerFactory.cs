@@ -14,31 +14,39 @@ public interface IKafkaProducerFactory
     IProducer<string, byte[]> CreateRaw(string clientId);
 }
 
-public class KafkaProducerFactory(IOptions<KafkaOptions> options) : IKafkaProducerFactory
+public class KafkaProducerFactory(IOptions<KafkaOptions> options, ILogger<KafkaProducerFactory> logger)
+    : IKafkaProducerFactory
 {
-    public IProducer<string, TValue> Create<TValue>(string clientId) =>
-        new ProducerBuilder<string, TValue>(new ProducerConfig
-            {
-                BootstrapServers = options.Value.BootstrapServers,
-                ClientId = clientId,
-            })
+    public IProducer<string, TValue> Create<TValue>(string clientId)
+    {
+        return Builder<TValue>(clientId)
             .SetValueSerializer(new ProtobufNetSerializer<TValue>())
             .Build();
+    }
 
-    public IProducer<string, TValue> CreateJson<TValue>(string clientId) =>
-        new ProducerBuilder<string, TValue>(new ProducerConfig
-            {
-                BootstrapServers = options.Value.BootstrapServers,
-                ClientId = clientId,
-            })
+    public IProducer<string, TValue> CreateJson<TValue>(string clientId)
+    {
+        return Builder<TValue>(clientId)
             .SetValueSerializer(new KafkaJsonSerializer<TValue>())
             .Build();
+    }
 
-    public IProducer<string, byte[]> CreateRaw(string clientId) =>
-        new ProducerBuilder<string, byte[]>(new ProducerConfig
+    public IProducer<string, byte[]> CreateRaw(string clientId)
+    {
+        return Builder<byte[]>(clientId).Build();
+    }
+
+    private ProducerBuilder<string, TValue> Builder<TValue>(string clientId)
+    {
+        return new ProducerBuilder<string, TValue>(new ProducerConfig
             {
                 BootstrapServers = options.Value.BootstrapServers,
                 ClientId = clientId,
+                EnableIdempotence = true,
+                LingerMs = 5,
+                MessageTimeoutMs = 90_000
             })
-            .Build();
+            .SetErrorHandler((_, error) => KafkaClientLogging.LogError(logger, clientId, error))
+            .SetLogHandler((_, message) => KafkaClientLogging.LogMessage(logger, message));
+    }
 }

@@ -91,9 +91,7 @@ public class OutboxDispatcherService(
                     "Outbox event {OutboxId} of type {EventType} for aggregate {AggregateId} exhausted {Attempts} attempts, moving it to DLQ",
                     data.Id, data.EventType, data.AggregateId, data.RetryCount);
 
-                if (descriptor.PublishToOwnTopic is not null)
-                    await descriptor.PublishToOwnTopic(dlq, @event, data.RetryCount, ct);
-                else
+                if (!await TryPublishToOwnDeadLetterAsync(descriptor, @event, data, ct))
                     await dlq.PublishUnknownAsync(data, ct);
 
                 return (true, data.Id);
@@ -113,6 +111,25 @@ public class OutboxDispatcherService(
                 "An unexpected error occurred while processing outbox event {OutboxId}, type {EventType}, aggregate {AggregateId}, attempts {Attempts}",
                 data.Id, data.EventType, data.AggregateId, data.RetryCount);
             return (false, data.Id);
+        }
+    }
+
+    private async Task<bool> TryPublishToOwnDeadLetterAsync(OutboxEventDescriptor descriptor, BasicEvent @event,
+        OutboxData data, CancellationToken ct)
+    {
+        if (descriptor.PublishToOwnTopic is null) return false;
+
+        try
+        {
+            await descriptor.PublishToOwnTopic(dlq, @event, data.RetryCount, ct);
+            return true;
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            logger.LogWarning(ex,
+                "Outbox event {OutboxId} of type {EventType} can't be published to its own DLQ, moving it to unknown DLQ",
+                data.Id, data.EventType);
+            return false;
         }
     }
 }

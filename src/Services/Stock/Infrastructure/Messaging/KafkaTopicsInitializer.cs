@@ -14,9 +14,14 @@ public class  KafkaTopicsInitializer(
     {
         var suffix = deadLetterOptions.Value.TopicSuffix;
 
-        var topics = TopicNames.All
-            .SelectMany(topic => new[] { topic, topic + suffix + ".retry", topic + suffix + ".fatal" })
+        var parked = TopicNames.All
+            .Select(topic => topic + suffix + ".fatal")
             .Append(deadLetterOptions.Value.UnknownTopic)
+            .ToArray();
+
+        var topics = TopicNames.All
+            .SelectMany(topic => new[] { topic, topic + suffix + ".retry" })
+            .Concat(parked)
             .ToArray();
 
         using var admin = new AdminClientBuilder(new AdminClientConfig
@@ -30,7 +35,8 @@ public class  KafkaTopicsInitializer(
             {
                 Name = topic,
                 NumPartitions = 1,
-                ReplicationFactor = 1
+                ReplicationFactor = 1,
+                Configs = parked.Contains(topic) ? new Dictionary<string, string> { ["retention.ms"] = "-1" } : null
             }));
 
             logger.LogInformation("Created {Count} Kafka topics", topics.Length);

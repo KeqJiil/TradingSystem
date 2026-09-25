@@ -1,10 +1,7 @@
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using Confluent.Kafka;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
-using Stock.Application.Exceptions;
 using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Observability;
 using Stock.Infrastructure.Options;
@@ -13,36 +10,35 @@ using Stock.Infrastructure.Serialization;
 namespace Stock.Infrastructure.Messaging.Publishers;
 
 public sealed class DeadLetterPublisher(
-    IKafkaProducerFactory kafkaProducerFactory,
-    IOptions<DeadLetterOptions> deadLetterOptions) : IDeadLetterPublisher, IDisposable
+    IKafkaPublisher publisher,
+    IOptions<DeadLetterOptions> deadLetterOptions,
+    ILogger<DeadLetterPublisher> logger) : IDeadLetterPublisher
 {
-    private readonly IProducer<string, byte[]> _producer = kafkaProducerFactory.CreateRaw("dead-letter-producer");
+    private const int MaxExceptionMessageLength = 1_000;
+    private const int MaxStackTraceLength = 4_000;
 
     public Task PublishAsync<TValue>(string sourceTopic, TValue value, Exception exception, int attempt,
         CancellationToken ct)
         where TValue : IExternalEvent
     {
-        var headers = CreateHeaders(sourceTopic, attempt);
-        AddExceptionHeaders(headers, exception);
-
-        return ProduceAsync(DeadLetterTopic(sourceTopic, IsRetryableException(exception)), value, headers, ct);
+        return PublishAsync(sourceTopic, value, RetryableErrors.IsRetryable(exception), attempt, exception, ct);
     }
 
     public Task PublishAsync<TValue>(string sourceTopic, TValue value, bool isRetryable, int attempt,
-        CancellationToken ct)
+        Exception? exception, CancellationToken ct)
         where TValue : IExternalEvent
     {
-        return ProduceAsync(DeadLetterTopic(sourceTopic, isRetryable), value, CreateHeaders(sourceTopic, attempt), ct);
+        var headers = CreateHeaders(sourceTopic, attempt);
+        if (exception is not null) AddExceptionHeaders(headers, exception);
+
+        return ProduceAsync(sourceTopic, isRetryable, value, headers, ct);
     }
 
     public Task PublishFatalAsync<TValue>(string sourceTopic, TValue value, Exception exception, int attempt,
         CancellationToken ct)
         where TValue : IExternalEvent
     {
-        var headers = CreateHeaders(sourceTopic, attempt);
-        AddExceptionHeaders(headers, exception);
-
-        return ProduceAsync(DeadLetterTopic(sourceTopic, false), value, headers, ct);
+        return PublishAsync(sourceTopic, value, false, attempt, exception, ct);
     }
 
     public async Task PublishPoisonAsync(string sourceTopic, Message<byte[], byte[]> message, Exception exception,
@@ -56,13 +52,19 @@ public sealed class DeadLetterPublisher(
         headers.Add("timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()));
         AddExceptionHeaders(headers, exception);
 
-        await _producer.ProduceTracedAsync(DeadLetterTopic(sourceTopic, false),
+        var topic = DeadLetterTopic(sourceTopic, false);
+
+        await publisher.PublishAsync(topic,
             new Message<string, byte[]>
             {
                 Key = message.Key is null ? null! : Encoding.UTF8.GetString(message.Key),
                 Value = message.Value,
                 Headers = headers
             }, ct);
+
+        StockTelemetry.DlqPublished.Add(1, Tags(topic, "poison"));
+        logger.LogWarning(exception, "Published an undeserializable message from {SourceTopic} to {DeadLetterTopic}",
+            sourceTopic, topic);
     }
 
     public async Task PublishUnknownAsync<TValue>(TValue value, CancellationToken ct)
@@ -74,31 +76,39 @@ public sealed class DeadLetterPublisher(
             { "timestamp", BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }
         };
 
-        await _producer.ProduceTracedAsync(topic,
+        await publisher.PublishAsync(topic,
             new Message<string, byte[]>
                 { Key = null!, Value = JsonSerializer.SerializeToUtf8Bytes(value), Headers = headers },
             ct);
+
+        StockTelemetry.DlqPublished.Add(1, Tags(topic, "unknown"));
+        logger.LogWarning("Published a message of type {ValueType} to {DeadLetterTopic}", typeof(TValue).Name, topic);
     }
 
-    public void Dispose()
-    {
-        _producer.Flush(TimeSpan.FromSeconds(5));
-        _producer.Dispose();
-    }
-
-    private async Task ProduceAsync<TValue>(string topic, TValue value, Headers headers, CancellationToken ct)
+    private async Task ProduceAsync<TValue>(string sourceTopic, bool isRetryable, TValue value, Headers headers,
+        CancellationToken ct)
         where TValue : IExternalEvent
     {
+        var topic = DeadLetterTopic(sourceTopic, isRetryable);
         var bytes = new ProtobufNetSerializer<TValue>()
             .Serialize(value, new SerializationContext(MessageComponentType.Value, topic, headers));
 
-        await _producer.ProduceTracedAsync(topic,
+        await publisher.PublishAsync(topic,
             new Message<string, byte[]> { Key = value.AggregateId.ToString(), Value = bytes, Headers = headers }, ct);
+
+        StockTelemetry.DlqPublished.Add(1, Tags(topic, isRetryable ? "retry" : "fatal"));
+        logger.LogWarning("Published {MessageType} for aggregate {AggregateId} from {SourceTopic} to {DeadLetterTopic}",
+            typeof(TValue).Name, value.AggregateId, sourceTopic, topic);
     }
 
     private string DeadLetterTopic(string sourceTopic, bool isRetryable)
     {
         return sourceTopic + deadLetterOptions.Value.TopicSuffix + (isRetryable ? ".retry" : ".fatal");
+    }
+
+    private static KeyValuePair<string, object?>[] Tags(string topic, string kind)
+    {
+        return [new("topic", topic), new("kind", kind)];
     }
 
     private static Headers CreateHeaders(string sourceTopic, int attempt)
@@ -113,44 +123,14 @@ public sealed class DeadLetterPublisher(
 
     private static void AddExceptionHeaders(Headers headers, Exception exception)
     {
-        headers.Add("exception-message", Encoding.UTF8.GetBytes(exception.Message));
-        headers.Add("exception-stacktrace", Encoding.UTF8.GetBytes(exception.StackTrace ?? string.Empty));
+        headers.Add("exception-type", Encoding.UTF8.GetBytes(exception.GetType().FullName ?? exception.GetType().Name));
+        headers.Add("exception-message", Encoding.UTF8.GetBytes(Truncate(exception.Message, MaxExceptionMessageLength)));
+        headers.Add("exception-stacktrace",
+            Encoding.UTF8.GetBytes(Truncate(exception.StackTrace ?? string.Empty, MaxStackTraceLength)));
     }
 
-    private static bool IsRetryableException(Exception ex)
+    private static string Truncate(string value, int maxLength)
     {
-        return ex switch
-        {
-            SqlException
-            {
-                Number: -2 or 1205 or 4060 or 4221 or 40197 or 40501 or 40613
-                or 49918 or 49919 or 49920 or 233 or 10053 or 10054 or 10060
-                or 921 or 922 or 923 or 924 or 926
-            } => true,
-            ReadModelNotFoundException => true,
-            KafkaException kex => !kex.Error.IsFatal && IsRetryableKafkaCode(kex.Error.Code),
-            TimeoutException => true,
-            SocketException => true,
-            IOException { InnerException: SocketException } => true,
-            OperationCanceledException ocex when !ocex.CancellationToken.IsCancellationRequested => true,
-            _ => false
-        };
-    }
-
-    private static bool IsRetryableKafkaCode(ErrorCode code)
-    {
-        return code is
-            ErrorCode.RequestTimedOut
-            or ErrorCode.NotEnoughReplicas
-            or ErrorCode.NotEnoughReplicasAfterAppend
-            or ErrorCode.NetworkException
-            or ErrorCode.Local_TimedOut
-            or ErrorCode.Local_Transport
-            or ErrorCode.Local_AllBrokersDown
-            or ErrorCode.BrokerNotAvailable
-            or ErrorCode.GroupLoadInProgress
-            or ErrorCode.GroupCoordinatorNotAvailable
-            or ErrorCode.NotCoordinatorForGroup
-            or ErrorCode.RebalanceInProgress;
+        return value.Length <= maxLength ? value : value[..maxLength];
     }
 }

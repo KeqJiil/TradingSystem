@@ -10,7 +10,8 @@ public interface IKafkaConsumerFactory
     IConsumer<string, TValue> Create<TValue>(string groupId, string topic, string clientId);
 }
 
-public class KafkaConsumerFactory(IOptions<KafkaOptions> options) : IKafkaConsumerFactory
+public class KafkaConsumerFactory(IOptions<KafkaOptions> options, ILogger<KafkaConsumerFactory> logger)
+    : IKafkaConsumerFactory
 {
     public IConsumer<string, TValue> Create<TValue>(string groupId, string topic, string clientId)
     {
@@ -19,11 +20,15 @@ public class KafkaConsumerFactory(IOptions<KafkaOptions> options) : IKafkaConsum
                 BootstrapServers = options.Value.BootstrapServers,
                 GroupId = groupId,
                 ClientId = clientId,
-                EnableAutoCommit = false,
+                EnableAutoCommit = true,
+                AutoCommitIntervalMs = 1000,
                 EnableAutoOffsetStore = false,
                 AutoOffsetReset = AutoOffsetReset.Earliest
             })
             .SetValueDeserializer(new ProtobufNetDeserializer<TValue>())
+            .SetErrorHandler((_, error) => KafkaClientLogging.LogError(logger, clientId, error))
+            .SetLogHandler((_, message) => KafkaClientLogging.LogMessage(logger, message))
+            .SetOffsetsCommittedHandler((_, committed) => KafkaClientLogging.LogCommitted(logger, clientId, committed))
             .Build();
 
         consumer.Subscribe(topic);

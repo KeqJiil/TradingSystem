@@ -27,7 +27,7 @@ public static class MessagingBuilder
                 foreach (var evt in expired)
                 {
                     CorrelationContext.CorrelationId = evt.CorrelationId;
-                    await dlq.PublishAsync(TopicNames.Price, evt.Message, true, 1, ct);
+                    await dlq.PublishAsync(TopicNames.Price, evt.Message, true, 1, null, ct);
                 }
             }
 

@@ -55,7 +55,8 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
                                                   or ErrorCode.Local_KeyDeserialization
                                               && ex.ConsumerRecord is not null)
             {
-                CorrelationContext.CorrelationId = KafkaTelemetry.ExtractCorrelationId(ex.ConsumerRecord.Message.Headers);
+                CorrelationContext.CorrelationId =
+                    KafkaTelemetry.ExtractCorrelationId(ex.ConsumerRecord.Message.Headers);
                 using var poisonActivity = KafkaTelemetry.StartProcess(ex.ConsumerRecord, GroupId);
                 poisonActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 
@@ -79,7 +80,7 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
 
             if (message is null)
             {
-                Commit(result.TopicPartitionOffset);
+                StoreOffset(result.TopicPartitionOffset);
                 continue;
             }
 
@@ -114,7 +115,7 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
 
                     if (await TryMoveToFatalAsync(message, ex, ct))
                     {
-                        Commit(result.TopicPartitionOffset);
+                        StoreOffset(result.TopicPartitionOffset);
                         continue;
                     }
                 }
@@ -135,7 +136,7 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
             }
             else
             {
-                Commit(result.TopicPartitionOffset);
+                StoreOffset(result.TopicPartitionOffset);
             }
         }
     }
@@ -149,7 +150,7 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
         try
         {
             await dlq.PublishPoisonAsync(DeadLetterSourceTopic, record.Message, ex, ct);
-            Commit(record.TopicPartitionOffset);
+            StoreOffset(record.TopicPartitionOffset);
         }
         catch (Exception dlqEx) when (!ct.IsCancellationRequested)
         {
@@ -190,18 +191,18 @@ public abstract class KafkaBackgroundConsumer<TMessage>(
         return ++_failedAttempts;
     }
 
-    private void Commit(TopicPartitionOffset handled)
+    private void StoreOffset(TopicPartitionOffset handled)
     {
         _failingOffset = null;
         _failedAttempts = 0;
 
         try
         {
-            _consumer!.Commit([new TopicPartitionOffset(handled.TopicPartition, handled.Offset + 1)]);
+            _consumer!.StoreOffset(new TopicPartitionOffset(handled.TopicPartition, handled.Offset + 1));
         }
         catch (KafkaException ex)
         {
-            logger.LogWarning(ex, "Failed to commit an offset for {Topic}", Topic);
+            logger.LogWarning(ex, "Failed to store an offset for {Topic}", Topic);
         }
     }
 

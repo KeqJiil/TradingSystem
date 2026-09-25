@@ -12,7 +12,8 @@ public static class KafkaTestConsumer
             {
                 BootstrapServers = bootstrapAddress,
                 GroupId = $"test-observer-{Guid.NewGuid()}",
-                AutoOffsetReset = AutoOffsetReset.Earliest
+                AutoOffsetReset = AutoOffsetReset.Earliest,
+                PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky
             })
             .SetValueDeserializer(new ProtobufNetDeserializer<TValue>())
             .Build();

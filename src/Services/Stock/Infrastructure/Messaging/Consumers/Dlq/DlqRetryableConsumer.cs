@@ -43,7 +43,7 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
                 typeof(TMessage).Name, message.AggregateId);
             try
             {
-                await dlq.PublishAsync(SourceTopic, message, false, GetAttempt(headers), ct);
+                await dlq.PublishAsync(SourceTopic, message, false, GetAttempt(headers), null, ct);
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)
             {
@@ -61,11 +61,11 @@ public abstract class DlqRetryableConsumer<TMessage, TCommand>(
 
         if (error is null) return true;
 
-        var retryable = error is not ValidationException && attempt < dlqOptions.Value.MaxRetryAttempts;
+        var retryable = attempt < dlqOptions.Value.MaxRetryAttempts && RetryableErrors.IsRetryable(error);
 
         try
         {
-            await dlq.PublishAsync(SourceTopic, message, retryable, attempt, ct);
+            await dlq.PublishAsync(SourceTopic, message, retryable, attempt, error, ct);
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {

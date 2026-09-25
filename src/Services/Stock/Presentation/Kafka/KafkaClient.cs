@@ -29,19 +29,10 @@ public static class AddKafkaClass
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        builder.Services.AddSingleton<IProducer<string, string>>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<KafkaOptions>>().Value;
-            return new ProducerBuilder<string, string>(new ProducerConfig
-            {
-                BootstrapServers = options.BootstrapServers,
-                ClientId = options.ProducerClientId
-            }).Build();
-        });
-
+        builder.Services.AddSingleton<IKafkaPublisher, KafkaPublisher>();
         builder.Services.AddSingleton<IKafkaConsumerFactory, KafkaConsumerFactory>();
         builder.Services.AddSingleton<IKafkaProducerFactory, KafkaProducerFactory>();
-        
+
         builder.Services.AddHostedService<KafkaTopicsInitializer>();
 
         builder.Services.AddHostedService<StockCreatedConsumer>();
@@ -50,21 +41,6 @@ public static class AddKafkaClass
         builder.Services.AddHostedService<PriceChangeRequestedConsumer>();
         builder.Services.AddHostedService<NameChangedConsumer>();
         builder.Services.AddHostedService<TimeChangedConsumer>();
-
-        builder.Services.AddSingleton<IProducer<string, PriceChangedEvent>>(sp =>
-            sp.GetRequiredService<IKafkaProducerFactory>().Create<PriceChangedEvent>("stock-price-producer"));
-
-        builder.Services.AddSingleton<IProducer<string, StockToggledStatusEvent>>(sp =>
-            sp.GetRequiredService<IKafkaProducerFactory>().Create<StockToggledStatusEvent>("stock-status-producer"));
-
-        builder.Services.AddSingleton<IProducer<string, StockCreatedEvent>>(sp =>
-            sp.GetRequiredService<IKafkaProducerFactory>().Create<StockCreatedEvent>("stock-created-producer"));
-
-        builder.Services.AddSingleton<IProducer<string, NameChangedEvent>>(sp =>
-            sp.GetRequiredService<IKafkaProducerFactory>().Create<NameChangedEvent>("stock-name-changed-producer"));
-
-        builder.Services.AddSingleton<IProducer<string, TimeChangedEvent>>(sp =>
-            sp.GetRequiredService<IKafkaProducerFactory>().Create<TimeChangedEvent>("stock-time-changed-producer"));
 
         builder.Services.AddSingleton<IDeadLetterPublisher, DeadLetterPublisher>();
 
