@@ -22,10 +22,9 @@ public class StockDataReader(IDbContext dbContext) : IStockDataReader
 
         while (true)
         {
-            var page = (await dbContext.Connection.QueryAsync<StockIdRow>(
+            var page = (await dbContext.Connection.QueryAsync<StockIdRow>(new CommandDefinition(
                 sql,
-                new { Limit = limit, LastAggregateId = lastAggregateId },
-                dbContext.Transaction)).ToList();
+                new { Limit = limit, LastAggregateId = lastAggregateId }, dbContext.Transaction, cancellationToken: cancellationToken))).ToList();
 
             if (page.Count == 0) yield break;
 
@@ -54,8 +53,7 @@ public class StockDataReader(IDbContext dbContext) : IStockDataReader
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
-        var rows = await dbContext.Connection.QueryAsync<StockMetadata>(sql, new { Id = id },
-            dbContext.Transaction);
+        var rows = await dbContext.Connection.QueryAsync<StockMetadata>(new CommandDefinition(sql, new { Id = id }, dbContext.Transaction, cancellationToken: cancellationToken));
 
         return rows.Select(row => (StockMetadata?)row).SingleOrDefault();
     }

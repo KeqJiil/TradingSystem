@@ -32,12 +32,12 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
 
         var aggregateIds = events.Select(e => e.AggregateId).Distinct().ToList();
 
-        var currentVersions = (await dbContext.Connection.QueryAsync<(Guid AggregateId, long Version)>("""
+        var currentVersions = (await dbContext.Connection.QueryAsync<(Guid AggregateId, long Version)>(new CommandDefinition("""
                     SELECT aggregate_id AS AggregateId, MAX(version) AS Version
                     FROM events_store
                     WHERE aggregate_id IN @AggregateIds
                     GROUP BY aggregate_id
-                """, new { AggregateIds = aggregateIds }, dbContext.Transaction))
+                """, new { AggregateIds = aggregateIds }, dbContext.Transaction, cancellationToken: ct)))
             .ToDictionary(x => x.AggregateId, x => x.Version);
 
         var parameters = new DynamicParameters();
@@ -69,7 +69,7 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
             parameters.Add($"OccuredAt{i}", stockEvent.OccuredAt);
         }
 
-        await dbContext.Connection.ExecuteAsync(sqlBuilder.ToString(), parameters, dbContext.Transaction);
+        await dbContext.Connection.ExecuteAsync(new CommandDefinition(sqlBuilder.ToString(), parameters, dbContext.Transaction, cancellationToken: ct));
 
         return result;
     }
@@ -79,7 +79,7 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
     {
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        var version = await dbContext.Connection.ExecuteAsync(
+        var version = await dbContext.Connection.ExecuteAsync(new CommandDefinition(
             """
                 INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change)
                 VALUES (@Id, @AggregateId, COALESCE((SELECT MAX(e.version) FROM events_store e WHERE e.aggregate_id = @AggregateId), 0) + 1, @EventType, @Payload, @PriceChange)
@@ -89,8 +89,7 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
                 Id = Guid.NewGuid(), AggregateId = stockEvent.AggregateId,
                 EventType = nameof(PriceChangedEvent), Payload = JsonSerializer.Serialize(stockEvent),
                 PriceChange = stockEvent.PriceChange
-            },
-            dbContext.Transaction);
+            }, dbContext.Transaction, cancellationToken: ct));
 
         return stockEvent with { Version = version };
     }

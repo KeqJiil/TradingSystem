@@ -24,10 +24,9 @@ public class StockPriceHistoryReader(IDbContext dbContext) : IStockPriceHistoryR
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        return await dbContext.Connection.QueryAsync<PriceHistoryDateOnlyReadModel>(
+        return await dbContext.Connection.QueryAsync<PriceHistoryDateOnlyReadModel>(new CommandDefinition(
             sql,
-            new { To = to, From = from, StockId = stockId },
-            dbContext.Transaction);
+            new { To = to, From = from, StockId = stockId }, dbContext.Transaction, cancellationToken: ct));
     }
 
     public async Task<PriceHistoryDateOnlyReadModel?> GetDayPriceHistoryAsync(Guid stockId, DateOnly date,
@@ -47,10 +46,9 @@ public class StockPriceHistoryReader(IDbContext dbContext) : IStockPriceHistoryR
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        var rows = await dbContext.Connection.QueryAsync<PriceHistoryDateOnlyReadModel>(
+        var rows = await dbContext.Connection.QueryAsync<PriceHistoryDateOnlyReadModel>(new CommandDefinition(
             sql,
-            new { Date = date, StockId = stockId },
-            dbContext.Transaction);
+            new { Date = date, StockId = stockId }, dbContext.Transaction, cancellationToken: ct));
 
         return rows.Select(row => (PriceHistoryDateOnlyReadModel?)row).SingleOrDefault();
     }

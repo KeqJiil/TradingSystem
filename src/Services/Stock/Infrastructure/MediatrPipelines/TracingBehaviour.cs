@@ -24,6 +24,11 @@ public class TracingBehaviour<TRequest, TResponse> : IPipelineBehavior<TRequest,
             activity?.SetTag("validation.failed", true);
             throw;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            activity?.SetTag("request.cancelled", true);
+            throw;
+        }
         catch (Exception ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);

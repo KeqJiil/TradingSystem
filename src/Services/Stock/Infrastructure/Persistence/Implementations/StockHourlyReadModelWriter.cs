@@ -31,7 +31,7 @@ public class StockHourlyReadModelWriter(IDbContext dbContext) : IStockHourlyRead
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        await dbContext.Connection.ExecuteAsync(sql, new
+        await dbContext.Connection.ExecuteAsync(new CommandDefinition(sql, new
         {
             EventId = Guid.NewGuid(),
             Id = aggregate.AggregateId,
@@ -42,6 +42,6 @@ public class StockHourlyReadModelWriter(IDbContext dbContext) : IStockHourlyRead
             PriceDifference = aggregate.PriceDifference,
             HourStart = aggregate.HourStart,
             LastVersion = aggregate.LastVersion
-        }, dbContext.Transaction);
+        }, dbContext.Transaction, cancellationToken: ct));
     }
 }

@@ -6,7 +6,7 @@ namespace Stock.Application.Queries.GetHourlyReadModel;
 public record GetHourlyReadModelQuery(
     Guid AggregateId,
     DateTimeOffset From,
-    DateTimeOffset To) : IRequest<HourlyReadModel?>;
+    DateTimeOffset To) : IRequest<HourlyReadModel>;
 
 public record HourlyReadModel(
     Guid AggregateId,

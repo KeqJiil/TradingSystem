@@ -23,8 +23,8 @@ public class StockPriceHourlyReader(IDbContext dbContext) : IStockPriceHourlyRea
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        var rows = await dbContext.Connection.QueryAsync<HourlyStockDataProjection>(sql,
-            new { StockId = stockId, dateTime }, dbContext.Transaction);
+        var rows = await dbContext.Connection.QueryAsync<HourlyStockDataProjection>(new CommandDefinition(sql,
+            new { StockId = stockId, dateTime }, dbContext.Transaction, cancellationToken: ct));
 
         var result = rows.Select(r => (HourlyStockDataProjection?)r).SingleOrDefault();
         if (result is null)
@@ -60,8 +60,8 @@ public class StockPriceHourlyReader(IDbContext dbContext) : IStockPriceHourlyRea
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        var result = await dbContext.Connection.QueryAsync<HourlyStockDataProjection>(sql,
-            new { StockId = stockId, from, to }, dbContext.Transaction);
+        var result = await dbContext.Connection.QueryAsync<HourlyStockDataProjection>(new CommandDefinition(sql,
+            new { StockId = stockId, from, to }, dbContext.Transaction, cancellationToken: ct));
 
         return result.Select(r => new PriceHourReadModel(
             r.StockId,
@@ -92,8 +92,8 @@ public class StockPriceHourlyReader(IDbContext dbContext) : IStockPriceHourlyRea
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        var rows = await dbContext.Connection.QueryAsync<HourlyStockDataProjection>(sql,
-            new { StockId = stockId, before }, dbContext.Transaction);
+        var rows = await dbContext.Connection.QueryAsync<HourlyStockDataProjection>(new CommandDefinition(sql,
+            new { StockId = stockId, before }, dbContext.Transaction, cancellationToken: ct));
 
         var result = rows.Select(r => (HourlyStockDataProjection?)r).SingleOrDefault();
         if (result is null)

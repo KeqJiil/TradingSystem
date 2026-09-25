@@ -8,4 +8,11 @@ public record CreateStockCommand(
     bool IsOpenToTrade,
     string Currency,
     TimeOnly TradingStartTime,
-    TimeOnly TradingEndTime) : IRequest<bool>;
+    TimeOnly TradingEndTime) : IRequest<CreateStockResult>;
+
+public enum CreateStockResult
+{
+    Created,
+    AlreadyExists,
+    Conflict
+}

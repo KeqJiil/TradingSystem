@@ -1,4 +1,5 @@
 using Dapper;
+using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.CreateStock;
@@ -28,8 +29,9 @@ public class CreateStockHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifeti
         OutboxWriter = new OutboxWriter(dbContext);
         ResiliencePipeline = new ResiliencePipelineBuilder().Build();
         UnitOfWork = new UnitOfWork(new TestDbConnectionFactory(MssqlFixture.ConnectionString));
-        UnitOfWorkDecorator = new UnitOfWorkDecorator(UnitOfWork, ResiliencePipeline);
-        Handler = new CreateStockHandler(Writer, OutboxWriter, UnitOfWorkDecorator);
+        UnitOfWorkDecorator = new UnitOfWorkDecorator(UnitOfWork, ResiliencePipeline,
+            NullLogger<UnitOfWorkDecorator>.Instance);
+        Handler = new CreateStockHandler(Writer, new StockDataReader(dbContext), OutboxWriter, UnitOfWorkDecorator);
     }
 
     public async Task InitializeAsync()
@@ -47,36 +49,55 @@ public class CreateStockHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifeti
     [Fact]
     public async Task Handle_ShouldCreateStockAndWriteOutboxEvent()
     {
-        var command = new CreateStockCommand("StockName", true, "USD", new TimeOnly(9, 0), new TimeOnly(17, 0));
+        var command = NewCommand(Guid.NewGuid());
 
-        var id = await Handler.Handle(command, CancellationToken.None);
+        var result = await Handler.Handle(command, CancellationToken.None);
 
-        Assert.NotEqual(Guid.Empty, id);
+        Assert.Equal(CreateStockResult.Created, result);
 
         var stock = await DbContext.Connection.QuerySingleAsync(
             "SELECT * FROM stock_data WHERE id = @Id",
-            new { Id = id }
+            new { command.Id }
         );
         Assert.Equal(command.Name, stock.name);
         Assert.Equal(command.Currency, stock.currency);
-
-        var outboxCount = await DbContext.Connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id",
-            new { Id = id }
-        );
-        Assert.Equal(1, outboxCount);
+        Assert.Equal(1, await OutboxCount(command.Id));
     }
 
     [Fact]
-    public async Task Handle_ShouldReturnNewGuidEachTime()
+    public async Task Handle_RepeatedWithSameBody_ShouldReturnAlreadyExistsWithoutSecondEvent()
     {
-        var command = new CreateStockCommand("StockName", true, "USD", new TimeOnly(9, 0), new TimeOnly(17, 0));
+        var command = NewCommand(Guid.NewGuid());
 
-        var firstId = await Handler.Handle(command, CancellationToken.None);
-        var secondId = await Handler.Handle(command, CancellationToken.None);
+        await Handler.Handle(command, CancellationToken.None);
+        var result = await Handler.Handle(command, CancellationToken.None);
 
-        Assert.NotEqual(Guid.Empty, firstId);
-        Assert.NotEqual(Guid.Empty, secondId);
-        Assert.NotEqual(firstId, secondId);
+        Assert.Equal(CreateStockResult.AlreadyExists, result);
+        Assert.Equal(1, await OutboxCount(command.Id));
+    }
+
+    [Fact]
+    public async Task Handle_RepeatedWithDifferentBody_ShouldReturnConflictAndKeepOriginal()
+    {
+        var command = NewCommand(Guid.NewGuid());
+
+        await Handler.Handle(command, CancellationToken.None);
+        var result = await Handler.Handle(command with { Currency = "EUR" }, CancellationToken.None);
+
+        Assert.Equal(CreateStockResult.Conflict, result);
+        Assert.Equal("USD", await DbContext.Connection.ExecuteScalarAsync<string>(
+            "SELECT currency FROM stock_data WHERE id = @Id", new { command.Id }));
+        Assert.Equal(1, await OutboxCount(command.Id));
+    }
+
+    private static CreateStockCommand NewCommand(Guid id)
+    {
+        return new CreateStockCommand(id, "StockName", true, "USD", new TimeOnly(9, 0), new TimeOnly(17, 0));
+    }
+
+    private Task<int> OutboxCount(Guid id)
+    {
+        return DbContext.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id", new { Id = id });
     }
 }

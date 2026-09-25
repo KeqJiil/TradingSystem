@@ -10,9 +10,9 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
     {
         await context.EnsureConnectionOpenAsync(ct);
 
-        var currentVersion = await context.Connection.ExecuteScalarAsync<long>(
+        var currentVersion = await context.Connection.ExecuteScalarAsync<long>(new CommandDefinition(
             """SELECT "version" FROM "stock_data_projection" WHERE "aggregate_id" = @AggregateId""",
-            new { AggregateId = aggregateId }, context.Transaction);
+            new { AggregateId = aggregateId }, context.Transaction, cancellationToken: ct));
 
         if (newVersion <= currentVersion) return ReadModelUpdateOutcome.Stale;
         if (newVersion > currentVersion + 1) return ReadModelUpdateOutcome.Gap;
@@ -23,9 +23,8 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
                     WHERE "version" = @OldVersion AND "aggregate_id" = @AggregateId
                   """;
 
-        var result = await context.Connection.ExecuteAsync(sql,
-            new { OldVersion = newVersion - 1, PriceChange = priceChange, AggregateId = aggregateId },
-            context.Transaction);
+        var result = await context.Connection.ExecuteAsync(new CommandDefinition(sql,
+            new { OldVersion = newVersion - 1, PriceChange = priceChange, AggregateId = aggregateId }, context.Transaction, cancellationToken: ct));
 
         return result > 0 ? ReadModelUpdateOutcome.Applied : ReadModelUpdateOutcome.Gap;
     }
@@ -41,12 +40,11 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
 
         await context.EnsureConnectionOpenAsync(ct);
 
-        return await context.Connection.ExecuteAsync(sql,
+        return await context.Connection.ExecuteAsync(new CommandDefinition(sql,
             new
             {
                 FromVersion = fromVersion, ToVersion = toVersion, PriceChange = priceChange, AggregateId = aggregateId
-            },
-            context.Transaction) > 0;
+            }, context.Transaction, cancellationToken: ct)) > 0;
     }
 
     public async Task<bool> CreateAsync(CreateStockReadModelDto data, CancellationToken ct)
@@ -70,12 +68,12 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
 
         await context.EnsureConnectionOpenAsync(ct);
 
-        var result = await context.Connection.ExecuteAsync(sql, new
+        var result = await context.Connection.ExecuteAsync(new CommandDefinition(sql, new
         {
             AggregateId = data.AggregateId, Currency = data.Currency,
             Name = data.Name, IsOpenToTrade = data.IsOpenToTrade ? 1 : 0,
             TradingStart = data.TradingStartTime, TradingEnd = data.TradingCloseTime
-        }, context.Transaction);
+        }, context.Transaction, cancellationToken: ct));
 
         return result > 0;
     }
@@ -95,9 +93,8 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
 
         await context.EnsureConnectionOpenAsync(ct);
 
-        return await context.Connection.ExecuteScalarAsync<bool>(sql,
-            new { AggregateId = aggregateId, IsOpenToTrade = isOpenToTrade, StatusVersion = statusVersion },
-            context.Transaction);
+        return await context.Connection.ExecuteScalarAsync<bool>(new CommandDefinition(sql,
+            new { AggregateId = aggregateId, IsOpenToTrade = isOpenToTrade, StatusVersion = statusVersion }, context.Transaction, cancellationToken: ct));
     }
 
     public async Task<bool> SetNewTimeAsync(Guid aggregateId, TimeOnly tradingStartTime, TimeOnly tradingCloseTime,
@@ -116,13 +113,12 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
 
         await context.EnsureConnectionOpenAsync(ct);
 
-        return await context.Connection.ExecuteScalarAsync<bool>(sql,
+        return await context.Connection.ExecuteScalarAsync<bool>(new CommandDefinition(sql,
             new
             {
                 AggregateId = aggregateId, TradingStartTime = tradingStartTime, TradingCloseTime = tradingCloseTime,
                 TimeVersion = timeVersion
-            },
-            context.Transaction);
+            }, context.Transaction, cancellationToken: ct));
     }
 
     public async Task<bool> SetNewNameAsync(Guid aggregateId, string newName, long nameVersion, CancellationToken ct)
@@ -139,8 +135,7 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
 
         await context.EnsureConnectionOpenAsync(ct);
 
-        return await context.Connection.ExecuteScalarAsync<bool>(sql,
-            new { AggregateId = aggregateId, NewName = newName, NameVersion = nameVersion },
-            context.Transaction);
+        return await context.Connection.ExecuteScalarAsync<bool>(new CommandDefinition(sql,
+            new { AggregateId = aggregateId, NewName = newName, NameVersion = nameVersion }, context.Transaction, cancellationToken: ct));
     }
 }

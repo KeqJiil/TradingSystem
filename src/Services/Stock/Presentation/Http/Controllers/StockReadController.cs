@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Stock.Application.Abstractions;
 using Stock.Application.Queries.GetDailyReadModel;
 using Stock.Application.Queries.GetHourlyReadModel;
 using Stock.Application.Queries.GetReadModel;
@@ -9,9 +10,9 @@ namespace Stock.Presentation.Http.Controllers;
 
 public static class StockReadController
 {
-    public static void MapStockReadController(this WebApplication app)
+    public static void MapStockReadController(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/stock/{id:Guid}", async (
+        app.MapGet("/{id:Guid}", async (
                 [FromRoute] Guid id,
                 [FromServices] IMediator mediator,
                 CancellationToken cancellationToken) =>
@@ -19,13 +20,12 @@ public static class StockReadController
                 var readModel = await mediator.Send(new GetReadModelQuery(id), cancellationToken);
                 return readModel is not null ? Results.Ok(readModel) : Results.NotFound();
             })
-            .WithName("GetStockReadModel")
-            .WithTags("Stock")
-            .WithDescription("Gets a stock read model")
-            .Produces(200)
-            .Produces(404);
+            .WithName("GetStock")
+            .WithDescription("Gets a stock with its current price, eventually consistent with writes")
+            .Produces<StockReadModel>(200)
+            .ProducesProblem(404);
 
-        app.MapGet("/api/stock/{id:Guid}/read-model/hourly", async (
+        app.MapGet("/{id:Guid}/prices/hourly", async (
                 [FromRoute] Guid id,
                 [FromQuery] DateTimeOffset from,
                 [FromQuery] DateTimeOffset to,
@@ -33,43 +33,41 @@ public static class StockReadController
                 CancellationToken cancellationToken) =>
             {
                 var readModel = await mediator.Send(new GetHourlyReadModelQuery(id, from, to), cancellationToken);
-                return readModel is not null ? Results.Ok(readModel) : Results.NotFound();
+                return Results.Ok(readModel);
             })
-            .WithName("GetStockHourlyReadModel")
-            .WithTags("Stock")
-            .WithDescription("Gets the hourly price-change read model for a stock")
-            .Produces(200)
-            .Produces(404);
+            .WithName("GetStockHourlyPrices")
+            .WithDescription("Gets hourly candles in [from, to), at most 7 days, empty list when there is no data")
+            .Produces<HourlyReadModel>(200)
+            .ProducesValidationProblem();
 
-        app.MapGet("/api/stock/{id:Guid}/read-model/daily", async (
+        app.MapGet("/{id:Guid}/prices/daily/{date}", async (
                 [FromRoute] Guid id,
-                [FromQuery] DateOnly date,
+                [FromRoute] DateOnly date,
                 [FromServices] IMediator mediator,
                 CancellationToken cancellationToken) =>
             {
                 var readModel = await mediator.Send(new GetDailyReadModelQuery(id, date), cancellationToken);
                 return readModel is not null ? Results.Ok(readModel) : Results.NotFound();
             })
-            .WithName("GetStockDailyReadModel")
-            .WithTags("Stock")
-            .WithDescription("Gets the daily OHLC read model for a stock")
-            .Produces(200)
-            .Produces(404);
+            .WithName("GetStockDayPrice")
+            .WithDescription("Gets the daily OHLC candle for a date")
+            .Produces<DailyReadModel>(200)
+            .ProducesValidationProblem()
+            .ProducesProblem(404);
 
-        app.MapGet("/api/stock/{id:Guid}/read-model/weekly", async (
+        app.MapGet("/{id:Guid}/prices/daily", async (
                 [FromRoute] Guid id,
-                [FromQuery] DateOnly startDate,
-                [FromQuery] DateOnly endDate,
+                [FromQuery] DateOnly from,
+                [FromQuery] DateOnly to,
                 [FromServices] IMediator mediator,
                 CancellationToken cancellationToken) =>
             {
-                var readModel = await mediator.Send(new GetWeeklyReadModelQuery(id, startDate, endDate), cancellationToken);
+                var readModel = await mediator.Send(new GetWeeklyReadModelQuery(id, from, to), cancellationToken);
                 return Results.Ok(readModel);
             })
-            .WithName("GetStockWeeklyReadModel")
-            .WithTags("Stock")
-            .WithDescription("Gets the weekly daily-rollup read model for a stock")
-            .Produces(200)
-            .Produces(404);
+            .WithName("GetStockDailyPrices")
+            .WithDescription("Gets daily candles in [from, to), at most 366 days, empty list when there is no data")
+            .Produces<WeeklyReadModel>(200)
+            .ProducesValidationProblem();
     }
 }

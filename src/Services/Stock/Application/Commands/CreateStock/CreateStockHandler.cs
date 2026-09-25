@@ -4,10 +4,14 @@ using Stock.Application.Events;
 
 namespace Stock.Application.Commands.CreateStock;
 
-public class CreateStockHandler(IStockWriter writer, IOutboxWriter outboxWriter, IUnitOfWorkDecorator uow)
-    : IRequestHandler<CreateStockCommand, bool>
+public class CreateStockHandler(
+    IStockWriter writer,
+    IStockDataReader reader,
+    IOutboxWriter outboxWriter,
+    IUnitOfWorkDecorator uow)
+    : IRequestHandler<CreateStockCommand, CreateStockResult>
 {
-    public async Task<bool> Handle(CreateStockCommand request, CancellationToken cancellationToken)
+    public async Task<CreateStockResult> Handle(CreateStockCommand request, CancellationToken cancellationToken)
     {
         var dto = new CreateStockDto(
             request.Name,
@@ -19,16 +23,33 @@ public class CreateStockHandler(IStockWriter writer, IOutboxWriter outboxWriter,
         var @event = new StockCreatedEvent(request.Id, request.Name, request.IsOpenToTrade, request.Currency,
             request.TradingStartTime, request.TradingEndTime);
 
-        var created = false;
+        var result = CreateStockResult.Created;
 
         await uow.ExecuteAsync(async () =>
         {
-            created = await writer.CreateAsync(request.Id, dto, cancellationToken);
-            if (!created) return;
+            if (await writer.CreateAsync(request.Id, dto, cancellationToken))
+            {
+                result = CreateStockResult.Created;
+                await outboxWriter.WriteAsync(@event, request.Id, cancellationToken);
+                return;
+            }
 
-            await outboxWriter.WriteAsync(@event, request.Id, cancellationToken);
+            var existing = await reader.GetByIdAsync(request.Id, cancellationToken);
+            result = IsExisting(existing, request);
         }, cancellationToken);
 
-        return created;
+        return result;
+    }
+
+    private CreateStockResult IsExisting(StockMetadata? existing, CreateStockCommand request)
+    {
+        return existing is { } stock
+               && stock.Name == request.Name
+               && stock.IsOpenToTrade == request.IsOpenToTrade
+               && stock.Currency == request.Currency
+               && stock.TradingStartTime == request.TradingStartTime
+               && stock.TradingEndTime == request.TradingEndTime
+            ? CreateStockResult.AlreadyExists
+            : CreateStockResult.Conflict;
     }
 }

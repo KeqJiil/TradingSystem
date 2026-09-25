@@ -21,14 +21,13 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker, 
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
-        await dbContext.Connection.ExecuteAsync(sql,
+        await dbContext.Connection.ExecuteAsync(new CommandDefinition(sql,
             new
             {
                 Id = id, Type = typeof(T).Name, Payload = payload, AggregateId = aggregateId,
                 CorrelationId = CorrelationContext.CorrelationId,
                 TraceParent = Activity.Current?.Id, TraceState = Activity.Current?.TraceStateString
-            },
-            dbContext.Transaction);
+            }, dbContext.Transaction, cancellationToken: cancellationToken));
     }
 
     public async Task WriteManyAsync<T>(IEnumerable<(Guid AggregateId, T Payload)> events,
@@ -60,7 +59,7 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker, 
         var parameters = new DynamicParameters();
         parameters.Add("Events", table.AsTableValuedParameter("dbo.OutboxEventTvp"));
 
-        await dbContext.Connection.ExecuteAsync(sql, parameters, dbContext.Transaction);
+        await dbContext.Connection.ExecuteAsync(new CommandDefinition(sql, parameters, dbContext.Transaction, cancellationToken: cancellationToken));
     }
 
     public async ValueTask MarkCompletedAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken)
@@ -75,7 +74,7 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker, 
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
-        await dbContext.Connection.ExecuteAsync(sql, new { Ids = ids }, dbContext.Transaction);
+        await dbContext.Connection.ExecuteAsync(new CommandDefinition(sql, new { Ids = ids }, dbContext.Transaction, cancellationToken: cancellationToken));
     }
 
     public async Task<int> CleanupAsync(DateTimeOffset olderThan, int batchSize, CancellationToken cancellationToken)
@@ -92,8 +91,8 @@ public class OutboxWriter(IDbContext dbContext) : IOutboxWriter, IOutboxMarker, 
 
         do
         {
-            deleted = await dbContext.Connection.ExecuteAsync(sql,
-                new { BatchSize = batchSize, OlderThan = olderThan }, dbContext.Transaction);
+            deleted = await dbContext.Connection.ExecuteAsync(new CommandDefinition(sql,
+                new { BatchSize = batchSize, OlderThan = olderThan }, dbContext.Transaction, cancellationToken: cancellationToken));
             total += deleted;
         } while (deleted == batchSize && !cancellationToken.IsCancellationRequested);
 

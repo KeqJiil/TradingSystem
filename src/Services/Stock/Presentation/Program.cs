@@ -1,6 +1,8 @@
 using Hangfire;
 using Hangfire.Dashboard;
+using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.Extensions.Internal;
+using Stock.Infrastructure;
 using Stock.Infrastructure.Cron;
 using Stock.Infrastructure.Handlers;
 using Stock.Infrastructure.Messaging;
@@ -15,7 +17,15 @@ using Stock.Presentation.Kafka;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
-builder.Services.AddProblemDetails();
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.RespectRequiredConstructorParameters = true;
+    options.SerializerOptions.RespectNullableAnnotations = true;
+});
+builder.Services.AddRequestTimeouts(options =>
+    options.DefaultPolicy = new RequestTimeoutPolicy { Timeout = TimeSpan.FromSeconds(10) });
+builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
+    context.ProblemDetails.Extensions["correlationId"] = CorrelationContext.CorrelationId);
 builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.AddResilence();
 builder.AddPersistence();
@@ -45,6 +55,8 @@ var app = builder.Build();
 app.UseMiddleware<CorrelationMiddleware>();
 
 app.UseExceptionHandler();
+app.UseStatusCodePages();
+app.UseRequestTimeouts();
 
 // dev only
 if (app.Environment.IsDevelopment())
@@ -58,9 +70,10 @@ if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
 app.UseHttpsRedirection();
 
-app.MapStockController();
-app.MapStockReadController();
-app.MapStockMetadataController();
+var stocks = app.MapGroup("/api/v1/stocks").WithTags("Stock");
+stocks.MapStockController();
+stocks.MapStockReadController();
+stocks.MapStockMetadataController();
 app.MapHealthChecksController();
 
 app.Run();

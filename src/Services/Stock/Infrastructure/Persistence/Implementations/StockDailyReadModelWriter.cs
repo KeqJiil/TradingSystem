@@ -30,7 +30,7 @@ public class StockDailyReadModelWriter(IDbContext dbContext) : IStockDailyReadMo
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        await dbContext.Connection.ExecuteAsync(sql, new
+        await dbContext.Connection.ExecuteAsync(new CommandDefinition(sql, new
         {
             Id = Guid.NewGuid(),
             aggregate.AggregateId,
@@ -41,6 +41,6 @@ public class StockDailyReadModelWriter(IDbContext dbContext) : IStockDailyReadMo
             aggregate.PriceDifference,
             aggregate.LastVersion,
             aggregate.Date
-        }, dbContext.Transaction);
+        }, dbContext.Transaction, cancellationToken: ct));
     }
 }

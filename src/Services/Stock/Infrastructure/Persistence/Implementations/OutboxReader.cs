@@ -25,8 +25,8 @@ public class OutboxReader(IDbContext context) : IOutboxReader
 
         await context.EnsureConnectionOpenAsync(ct);
 
-        var result = await context.Connection.QueryAsync<OutboxData>(sql,
-            new { Amount = amount, MaxWaitMinutes = maxWaitMinutes }, context.Transaction);
+        var result = await context.Connection.QueryAsync<OutboxData>(new CommandDefinition(sql,
+            new { Amount = amount, MaxWaitMinutes = maxWaitMinutes }, context.Transaction, cancellationToken: ct));
         return result.ToList().AsReadOnly();
     }
 };

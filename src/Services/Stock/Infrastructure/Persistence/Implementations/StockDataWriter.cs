@@ -10,16 +10,14 @@ public class StockDataWriter(IDbContext dbContext) : IStockWriter
     {
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        return await dbContext.Connection.QuerySingleOrDefaultAsync<long?>(
+        return await dbContext.Connection.QuerySingleOrDefaultAsync<long?>(new CommandDefinition(
             """
             UPDATE stock_data
             SET name = @Name, metadata_version = metadata_version + 1
             OUTPUT inserted.metadata_version
             WHERE id = @Id
             """,
-            new { Id = id, Name = name },
-            dbContext.Transaction
-        );
+            new { Id = id, Name = name }, dbContext.Transaction, cancellationToken: ct));
     }
 
     public async Task<bool> CreateAsync(Guid id, CreateStockDto dto, CancellationToken ct)
@@ -28,11 +26,9 @@ public class StockDataWriter(IDbContext dbContext) : IStockWriter
 
         try
         {
-            await dbContext.Connection.ExecuteAsync(
+            await dbContext.Connection.ExecuteAsync(new CommandDefinition(
                 "INSERT INTO stock_data (id, name, is_open_to_trade, trading_start_time, trading_end_time, currency) VALUES (@Id, @Name, @IsOpenToTrade, @OpenTime, @CloseTime, @Currency)",
-                new { Id = id, dto.Name, dto.IsOpenToTrade, dto.OpenTime, dto.CloseTime, dto.Currency },
-                dbContext.Transaction
-            );
+                new { Id = id, dto.Name, dto.IsOpenToTrade, dto.OpenTime, dto.CloseTime, dto.Currency }, dbContext.Transaction, cancellationToken: ct));
 
             return true;
         }
@@ -46,7 +42,7 @@ public class StockDataWriter(IDbContext dbContext) : IStockWriter
     {
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        return await dbContext.Connection.QuerySingleOrDefaultAsync<long?>(
+        return await dbContext.Connection.QuerySingleOrDefaultAsync<long?>(new CommandDefinition(
             """
             UPDATE stock_data
             SET trading_start_time = @OpenTime, trading_end_time = @CloseTime,
@@ -54,24 +50,20 @@ public class StockDataWriter(IDbContext dbContext) : IStockWriter
             OUTPUT inserted.metadata_version
             WHERE id = @Id
             """,
-            new { Id = id, OpenTime = openTime, CloseTime = closeTime },
-            dbContext.Transaction
-        );
+            new { Id = id, OpenTime = openTime, CloseTime = closeTime }, dbContext.Transaction, cancellationToken: ct));
     }
 
     public async Task<long?> SetOpenToTrade(Guid id, bool isOpenToTrade, CancellationToken ct)
     {
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        return await dbContext.Connection.QuerySingleOrDefaultAsync<long?>(
+        return await dbContext.Connection.QuerySingleOrDefaultAsync<long?>(new CommandDefinition(
             """
             UPDATE stock_data
             SET is_open_to_trade = @IsOpenToTrade, metadata_version = metadata_version + 1
             OUTPUT inserted.metadata_version
             WHERE id = @Id
             """,
-            new { Id = id, IsOpenToTrade = isOpenToTrade },
-            dbContext.Transaction
-        );
+            new { Id = id, IsOpenToTrade = isOpenToTrade }, dbContext.Transaction, cancellationToken: ct));
     }
 }

@@ -33,14 +33,13 @@ public class StockEventStoreReader(IDbContext dbContext) : IStockEventStoreReade
 
         while (true)
         {
-            var page = (await dbContext.Connection.QueryAsync<EventRow>(
+            var page = (await dbContext.Connection.QueryAsync<EventRow>(new CommandDefinition(
                 sql,
                 new
                 {
                     PageSize, AggregateId = aggregateId, From = from, To = to, LastOccuredAt = lastOccuredAt,
                     LastVersion = lastVersion
-                },
-                dbContext.Transaction)).ToList();
+                }, dbContext.Transaction, cancellationToken: ct))).ToList();
 
             if (page.Count == 0) yield break;
 
@@ -66,13 +65,12 @@ public class StockEventStoreReader(IDbContext dbContext) : IStockEventStoreReade
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        var page = (await dbContext.Connection.QueryAsync<EventRow>(
+        var page = (await dbContext.Connection.QueryAsync<EventRow>(new CommandDefinition(
                 sql,
                 new
                 {
                     AggregateId = aggregateId, From = from, To = to
-                },
-                dbContext.Transaction))
+                }, dbContext.Transaction, cancellationToken: ct)))
             .Select(x => new PriceChangedEvent(x.StockId, x.PriceChange, x.Version, x.Timestamp))
             .ToList();
 
@@ -90,8 +88,8 @@ public class StockEventStoreReader(IDbContext dbContext) : IStockEventStoreReade
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        return await dbContext.Connection.ExecuteScalarAsync<long?>(
-            sql, new { AggregateId = aggregateId, Before = before }, dbContext.Transaction);
+        return await dbContext.Connection.ExecuteScalarAsync<long?>(new CommandDefinition(
+            sql, new { AggregateId = aggregateId, Before = before }, dbContext.Transaction, cancellationToken: ct));
     }
 
     public async Task<decimal> SumPriceChangeAsync(Guid aggregateId, DateTimeOffset from, DateTimeOffset to,
@@ -105,8 +103,8 @@ public class StockEventStoreReader(IDbContext dbContext) : IStockEventStoreReade
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        return await dbContext.Connection.ExecuteScalarAsync<decimal>(
-            sql, new { AggregateId = aggregateId, From = from, To = to }, dbContext.Transaction);
+        return await dbContext.Connection.ExecuteScalarAsync<decimal>(new CommandDefinition(
+            sql, new { AggregateId = aggregateId, From = from, To = to }, dbContext.Transaction, cancellationToken: ct));
     }
 
     private readonly record struct EventRow(Guid StockId, decimal PriceChange, DateTimeOffset Timestamp, long Version);

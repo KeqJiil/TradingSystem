@@ -22,8 +22,7 @@ public class StockReader(IDbContext dbContext) : IStockReader
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
-        var rows = await dbContext.Connection.QueryAsync<StockReadModel>(sql, new { StockId = stockId },
-            dbContext.Transaction);
+        var rows = await dbContext.Connection.QueryAsync<StockReadModel>(new CommandDefinition(sql, new { StockId = stockId }, dbContext.Transaction, cancellationToken: cancellationToken));
 
         return rows.Select(row => (StockReadModel?)row).SingleOrDefault();
     }
@@ -38,7 +37,6 @@ public class StockReader(IDbContext dbContext) : IStockReader
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
-        return await dbContext.Connection.ExecuteScalarAsync<long?>(sql, new { AggregateId = aggregateId },
-            dbContext.Transaction);
+        return await dbContext.Connection.ExecuteScalarAsync<long?>(new CommandDefinition(sql, new { AggregateId = aggregateId }, dbContext.Transaction, cancellationToken: cancellationToken));
     }
 }
