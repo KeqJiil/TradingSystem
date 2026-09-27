@@ -121,6 +121,23 @@ public class DailyReadModelWorkerTests : IClassFixture<MssqlFixture>, IAsyncLife
         Assert.Equal(0, otherRows);
     }
 
+    [Fact]
+    public async Task ProcessAsync_ShouldWriteSingleRow_WhenRunTwiceForSameDay()
+    {
+        var aggregateId = Guid.NewGuid();
+        await SeedHour(aggregateId, DayStart.AddHours(10), open: 4m, low: 4m, high: 6m, close: 6m);
+        await SeedEvent(aggregateId, 1, DayStart.AddHours(10));
+
+        await Worker.ProcessAsync(new DailyReadModelRequested(aggregateId, Date), CancellationToken.None);
+        await Worker.ProcessAsync(new DailyReadModelRequested(aggregateId, Date), CancellationToken.None);
+
+        var rows = await DbContext.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM daily_stock_data_projection WHERE aggregate_id = @AggregateId",
+            new { AggregateId = aggregateId });
+        Assert.Equal(1, rows);
+        Assert.Equal(6m, (await ReadDaily(aggregateId)).ClosePrice);
+    }
+
     private async Task SeedHour(Guid aggregateId, DateTimeOffset hourStart, decimal open, decimal low, decimal high,
         decimal close)
     {

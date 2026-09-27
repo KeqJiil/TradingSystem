@@ -1,8 +1,11 @@
+using System.Text.Json;
 using Dapper;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.ChangeStockName;
+using Stock.Application.Events;
 using Stock.Infrastructure.Persistence.Implementations;
 using Stock.Tests.Infrastructure;
 using Xunit;
@@ -22,11 +25,12 @@ public class ChangeStockNameHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
         MssqlFixture = mssqlFixture;
         var dbContext = new TestDbContext(MssqlFixture.ConnectionString);
         DbContext = dbContext;
-        Writer = new StockDataWriter(dbContext);
-        UnitOfWork = new UnitOfWork(new TestDbConnectionFactory(MssqlFixture.ConnectionString));
-        var decorator = new UnitOfWorkDecorator(UnitOfWork, new ResiliencePipelineBuilder().Build(),
+        var unitOfWork = new UnitOfWork(new TestDbConnectionFactory(MssqlFixture.ConnectionString));
+        UnitOfWork = unitOfWork;
+        Writer = new StockDataWriter(unitOfWork);
+        var decorator = new UnitOfWorkDecorator(unitOfWork, new ResiliencePipelineBuilder().Build(),
             NullLogger<UnitOfWorkDecorator>.Instance);
-        Handler = new ChangeStockNameHandler(Writer, new OutboxWriter(dbContext), decorator);
+        Handler = new ChangeStockNameHandler(Writer, new OutboxWriter(unitOfWork), decorator);
     }
 
     public async Task InitializeAsync()
@@ -56,6 +60,53 @@ public class ChangeStockNameHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
         );
 
         Assert.Equal("NewName", updatedStock.name);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldWriteNameChangedEventWithIncrementedVersion()
+    {
+        var stockId = Guid.NewGuid();
+        await Seed(stockId);
+
+        await Handler.Handle(new ChangeStockNameCommand(stockId, "First"), CancellationToken.None);
+        await Handler.Handle(new ChangeStockNameCommand(stockId, "Second"), CancellationToken.None);
+
+        var events = (await DbContext.Connection.QueryAsync<string>(
+                "SELECT payload FROM outbox WHERE aggregate_id = @Id", new { Id = stockId }))
+            .Select(p => JsonSerializer.Deserialize<NameChangedEvent>(p)!)
+            .OrderBy(e => e.Version)
+            .ToList();
+
+        Assert.Equal([1L, 2L], events.Select(e => e.Version));
+        Assert.Equal(["First", "Second"], events.Select(e => e.Name));
+    }
+
+    [Fact]
+    public async Task Handle_ShouldReturnFalseAndWriteNoEvent_WhenStockDoesNotExist()
+    {
+        var stockId = Guid.NewGuid();
+
+        var found = await Handler.Handle(new ChangeStockNameCommand(stockId, "NewName"), CancellationToken.None);
+
+        Assert.False(found);
+        Assert.Equal(0, await DbContext.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id", new { Id = stockId }));
+    }
+
+    [Fact]
+    public async Task Handle_ShouldKeepOldNameAndVersion_WhenOutboxWriteFails()
+    {
+        var stockId = Guid.NewGuid();
+        await Seed(stockId);
+
+        await TestDatabase.WithTableOfflineAsync(DbContext, "outbox", async () =>
+            await Assert.ThrowsAsync<SqlException>(() =>
+                Handler.Handle(new ChangeStockNameCommand(stockId, "NewName"), CancellationToken.None)));
+
+        var stock = await DbContext.Connection.QuerySingleAsync(
+            "SELECT name, metadata_version FROM stock_data WHERE id = @Id", new { Id = stockId });
+        Assert.Equal("OldName", stock.name);
+        Assert.Equal(0L, (long)stock.metadata_version);
     }
 
     private async Task Seed(Guid id)

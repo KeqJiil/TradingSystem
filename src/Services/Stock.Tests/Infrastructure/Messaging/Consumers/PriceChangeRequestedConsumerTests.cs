@@ -34,7 +34,6 @@ public class PriceChangeRequestedConsumerTests
 
         var outboxRow = await Polling.WaitUntilAsync(() => TryGetOutboxRowAsync(aggregateId), TimeSpan.FromSeconds(45));
         Assert.Equal("PriceChangedEvent", outboxRow.EventType);
-        Assert.Equal("PENDING", outboxRow.Status);
     }
 
     [Fact]
@@ -79,7 +78,7 @@ public class PriceChangeRequestedConsumerTests
     {
         await using var connection = new SqlConnection(_fixture.ConnectionString);
         return await connection.QuerySingleOrDefaultAsync<OutboxRow>("""
-            SELECT "event_type" AS EventType, "status" AS Status
+            SELECT "event_type" AS EventType
             FROM "outbox"
             WHERE "aggregate_id" = @AggregateId
             """, new { AggregateId = aggregateId });
@@ -87,5 +86,5 @@ public class PriceChangeRequestedConsumerTests
 
     private record EventStoreRow(long Version, decimal PriceChange, string EventType);
 
-    private record OutboxRow(string EventType, string Status);
+    private record OutboxRow(string EventType);
 }

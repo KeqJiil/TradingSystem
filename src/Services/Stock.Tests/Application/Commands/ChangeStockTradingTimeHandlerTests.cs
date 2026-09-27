@@ -1,8 +1,10 @@
+using System.Text.Json;
 using Dapper;
 using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.ChangeStockTradingTime;
+using Stock.Application.Events;
 using Stock.Infrastructure.Persistence.Implementations;
 using Stock.Tests.Infrastructure;
 using Xunit;
@@ -22,11 +24,12 @@ public class ChangeStockTradingTimeHandlerTests : IClassFixture<MssqlFixture>, I
         MssqlFixture = mssqlFixture;
         var dbContext = new TestDbContext(MssqlFixture.ConnectionString);
         DbContext = dbContext;
-        Writer = new StockDataWriter(dbContext);
-        UnitOfWork = new UnitOfWork(new TestDbConnectionFactory(MssqlFixture.ConnectionString));
-        var decorator = new UnitOfWorkDecorator(UnitOfWork, new ResiliencePipelineBuilder().Build(),
+        var unitOfWork = new UnitOfWork(new TestDbConnectionFactory(MssqlFixture.ConnectionString));
+        UnitOfWork = unitOfWork;
+        Writer = new StockDataWriter(unitOfWork);
+        var decorator = new UnitOfWorkDecorator(unitOfWork, new ResiliencePipelineBuilder().Build(),
             NullLogger<UnitOfWorkDecorator>.Instance);
-        Handler = new ChangeStockTradingTimeHandler(Writer, new OutboxWriter(dbContext), decorator);
+        Handler = new ChangeStockTradingTimeHandler(Writer, new OutboxWriter(unitOfWork), decorator);
     }
 
     public async Task InitializeAsync()
@@ -58,6 +61,38 @@ public class ChangeStockTradingTimeHandlerTests : IClassFixture<MssqlFixture>, I
 
         Assert.Equal(new TimeOnly(9, 0), TimeOnly.FromTimeSpan((TimeSpan)updatedStock.trading_start_time));
         Assert.Equal(new TimeOnly(17, 0), TimeOnly.FromTimeSpan((TimeSpan)updatedStock.trading_end_time));
+    }
+
+    [Fact]
+    public async Task Handle_ShouldWriteTimeChangedEventWithIncrementedVersion()
+    {
+        var stockId = Guid.NewGuid();
+        await Seed(stockId);
+
+        var found = await Handler.Handle(
+            new ChangeStockTradingTimeCommand(stockId, new TimeOnly(9, 0), new TimeOnly(17, 0)),
+            CancellationToken.None);
+
+        var @event = JsonSerializer.Deserialize<TimeChangedEvent>(await DbContext.Connection.QuerySingleAsync<string>(
+            "SELECT payload FROM outbox WHERE aggregate_id = @Id", new { Id = stockId }))!;
+        Assert.True(found);
+        Assert.Equal(1L, @event.Version);
+        Assert.Equal(new TimeOnly(9, 0), @event.TradingStartTime);
+        Assert.Equal(new TimeOnly(17, 0), @event.TradingCloseTime);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldReturnFalseAndWriteNoEvent_WhenStockDoesNotExist()
+    {
+        var stockId = Guid.NewGuid();
+
+        var found = await Handler.Handle(
+            new ChangeStockTradingTimeCommand(stockId, new TimeOnly(9, 0), new TimeOnly(17, 0)),
+            CancellationToken.None);
+
+        Assert.False(found);
+        Assert.Equal(0, await DbContext.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id", new { Id = stockId }));
     }
 
     private async Task Seed(Guid id, TimeOnly? openTime = null, TimeOnly? closeTime = null)

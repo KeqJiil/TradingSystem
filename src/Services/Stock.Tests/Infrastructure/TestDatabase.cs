@@ -17,4 +17,17 @@ public static class TestDatabase
     {
         return dbContext.Connection.ExecuteAsync(ResetSql);
     }
+
+    public static async Task WithTableOfflineAsync(TestDbContext dbContext, string table, Func<Task> action)
+    {
+        await dbContext.Connection.ExecuteAsync($"EXEC sp_rename '{table}', '{table}_offline'");
+        try
+        {
+            await action();
+        }
+        finally
+        {
+            await dbContext.Connection.ExecuteAsync($"EXEC sp_rename '{table}_offline', '{table}'");
+        }
+    }
 }

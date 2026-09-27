@@ -1,4 +1,5 @@
 using Dapper;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Stock.Application.Abstractions;
@@ -25,13 +26,14 @@ public class CreateStockHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifeti
         MssqlFixture = mssqlFixture;
         var dbContext = new TestDbContext(MssqlFixture.ConnectionString);
         DbContext = dbContext;
-        Writer = new StockDataWriter(dbContext);
-        OutboxWriter = new OutboxWriter(dbContext);
+        var unitOfWork = new UnitOfWork(new TestDbConnectionFactory(MssqlFixture.ConnectionString));
+        UnitOfWork = unitOfWork;
+        Writer = new StockDataWriter(unitOfWork);
+        OutboxWriter = new OutboxWriter(unitOfWork);
         ResiliencePipeline = new ResiliencePipelineBuilder().Build();
-        UnitOfWork = new UnitOfWork(new TestDbConnectionFactory(MssqlFixture.ConnectionString));
         UnitOfWorkDecorator = new UnitOfWorkDecorator(UnitOfWork, ResiliencePipeline,
             NullLogger<UnitOfWorkDecorator>.Instance);
-        Handler = new CreateStockHandler(Writer, new StockDataReader(dbContext), OutboxWriter, UnitOfWorkDecorator);
+        Handler = new CreateStockHandler(Writer, new StockDataReader(unitOfWork), OutboxWriter, UnitOfWorkDecorator);
     }
 
     public async Task InitializeAsync()
@@ -88,6 +90,18 @@ public class CreateStockHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifeti
         Assert.Equal("USD", await DbContext.Connection.ExecuteScalarAsync<string>(
             "SELECT currency FROM stock_data WHERE id = @Id", new { command.Id }));
         Assert.Equal(1, await OutboxCount(command.Id));
+    }
+
+    [Fact]
+    public async Task Handle_ShouldNotCreateStock_WhenOutboxWriteFails()
+    {
+        var command = NewCommand(Guid.NewGuid());
+
+        await TestDatabase.WithTableOfflineAsync(DbContext, "outbox", async () =>
+            await Assert.ThrowsAsync<SqlException>(() => Handler.Handle(command, CancellationToken.None)));
+
+        Assert.Equal(0, await DbContext.Connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM stock_data WHERE id = @Id", new { command.Id }));
     }
 
     private static CreateStockCommand NewCommand(Guid id)

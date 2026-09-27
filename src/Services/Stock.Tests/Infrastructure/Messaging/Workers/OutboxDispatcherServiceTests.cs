@@ -27,6 +27,7 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
     private readonly DeadLetterOptions _dlqOptions = new();
 
     private TestDbContext _dbContext = null!;
+    private TestDbContext _serviceDbContext = null!;
     private ServiceProvider _provider = null!;
     private OutboxDispatcherService _service = null!;
     private KafkaPublisher _publisher = null!;
@@ -42,6 +43,7 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
         _dbContext = new TestDbContext(_mssqlFixture.ConnectionString);
         await _dbContext.EnsureConnectionOpenAsync(CancellationToken.None);
         await TestDatabase.ResetAsync(_dbContext);
+        _serviceDbContext = new TestDbContext(_mssqlFixture.ConnectionString);
 
         var kafkaOptions = Options.Create(new KafkaOptions
         {
@@ -53,8 +55,8 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
             NullLogger<KafkaPublisher>.Instance);
 
         var services = new ServiceCollection();
-        services.AddSingleton<IOutboxReader>(new OutboxReader(_dbContext));
-        services.AddSingleton<IOutboxMarker>(new OutboxWriter(_dbContext));
+        services.AddSingleton<IOutboxReader>(new OutboxReader(_serviceDbContext));
+        services.AddSingleton<IOutboxMarker>(new OutboxWriter(_serviceDbContext));
         services.AddSingleton(new StockEventKafkaHandler(_publisher));
         services.AddSingleton<INotificationHandler<AppEvents.StockCreatedEvent>>(sp =>
             sp.GetRequiredService<StockEventKafkaHandler>());
@@ -82,6 +84,7 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
         _service.Dispose();
         _publisher.Dispose();
         await _provider.DisposeAsync();
+        await _serviceDbContext.DisposeAsync();
         await _dbContext.DisposeAsync();
     }
 
@@ -96,7 +99,8 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
         await EnsureTopicsExistAsync(TopicNames.StockStatusToggled);
         await _service.StartAsync(CancellationToken.None);
 
-        var result = Consume<StockToggledStatusEvent>(TopicNames.StockStatusToggled);
+        var result = Consume<StockToggledStatusEvent>(TopicNames.StockStatusToggled,
+            m => m.AggregateId == aggregateId);
         Assert.Equal(aggregateId, result.Message.Value.AggregateId);
 
         var status = await WaitForStatusAsync(id, "COMPLETED");
@@ -127,6 +131,62 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
 
         var result = ConsumeJson<OutboxData>(_dlqOptions.UnknownTopic, m => m.Id == id);
         Assert.Equal(id, result.Message.Value.Id);
+
+        var status = await WaitForStatusAsync(id, "COMPLETED");
+        Assert.Equal("COMPLETED", status);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RetryAttemptsExhausted_SendsToOwnFatalDlqAndMarksCompleted()
+    {
+        var aggregateId = Guid.NewGuid();
+        var fatalTopic = TopicNames.StockStatusToggled + _dlqOptions.TopicSuffix + ".fatal";
+        var id = await InsertOutboxRowAsync(
+            EventTypeNames.StockToggledStatus,
+            JsonSerializer.Serialize(new AppEvents.StockToggledStatusEvent(aggregateId, DateTimeOffset.UtcNow, false, 1)),
+            attempts: 3);
+
+        await EnsureTopicsExistAsync(fatalTopic);
+        await _service.StartAsync(CancellationToken.None);
+
+        var result = Consume<StockToggledStatusEvent>(fatalTopic, m => m.AggregateId == aggregateId);
+        Assert.Equal(4, BitConverter.ToInt32(result.Message.Headers.GetLastBytes("attempt-count")));
+
+        var status = await WaitForStatusAsync(id, "COMPLETED");
+        Assert.Equal("COMPLETED", status);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_PublishFails_LeavesRecordNotCompleted_WithAttemptCounted()
+    {
+        var oversizedName = new string('A', 2_000_000);
+        var id = await InsertOutboxRowAsync(
+            EventTypeNames.StockCreated,
+            JsonSerializer.Serialize(new AppEvents.StockCreatedEvent(Guid.NewGuid(), oversizedName, true, "USD",
+                new TimeOnly(9, 30), new TimeOnly(16, 0))));
+
+        await EnsureTopicsExistAsync(TopicNames.StockCreated);
+        await _service.StartAsync(CancellationToken.None);
+
+        await Polling.WaitUntilAsync(async () => (await ReadAttemptsAsync(id)) == 1, TimeSpan.FromSeconds(10));
+        await Polling.StaysTrueAsync(async () => await ReadStatusAsync(id) == "PROCESSING", TimeSpan.FromSeconds(3));
+        Assert.Equal(1, await ReadAttemptsAsync(id));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReaderFails_KeepsDispatchingOnNextCycle()
+    {
+        await TestDatabase.WithTableOfflineAsync(_dbContext, "outbox", async () =>
+        {
+            await _service.StartAsync(CancellationToken.None);
+            await Task.Delay(TimeSpan.FromSeconds(3));
+        });
+
+        var aggregateId = Guid.NewGuid();
+        var id = await InsertOutboxRowAsync(
+            EventTypeNames.StockToggledStatus,
+            JsonSerializer.Serialize(new AppEvents.StockToggledStatusEvent(aggregateId, DateTimeOffset.UtcNow, true, 1)));
+        await EnsureTopicsExistAsync(TopicNames.StockStatusToggled);
 
         var status = await WaitForStatusAsync(id, "COMPLETED");
         Assert.Equal("COMPLETED", status);
@@ -164,22 +224,33 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
         }
     }
 
-    private async Task<Guid> InsertOutboxRowAsync(string eventType, string payload)
+    private async Task<Guid> InsertOutboxRowAsync(string eventType, string payload, int attempts = 0)
     {
         var id = Guid.NewGuid();
 
         await _dbContext.Connection.ExecuteAsync("""
-                                                 INSERT INTO outbox (id, aggregate_id, payload, event_type, status)
-                                                 VALUES (@Id, @AggregateId, @Payload, @EventType, 'PENDING')
+                                                 INSERT INTO outbox (id, aggregate_id, payload, event_type, status, attempts)
+                                                 VALUES (@Id, @AggregateId, @Payload, @EventType, 'PENDING', @Attempts)
                                                  """, new
         {
             Id = id,
             AggregateId = Guid.NewGuid(),
             Payload = payload,
-            EventType = eventType
+            EventType = eventType,
+            Attempts = attempts
         });
 
         return id;
+    }
+
+    private Task<string> ReadStatusAsync(Guid id)
+    {
+        return _dbContext.Connection.QuerySingleAsync<string>("SELECT status FROM outbox WHERE id = @Id", new { Id = id });
+    }
+
+    private Task<int> ReadAttemptsAsync(Guid id)
+    {
+        return _dbContext.Connection.QuerySingleAsync<int>("SELECT attempts FROM outbox WHERE id = @Id", new { Id = id });
     }
 
     private async Task<string> WaitForStatusAsync(Guid id, string expectedStatus)
@@ -200,33 +271,26 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
         return status;
     }
 
-    private ConsumeResult<string, TValue> Consume<TValue>(string topic)
+    private ConsumeResult<string, TValue> Consume<TValue>(string topic, Func<TValue, bool> predicate)
     {
-        using var consumer = new ConsumerBuilder<string, TValue>(new ConsumerConfig
-            {
-                BootstrapServers = _kafkaFixture.BootstrapAddress,
-                GroupId = Guid.NewGuid().ToString(),
-                AutoOffsetReset = AutoOffsetReset.Earliest
-            })
-            .SetValueDeserializer(new ProtobufNetDeserializer<TValue>())
-            .Build();
-
-        consumer.Subscribe(topic);
-        var result = consumer.Consume(TimeSpan.FromSeconds(30));
-        Assert.NotNull(result);
-        consumer.Close();
-        return result;
+        return ConsumeMatching(topic, new ProtobufNetDeserializer<TValue>(), predicate);
     }
 
     private ConsumeResult<string, TValue> ConsumeJson<TValue>(string topic, Func<TValue, bool> predicate)
     {
+        return ConsumeMatching(topic, new KafkaJsonDeserializer<TValue>(), predicate);
+    }
+
+    private ConsumeResult<string, TValue> ConsumeMatching<TValue>(string topic, IDeserializer<TValue> deserializer,
+        Func<TValue, bool> predicate)
+    {
         using var consumer = new ConsumerBuilder<string, TValue>(new ConsumerConfig
             {
                 BootstrapServers = _kafkaFixture.BootstrapAddress,
                 GroupId = Guid.NewGuid().ToString(),
                 AutoOffsetReset = AutoOffsetReset.Earliest
             })
-            .SetValueDeserializer(new KafkaJsonDeserializer<TValue>())
+            .SetValueDeserializer(deserializer)
             .Build();
 
         consumer.Subscribe(topic);

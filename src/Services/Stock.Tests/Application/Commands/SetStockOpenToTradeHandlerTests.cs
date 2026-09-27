@@ -23,10 +23,11 @@ public class SetStockOpenToTradeHandlerTests : IClassFixture<MssqlFixture>, IAsy
     {
         _fixture = fixture;
         DbContext = new TestDbContext(fixture.ConnectionString);
-        _writer = new StockDataWriter(DbContext);
-        var outboxWriter = new OutboxWriter(DbContext);
+        var unitOfWork = new UnitOfWork(new TestDbConnectionFactory(_fixture.ConnectionString));
+        _unitOfWork = unitOfWork;
+        _writer = new StockDataWriter(unitOfWork);
+        var outboxWriter = new OutboxWriter(unitOfWork);
         var resilence = new ResiliencePipelineBuilder().Build();
-        _unitOfWork = new UnitOfWork(new TestDbConnectionFactory(_fixture.ConnectionString));
         var decorator = new UnitOfWorkDecorator(_unitOfWork, resilence, NullLogger<UnitOfWorkDecorator>.Instance);
         _handler = new SetStockOpenToTradeHandler(_writer, outboxWriter, decorator);
     }
