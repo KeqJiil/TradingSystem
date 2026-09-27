@@ -1,7 +1,9 @@
 using Confluent.Kafka;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Stock.Infrastructure.Handlers;
 using Stock.Infrastructure.Messaging;
+using Stock.Infrastructure.Messaging.Publishers;
 using Stock.Infrastructure.Options;
 using Stock.Infrastructure.Serialization;
 using Xunit;
@@ -14,33 +16,27 @@ public class StockEventKafkaHandlerTests : IClassFixture<KafkaFixture>, IDisposa
 {
     private readonly KafkaFixture _fixture;
     private readonly StockEventKafkaHandler _handler;
-    private readonly IProducer<string, Ext.StockCreatedEvent> _stockCreatedProducer;
-    private readonly IProducer<string, Ext.StockToggledStatusEvent> _stockToggledStatusProducer;
-    private readonly IProducer<string, Ext.PriceChangedEvent> _priceChangedProducer;
+    private readonly KafkaPublisher _publisher;
 
     public StockEventKafkaHandlerTests(KafkaFixture fixture)
     {
         _fixture = fixture;
 
-        var kafkaProducerFactory = new KafkaProducerFactory(Options.Create(new KafkaOptions
+        var kafkaOptions = Options.Create(new KafkaOptions
         {
             BootstrapServers = fixture.BootstrapAddress,
             ProducerClientId = "stock-event-handler-tests"
-        }));
+        });
 
-        _stockCreatedProducer = kafkaProducerFactory.Create<Ext.StockCreatedEvent>("stock-created-tests");
-        _stockToggledStatusProducer =
-            kafkaProducerFactory.Create<Ext.StockToggledStatusEvent>("stock-toggled-tests");
-        _priceChangedProducer = kafkaProducerFactory.Create<Ext.PriceChangedEvent>("price-changed-tests");
-
-        _handler = new StockEventKafkaHandler(_stockCreatedProducer, _stockToggledStatusProducer, _priceChangedProducer);
+        _publisher = new KafkaPublisher(
+            new KafkaProducerFactory(kafkaOptions, NullLogger<KafkaProducerFactory>.Instance), kafkaOptions,
+            NullLogger<KafkaPublisher>.Instance);
+        _handler = new StockEventKafkaHandler(_publisher);
     }
 
     public void Dispose()
     {
-        _stockCreatedProducer.Dispose();
-        _stockToggledStatusProducer.Dispose();
-        _priceChangedProducer.Dispose();
+        _publisher.Dispose();
     }
 
     [Fact]

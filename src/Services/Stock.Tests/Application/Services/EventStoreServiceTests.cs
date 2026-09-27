@@ -38,7 +38,7 @@ public class EventStoreServiceTests
                 It.Is<PriceChangedEvent>(e =>
                     e.AggregateId == request.AggregateId && e.PriceChange == request.PriceChange), request.AggregateId,
                 It.IsAny<CancellationToken>()), Times.Once);
-        Assert.Equal(request.AggregateId, result);
+        Assert.True(result);
     }
 
     [Fact]

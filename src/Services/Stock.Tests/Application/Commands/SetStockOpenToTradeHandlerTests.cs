@@ -1,8 +1,9 @@
 using System.Text.Json;
 using Dapper;
+using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Stock.Application.Abstractions;
-using Stock.Application.Commands.ToggleStockOpenToTrade;
+using Stock.Application.Commands.SetStockOpenToTrade;
 using Stock.Application.Events;
 using Stock.Infrastructure.Persistence.Implementations;
 using Stock.Tests.Infrastructure;
@@ -10,15 +11,15 @@ using Xunit;
 
 namespace Stock.Tests.Application.Commands;
 
-public class ToggleStockOpenToTradeHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifetime
+public class SetStockOpenToTradeHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifetime
 {
     private readonly IStockWriter _writer;
-    private readonly ToggleStockOpenToTradeHandler _handler;
+    private readonly SetStockOpenToTradeHandler _handler;
     private readonly IUnitOfWork _unitOfWork;
     private readonly MssqlFixture _fixture;
     private readonly TestDbContext DbContext;
 
-    public ToggleStockOpenToTradeHandlerTests(MssqlFixture fixture)
+    public SetStockOpenToTradeHandlerTests(MssqlFixture fixture)
     {
         _fixture = fixture;
         DbContext = new TestDbContext(fixture.ConnectionString);
@@ -26,8 +27,8 @@ public class ToggleStockOpenToTradeHandlerTests : IClassFixture<MssqlFixture>, I
         var outboxWriter = new OutboxWriter(DbContext);
         var resilence = new ResiliencePipelineBuilder().Build();
         _unitOfWork = new UnitOfWork(new TestDbConnectionFactory(_fixture.ConnectionString));
-        var decorator = new UnitOfWorkDecorator(_unitOfWork, resilence);
-        _handler = new ToggleStockOpenToTradeHandler(_writer, outboxWriter, decorator);
+        var decorator = new UnitOfWorkDecorator(_unitOfWork, resilence, NullLogger<UnitOfWorkDecorator>.Instance);
+        _handler = new SetStockOpenToTradeHandler(_writer, outboxWriter, decorator);
     }
 
     public async Task InitializeAsync()
@@ -43,29 +44,28 @@ public class ToggleStockOpenToTradeHandlerTests : IClassFixture<MssqlFixture>, I
     }
 
     [Fact]
-    public async Task Handle_ShouldToggleIsOpenToTradeFromTrueToFalse()
+    public async Task Handle_ShouldSetIsOpenToTradeToFalse()
     {
         var stockId = Guid.NewGuid();
         await Seed(stockId, isOpenToTrade: true);
-        var command = new ToggleStockOpenToTradeCommand(stockId);
 
-        await _handler.Handle(command, CancellationToken.None);
+        var found = await _handler.Handle(new SetStockOpenToTradeCommand(stockId, false), CancellationToken.None);
 
         var isOpenToTrade = await DbContext.Connection.ExecuteScalarAsync<bool>(
             "SELECT is_open_to_trade FROM stock_data WHERE id = @Id",
             new { Id = stockId }
         );
+        Assert.True(found);
         Assert.False(isOpenToTrade);
     }
 
     [Fact]
-    public async Task Handle_ShouldToggleIsOpenToTradeFromFalseToTrue()
+    public async Task Handle_ShouldSetIsOpenToTradeToTrue()
     {
         var stockId = Guid.NewGuid();
         await Seed(stockId, isOpenToTrade: false);
-        var command = new ToggleStockOpenToTradeCommand(stockId);
 
-        await _handler.Handle(command, CancellationToken.None);
+        await _handler.Handle(new SetStockOpenToTradeCommand(stockId, true), CancellationToken.None);
 
         var isOpenToTrade = await DbContext.Connection.ExecuteScalarAsync<bool>(
             "SELECT is_open_to_trade FROM stock_data WHERE id = @Id",
@@ -79,9 +79,8 @@ public class ToggleStockOpenToTradeHandlerTests : IClassFixture<MssqlFixture>, I
     {
         var stockId = Guid.NewGuid();
         await Seed(stockId, isOpenToTrade: true);
-        var command = new ToggleStockOpenToTradeCommand(stockId);
 
-        await _handler.Handle(command, CancellationToken.None);
+        await _handler.Handle(new SetStockOpenToTradeCommand(stockId, false), CancellationToken.None);
 
         var outboxCount = await DbContext.Connection.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id",
@@ -91,37 +90,13 @@ public class ToggleStockOpenToTradeHandlerTests : IClassFixture<MssqlFixture>, I
     }
 
     [Fact]
-    public async Task Handle_CalledTwice_ShouldToggleBackToOriginalState()
+    public async Task Handle_ShouldWriteEventWithNewStateAndIncrementedVersion()
     {
         var stockId = Guid.NewGuid();
         await Seed(stockId, isOpenToTrade: true);
-        var command = new ToggleStockOpenToTradeCommand(stockId);
 
-        await _handler.Handle(command, CancellationToken.None);
-        await _handler.Handle(command, CancellationToken.None);
-
-        var isOpenToTrade = await DbContext.Connection.ExecuteScalarAsync<bool>(
-            "SELECT is_open_to_trade FROM stock_data WHERE id = @Id",
-            new { Id = stockId }
-        );
-        Assert.True(isOpenToTrade);
-
-        var outboxCount = await DbContext.Connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id",
-            new { Id = stockId }
-        );
-        Assert.Equal(2, outboxCount);
-    }
-
-    [Fact]
-    public async Task Handle_ShouldWriteEventWithNewStateAndIncrementedStatusVersion()
-    {
-        var stockId = Guid.NewGuid();
-        await Seed(stockId, isOpenToTrade: true);
-        var command = new ToggleStockOpenToTradeCommand(stockId);
-
-        await _handler.Handle(command, CancellationToken.None);
-        await _handler.Handle(command, CancellationToken.None);
+        await _handler.Handle(new SetStockOpenToTradeCommand(stockId, false), CancellationToken.None);
+        await _handler.Handle(new SetStockOpenToTradeCommand(stockId, true), CancellationToken.None);
 
         var events = (await DbContext.Connection.QueryAsync<string>(
                 "SELECT payload FROM outbox WHERE aggregate_id = @Id", new { Id = stockId }))
@@ -134,16 +109,17 @@ public class ToggleStockOpenToTradeHandlerTests : IClassFixture<MssqlFixture>, I
     }
 
     [Fact]
-    public async Task Handle_ShouldNotWriteOutboxEvent_WhenStockDoesNotExist()
+    public async Task Handle_ShouldReturnFalseAndNotWriteOutboxEvent_WhenStockDoesNotExist()
     {
         var stockId = Guid.NewGuid();
 
-        await _handler.Handle(new ToggleStockOpenToTradeCommand(stockId), CancellationToken.None);
+        var found = await _handler.Handle(new SetStockOpenToTradeCommand(stockId, true), CancellationToken.None);
 
         var outboxCount = await DbContext.Connection.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id",
             new { Id = stockId }
         );
+        Assert.False(found);
         Assert.Equal(0, outboxCount);
     }
 

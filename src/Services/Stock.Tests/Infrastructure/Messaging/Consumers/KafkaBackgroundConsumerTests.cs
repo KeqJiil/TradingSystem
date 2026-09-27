@@ -20,6 +20,7 @@ public class KafkaBackgroundConsumerTests : IClassFixture<KafkaFixture>, IDispos
     private readonly IOptions<KafkaOptions> _kafkaOptions;
     private readonly KafkaConsumerFactory _consumerFactory;
     private readonly KafkaProducerFactory _producerFactory;
+    private readonly KafkaPublisher _publisher;
     private readonly DeadLetterPublisher _dlq;
 
     public KafkaBackgroundConsumerTests(KafkaFixture fixture)
@@ -30,14 +31,16 @@ public class KafkaBackgroundConsumerTests : IClassFixture<KafkaFixture>, IDispos
             BootstrapServers = fixture.BootstrapAddress,
             ProducerClientId = "consumer-base-tests"
         });
-        _consumerFactory = new KafkaConsumerFactory(_kafkaOptions);
-        _producerFactory = new KafkaProducerFactory(_kafkaOptions);
-        _dlq = new DeadLetterPublisher(_producerFactory, Options.Create(new DeadLetterOptions()));
+        _consumerFactory = new KafkaConsumerFactory(_kafkaOptions, NullLogger<KafkaConsumerFactory>.Instance);
+        _producerFactory = new KafkaProducerFactory(_kafkaOptions, NullLogger<KafkaProducerFactory>.Instance);
+        _publisher = new KafkaPublisher(_producerFactory, _kafkaOptions, NullLogger<KafkaPublisher>.Instance);
+        _dlq = new DeadLetterPublisher(_publisher, Options.Create(new DeadLetterOptions()),
+            NullLogger<DeadLetterPublisher>.Instance);
     }
 
     public void Dispose()
     {
-        _dlq.Dispose();
+        _publisher.Dispose();
     }
 
     [Fact]

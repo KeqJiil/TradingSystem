@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Polly.Retry;
 using Stock.Infrastructure.MediatrPipelines;
@@ -26,7 +27,7 @@ public class ResiliencePipelineBehaviourTests : IClassFixture<MssqlFixture>, IAs
     public ResiliencePipelineBehaviourTests(MssqlFixture fixture)
     {
         _unitOfWork = new UnitOfWork(new TestDbConnectionFactory(fixture.ConnectionString));
-        _decorator = new UnitOfWorkDecorator(_unitOfWork, _pipeline);
+        _decorator = new UnitOfWorkDecorator(_unitOfWork, _pipeline, NullLogger<UnitOfWorkDecorator>.Instance);
     }
 
     public Task InitializeAsync()

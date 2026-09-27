@@ -4,7 +4,6 @@ using Stock.Application.Commands.ReplayReadModel;
 using Stock.Application.Exceptions;
 using Stock.Infrastructure.Persistence.Implementations;
 using Stock.Tests.Infrastructure;
-using Stock.Tests.Infrastructure.Messaging.Consumers;
 using Xunit;
 
 namespace Stock.Tests.Application.Commands;
@@ -13,7 +12,6 @@ public class ReplayReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
 {
     private static readonly DateTimeOffset Now = new(2026, 3, 5, 12, 0, 0, TimeSpan.Zero);
 
-    private readonly FakeSystemClock _clock = new(Now);
     private IStockEventStoreReader EventStoreReader { get; init; }
     private IStockReader ReadModelReader { get; init; }
     private IStockReadModelWriter Writer { get; init; }
@@ -27,7 +25,7 @@ public class ReplayReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
         EventStoreReader = new StockEventStoreReader(dbContext);
         ReadModelReader = new StockReader(dbContext);
         Writer = new StockReadModelWriter(dbContext);
-        Handler = new ReplayReadModelHandler(EventStoreReader, ReadModelReader, _clock, Writer);
+        Handler = new ReplayReadModelHandler(EventStoreReader, ReadModelReader, Writer);
     }
 
     public async Task InitializeAsync()
@@ -163,35 +161,6 @@ public class ReplayReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
     }
 
     [Fact]
-    public async Task Handle_ShouldIgnoreEventsThatOccuredAfterClockNow()
-    {
-        var aggregateId = Guid.NewGuid();
-        await SeedProjection(aggregateId, price: 100m, version: 0);
-        await SeedEvent(aggregateId, version: 1, priceChange: 2m, occuredAt: Now.AddMinutes(-1));
-        await SeedEvent(aggregateId, version: 2, priceChange: 500m, occuredAt: Now.AddMinutes(1));
-
-        await Handler.Handle(new ReplayReadModelCommand(aggregateId, 2), CancellationToken.None);
-
-        var projection = await ReadProjection(aggregateId);
-        Assert.Equal(102m, projection.Price);
-        Assert.Equal(1, projection.Version);
-    }
-
-    [Fact]
-    public async Task Handle_ShouldIgnoreEventThatOccuredExactlyAtClockNow()
-    {
-        var aggregateId = Guid.NewGuid();
-        await SeedProjection(aggregateId, price: 100m, version: 0);
-        await SeedEvent(aggregateId, version: 1, priceChange: 500m, occuredAt: Now);
-
-        await Handler.Handle(new ReplayReadModelCommand(aggregateId, 1), CancellationToken.None);
-
-        var projection = await ReadProjection(aggregateId);
-        Assert.Equal(100m, projection.Price);
-        Assert.Equal(0, projection.Version);
-    }
-
-    [Fact]
     public async Task Handle_ShouldIgnoreEventsOfOtherAggregates()
     {
         var aggregateId = Guid.NewGuid();
@@ -265,7 +234,7 @@ public class ReplayReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
             });
     }
 
-    private async Task SeedEvent(Guid aggregateId, long version, decimal priceChange, DateTimeOffset? occuredAt = null)
+    private async Task SeedEvent(Guid aggregateId, long version, decimal priceChange)
     {
         await DbContext.Connection.ExecuteAsync("""
             INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change, occured_at)
@@ -279,7 +248,7 @@ public class ReplayReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
                 EventType = "PriceChangedEvent",
                 Payload = "{}",
                 PriceChange = priceChange,
-                OccuredAt = occuredAt ?? Now.AddHours(-1)
+                OccuredAt = Now.AddHours(-1)
             });
     }
 

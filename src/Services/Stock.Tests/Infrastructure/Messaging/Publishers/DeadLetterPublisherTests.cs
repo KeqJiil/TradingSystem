@@ -1,5 +1,6 @@
 using System.Text;
 using Confluent.Kafka;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Messaging;
@@ -16,6 +17,7 @@ public class DeadLetterPublisherTests : IClassFixture<KafkaFixture>, IAsyncLifet
 
     private readonly KafkaFixture _fixture;
     private readonly DeadLetterOptions _options = new();
+    private KafkaPublisher _publisher = null!;
     private DeadLetterPublisher _sut = null!;
 
     public DeadLetterPublisherTests(KafkaFixture fixture)
@@ -31,13 +33,16 @@ public class DeadLetterPublisherTests : IClassFixture<KafkaFixture>, IAsyncLifet
             ProducerClientId = "dlq-publisher-tests"
         });
 
-        _sut = new DeadLetterPublisher(new KafkaProducerFactory(kafkaOptions), Options.Create(_options));
+        _publisher = new KafkaPublisher(
+            new KafkaProducerFactory(kafkaOptions, NullLogger<KafkaProducerFactory>.Instance), kafkaOptions,
+            NullLogger<KafkaPublisher>.Instance);
+        _sut = new DeadLetterPublisher(_publisher, Options.Create(_options), NullLogger<DeadLetterPublisher>.Instance);
         return Task.CompletedTask;
     }
 
     public Task DisposeAsync()
     {
-        _sut.Dispose();
+        _publisher.Dispose();
         return Task.CompletedTask;
     }
 
@@ -78,7 +83,7 @@ public class DeadLetterPublisherTests : IClassFixture<KafkaFixture>, IAsyncLifet
         var value = new PriceChangedEvent(Guid.NewGuid(), 5m, 1, DateTimeOffset.UtcNow);
         var expectedTopic = _sourceTopic + _options.TopicSuffix + ".retry";
 
-        await _sut.PublishAsync(_sourceTopic, value, true, 3, CancellationToken.None);
+        await _sut.PublishAsync(_sourceTopic, value, true, 3, null, CancellationToken.None);
 
         var result = Consume<PriceChangedEvent>(expectedTopic);
 

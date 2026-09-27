@@ -1,4 +1,6 @@
 using Dapper;
+using Microsoft.Extensions.Logging.Abstractions;
+using Polly;
 using Stock.Application.Abstractions;
 using Stock.Application.Commands.ChangeStockName;
 using Stock.Infrastructure.Persistence.Implementations;
@@ -13,6 +15,7 @@ public class ChangeStockNameHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
     private ChangeStockNameHandler Handler { get; init; }
     private MssqlFixture MssqlFixture { get; init; }
     private TestDbContext DbContext { get; init; }
+    private IUnitOfWork UnitOfWork { get; init; }
 
     public ChangeStockNameHandlerTests(MssqlFixture mssqlFixture)
     {
@@ -20,7 +23,10 @@ public class ChangeStockNameHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
         var dbContext = new TestDbContext(MssqlFixture.ConnectionString);
         DbContext = dbContext;
         Writer = new StockDataWriter(dbContext);
-        Handler = new ChangeStockNameHandler(Writer);
+        UnitOfWork = new UnitOfWork(new TestDbConnectionFactory(MssqlFixture.ConnectionString));
+        var decorator = new UnitOfWorkDecorator(UnitOfWork, new ResiliencePipelineBuilder().Build(),
+            NullLogger<UnitOfWorkDecorator>.Instance);
+        Handler = new ChangeStockNameHandler(Writer, new OutboxWriter(dbContext), decorator);
     }
 
     public async Task InitializeAsync()
@@ -31,6 +37,7 @@ public class ChangeStockNameHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
 
     public async Task DisposeAsync()
     {
+        await UnitOfWork.DisposeAsync();
         await DbContext.Connection.CloseAsync();
     }
 

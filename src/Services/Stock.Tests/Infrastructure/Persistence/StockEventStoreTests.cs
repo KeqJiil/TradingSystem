@@ -1,5 +1,5 @@
 using Dapper;
-using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Stock.Application.Events;
 using Stock.Application.Services;
@@ -10,8 +10,6 @@ namespace Stock.Tests.Infrastructure.Persistence;
 
 public class StockEventStoreTests : IClassFixture<MssqlFixture>, IAsyncLifetime
 {
-    private const int PrimaryKeyViolation = 2627;
-
     private readonly MssqlFixture _fixture;
     private TestDbContext DbContext { get; }
 
@@ -46,16 +44,15 @@ public class StockEventStoreTests : IClassFixture<MssqlFixture>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task AppendAsync_ShouldFailWithPrimaryKeyViolation_WhenEventIdIsAlreadyStored()
+    public async Task AppendAsync_ShouldReturnNull_WhenEventIdIsAlreadyStored()
     {
         var store = new StockEventStore(DbContext);
         var request = NewRequest(Guid.NewGuid(), 5m);
         await store.AppendAsync(request, CancellationToken.None);
 
-        var exception = await Assert.ThrowsAsync<SqlException>(() =>
-            store.AppendAsync(request, CancellationToken.None));
+        var duplicate = await store.AppendAsync(request, CancellationToken.None);
 
-        Assert.Equal(PrimaryKeyViolation, exception.Number);
+        Assert.Null(duplicate);
         Assert.Equal(1, await CountRows("events_store", request.AggregateId));
     }
 
@@ -65,15 +62,15 @@ public class StockEventStoreTests : IClassFixture<MssqlFixture>, IAsyncLifetime
         await using var unitOfWork = new UnitOfWork(new TestDbConnectionFactory(_fixture.ConnectionString));
         var service = new EventStoreService(
             new StockEventStore(unitOfWork),
-            new UnitOfWorkDecorator(unitOfWork, new ResiliencePipelineBuilder().Build()),
+            new UnitOfWorkDecorator(unitOfWork, new ResiliencePipelineBuilder().Build(), NullLogger<UnitOfWorkDecorator>.Instance),
             new OutboxWriter(unitOfWork));
         var request = NewRequest(Guid.NewGuid(), 7m);
-        await service.ChangePriceAppendAsync(request, CancellationToken.None);
+        var first = await service.ChangePriceAppendAsync(request, CancellationToken.None);
 
-        var exception = await Assert.ThrowsAsync<SqlException>(() =>
-            service.ChangePriceAppendAsync(request, CancellationToken.None));
+        var second = await service.ChangePriceAppendAsync(request, CancellationToken.None);
 
-        Assert.Equal(PrimaryKeyViolation, exception.Number);
+        Assert.True(first);
+        Assert.False(second);
         Assert.Equal(1, await CountRows("events_store", request.AggregateId));
         Assert.Equal(1, await CountRows("outbox", request.AggregateId));
     }

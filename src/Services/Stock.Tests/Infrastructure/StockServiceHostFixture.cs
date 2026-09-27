@@ -62,6 +62,13 @@ public class StockServiceHostFixture : IAsyncLifetime
         await _app.StartAsync();
     }
 
+    public void Produce<TValue>(string topic, Guid key, TValue value)
+    {
+        using var producer = Services.GetRequiredService<IKafkaProducerFactory>().Create<TValue>("stock-tests-producer");
+        producer.Produce(topic, new Message<string, TValue> { Key = key.ToString(), Value = value });
+        producer.Flush(TimeSpan.FromSeconds(10));
+    }
+
     private async Task EnsureTopicsExistAsync()
     {
         var dlqSuffix = new DeadLetterOptions().TopicSuffix;

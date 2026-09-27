@@ -1,7 +1,5 @@
-using Confluent.Kafka;
 using Dapper;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.DependencyInjection;
 using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Options;
 using Xunit;
@@ -58,10 +56,7 @@ public class StockCreatedConsumerTests
 
     private void Produce(StockCreatedEvent evt)
     {
-        var producer = _fixture.Services.GetRequiredService<IProducer<string, StockCreatedEvent>>();
-        producer.Produce(TopicNames.StockCreated,
-            new Message<string, StockCreatedEvent> { Key = evt.AggregateId.ToString(), Value = evt });
-        producer.Flush(TimeSpan.FromSeconds(10));
+        _fixture.Produce(TopicNames.StockCreated, evt.AggregateId, evt);
     }
 
     private async Task<ProjectionRow?> TryGetRowAsync(Guid aggregateId)

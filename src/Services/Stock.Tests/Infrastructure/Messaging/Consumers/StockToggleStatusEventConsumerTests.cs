@@ -1,7 +1,5 @@
-using Confluent.Kafka;
 using Dapper;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.DependencyInjection;
 using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Options;
 using Xunit;
@@ -78,21 +76,15 @@ public class StockToggleStatusEventConsumerTests
 
     private void ProduceToggle(Guid aggregateId, bool isOpenToTrade, long statusVersion)
     {
-        var producer = _fixture.Services.GetRequiredService<IProducer<string, StockToggledStatusEvent>>();
-        var evt = new StockToggledStatusEvent(aggregateId, DateTimeOffset.UtcNow, isOpenToTrade, statusVersion);
-        producer.Produce(TopicNames.StockStatusToggled,
-            new Message<string, StockToggledStatusEvent> { Key = aggregateId.ToString(), Value = evt });
-        producer.Flush(TimeSpan.FromSeconds(10));
+        _fixture.Produce(TopicNames.StockStatusToggled, aggregateId,
+            new StockToggledStatusEvent(aggregateId, DateTimeOffset.UtcNow, isOpenToTrade, statusVersion));
     }
 
     private async Task SeedStockAsync(Guid aggregateId, bool isOpenToTrade)
     {
-        var producer = _fixture.Services.GetRequiredService<IProducer<string, StockCreatedEvent>>();
-        var evt = new StockCreatedEvent(aggregateId, "AAPL", isOpenToTrade, "USD", new TimeOnly(9, 30),
-            new TimeOnly(16, 0));
-        producer.Produce(TopicNames.StockCreated,
-            new Message<string, StockCreatedEvent> { Key = aggregateId.ToString(), Value = evt });
-        producer.Flush(TimeSpan.FromSeconds(10));
+        _fixture.Produce(TopicNames.StockCreated, aggregateId,
+            new StockCreatedEvent(aggregateId, "AAPL", isOpenToTrade, "USD", new TimeOnly(9, 30),
+                new TimeOnly(16, 0)));
 
         await Polling.WaitUntilAsync(async () => await TryGetIsOpenToTradeAsync(aggregateId) is not null,
             TimeSpan.FromSeconds(45));

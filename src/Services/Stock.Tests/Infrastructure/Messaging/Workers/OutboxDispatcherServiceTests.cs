@@ -29,7 +29,7 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
     private TestDbContext _dbContext = null!;
     private ServiceProvider _provider = null!;
     private OutboxDispatcherService _service = null!;
-    private readonly List<IDisposable> _producers = [];
+    private KafkaPublisher _publisher = null!;
 
     public OutboxDispatcherServiceTests(KafkaFixture kafkaFixture, MssqlFixture mssqlFixture)
     {
@@ -43,23 +43,19 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
         await _dbContext.EnsureConnectionOpenAsync(CancellationToken.None);
         await TestDatabase.ResetAsync(_dbContext);
 
-        var kafkaProducerFactory = new KafkaProducerFactory(Options.Create(new KafkaOptions
+        var kafkaOptions = Options.Create(new KafkaOptions
         {
             BootstrapServers = _kafkaFixture.BootstrapAddress,
             ProducerClientId = "outbox-dispatcher-tests"
-        }));
-
-        var stockCreatedProducer = kafkaProducerFactory.Create<StockCreatedEvent>("stock-created-outbox-tests");
-        var stockToggledStatusProducer =
-            kafkaProducerFactory.Create<StockToggledStatusEvent>("stock-toggled-outbox-tests");
-        var priceChangedProducer = kafkaProducerFactory.Create<PriceChangedEvent>("price-changed-outbox-tests");
-        _producers.AddRange([stockCreatedProducer, stockToggledStatusProducer, priceChangedProducer]);
+        });
+        _publisher = new KafkaPublisher(
+            new KafkaProducerFactory(kafkaOptions, NullLogger<KafkaProducerFactory>.Instance), kafkaOptions,
+            NullLogger<KafkaPublisher>.Instance);
 
         var services = new ServiceCollection();
         services.AddSingleton<IOutboxReader>(new OutboxReader(_dbContext));
         services.AddSingleton<IOutboxMarker>(new OutboxWriter(_dbContext));
-        services.AddSingleton(new StockEventKafkaHandler(stockCreatedProducer, stockToggledStatusProducer,
-            priceChangedProducer));
+        services.AddSingleton(new StockEventKafkaHandler(_publisher));
         services.AddSingleton<INotificationHandler<AppEvents.StockCreatedEvent>>(sp =>
             sp.GetRequiredService<StockEventKafkaHandler>());
         services.AddSingleton<INotificationHandler<AppEvents.StockToggledStatusEvent>>(sp =>
@@ -71,7 +67,8 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
 
         _provider = services.BuildServiceProvider();
 
-        var dlq = new DeadLetterPublisher(kafkaProducerFactory, Options.Create(_dlqOptions));
+        var dlq = new DeadLetterPublisher(_publisher, Options.Create(_dlqOptions),
+            NullLogger<DeadLetterPublisher>.Instance);
 
         _service = new OutboxDispatcherService(
             NullLogger<OutboxDispatcherService>.Instance,
@@ -83,8 +80,7 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
     {
         await _service.StopAsync(CancellationToken.None);
         _service.Dispose();
-        foreach (var producer in _producers)
-            producer.Dispose();
+        _publisher.Dispose();
         await _provider.DisposeAsync();
         await _dbContext.DisposeAsync();
     }

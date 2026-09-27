@@ -3,6 +3,7 @@ using Confluent.Kafka.Admin;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Stock.Application.Commands.CreateReadModel;
 using Stock.Infrastructure.ExternalEvents;
@@ -19,6 +20,7 @@ namespace Stock.Tests.Infrastructure.Messaging.Consumers.Dlq;
 public class DlqRetryableConsumerTests : IClassFixture<KafkaFixture>
 {
     private readonly KafkaFixture _fixture;
+    private readonly IOptions<KafkaOptions> _kafkaOptions;
     private readonly KafkaProducerFactory _producerFactory;
     private readonly KafkaConsumerFactory _consumerFactory;
 
@@ -30,8 +32,9 @@ public class DlqRetryableConsumerTests : IClassFixture<KafkaFixture>
             BootstrapServers = fixture.BootstrapAddress,
             ProducerClientId = "dlq-retryable-tests"
         });
-        _producerFactory = new KafkaProducerFactory(kafkaOptions);
-        _consumerFactory = new KafkaConsumerFactory(kafkaOptions);
+        _kafkaOptions = kafkaOptions;
+        _producerFactory = new KafkaProducerFactory(kafkaOptions, NullLogger<KafkaProducerFactory>.Instance);
+        _consumerFactory = new KafkaConsumerFactory(kafkaOptions, NullLogger<KafkaConsumerFactory>.Instance);
     }
 
     [Fact]
@@ -167,7 +170,9 @@ public class DlqRetryableConsumerTests : IClassFixture<KafkaFixture>
             MaxRetryAttempts = maxRetryAttempts,
             RetryDelay = retryDelay ?? TimeSpan.Zero
         });
-        var dlq = new DeadLetterPublisher(_producerFactory, dlqOptions);
+        var dlq = new DeadLetterPublisher(
+            new KafkaPublisher(_producerFactory, _kafkaOptions, NullLogger<KafkaPublisher>.Instance), dlqOptions,
+            NullLogger<DeadLetterPublisher>.Instance);
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -352,7 +357,7 @@ public class DlqRetryableConsumerTests : IClassFixture<KafkaFixture>
         {
             ReceivedCount++;
             if (Fail || ReceivedCount <= FailFirstNCalls)
-                throw new InvalidOperationException("simulated handler failure");
+                throw new TimeoutException("simulated handler failure");
             return Task.CompletedTask;
         }
     }

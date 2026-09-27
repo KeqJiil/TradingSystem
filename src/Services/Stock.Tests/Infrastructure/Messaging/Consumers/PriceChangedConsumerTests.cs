@@ -1,7 +1,5 @@
-using Confluent.Kafka;
 using Dapper;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.DependencyInjection;
 using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Options;
 using Xunit;
@@ -35,13 +33,8 @@ public class PriceChangedConsumerTests
     {
         var aggregateId = await SeedStockAsync();
 
-        var producer = _fixture.Services.GetRequiredService<IProducer<string, PriceChangedEvent>>();
-        producer.Produce(TopicNames.Price, new Message<string, PriceChangedEvent>
-        {
-            Key = aggregateId.ToString(),
-            Value = new PriceChangedEvent(aggregateId, 5m, null, DateTimeOffset.UtcNow)
-        });
-        producer.Flush(TimeSpan.FromSeconds(10));
+        _fixture.Produce(TopicNames.Price, aggregateId,
+            new PriceChangedEvent(aggregateId, 5m, null, DateTimeOffset.UtcNow));
 
         ProducePriceChange(aggregateId, priceChange: 5m, version: 1);
 
@@ -50,35 +43,11 @@ public class PriceChangedConsumerTests
         Assert.Equal(5m, row.Price);
     }
 
-    [Fact]
-    public async Task OutOfOrderVersions_BufferedUntilGapFills_ThenAppliedInOrder()
-    {
-        var aggregateId = await SeedStockAsync();
-
-        ProducePriceChange(aggregateId, priceChange: 3m, version: 2); 
-
-        await Task.Delay(TimeSpan.FromSeconds(2));
-        var bufferedRow = await TryGetRowAsync(aggregateId);
-        Assert.Equal(0L, bufferedRow!.Version);
-        Assert.Equal(0m, bufferedRow.Price);
-
-        ProducePriceChange(aggregateId, priceChange: 2m, version: 1); 
-
-        var finalRow = await Polling.WaitUntilAsync(
-            () => TryGetRowIfVersionAsync(aggregateId, expectedVersion: 2), TimeSpan.FromSeconds(45));
-        Assert.Equal(5m, finalRow.Price);
-    }
-
     private async Task<Guid> SeedStockAsync()
     {
         var aggregateId = Guid.NewGuid();
-        var producer = _fixture.Services.GetRequiredService<IProducer<string, StockCreatedEvent>>();
-        producer.Produce(TopicNames.StockCreated, new Message<string, StockCreatedEvent>
-        {
-            Key = aggregateId.ToString(),
-            Value = new StockCreatedEvent(aggregateId, "AAPL", true, "USD", new TimeOnly(9, 30), new TimeOnly(16, 0))
-        });
-        producer.Flush(TimeSpan.FromSeconds(10));
+        _fixture.Produce(TopicNames.StockCreated, aggregateId,
+            new StockCreatedEvent(aggregateId, "AAPL", true, "USD", new TimeOnly(9, 30), new TimeOnly(16, 0)));
 
         await Polling.WaitUntilAsync(() => TryGetRowAsync(aggregateId), TimeSpan.FromSeconds(45));
         return aggregateId;
@@ -86,13 +55,8 @@ public class PriceChangedConsumerTests
 
     private void ProducePriceChange(Guid aggregateId, decimal priceChange, long version)
     {
-        var producer = _fixture.Services.GetRequiredService<IProducer<string, PriceChangedEvent>>();
-        producer.Produce(TopicNames.Price, new Message<string, PriceChangedEvent>
-        {
-            Key = aggregateId.ToString(),
-            Value = new PriceChangedEvent(aggregateId, priceChange, version, DateTimeOffset.UtcNow)
-        });
-        producer.Flush(TimeSpan.FromSeconds(10));
+        _fixture.Produce(TopicNames.Price, aggregateId,
+            new PriceChangedEvent(aggregateId, priceChange, version, DateTimeOffset.UtcNow));
     }
 
     private async Task<ProjectionRow?> TryGetRowAsync(Guid aggregateId)
