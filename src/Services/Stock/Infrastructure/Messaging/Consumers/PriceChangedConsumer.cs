@@ -1,6 +1,7 @@
 using Confluent.Kafka;
 using MediatR;
 using Stock.Application.Abstractions;
+using Stock.Application.Commands.ReplayReadModel;
 using Stock.Application.Commands.UpdateReadModel;
 using Stock.Infrastructure.ExternalEvents;
 using Stock.Infrastructure.Messaging.Publishers;
@@ -11,7 +12,6 @@ namespace Stock.Infrastructure.Messaging.Consumers;
 public class PriceChangedConsumer(
     IKafkaConsumerFactory consumerFactory,
     IServiceScopeFactory serviceScopeFactory,
-    VersionsBuffer<MessageEnvelope<PriceChangedEvent>> buffer,
     ILogger<PriceChangedConsumer> logger,
     IDeadLetterPublisher dlq) : KafkaBackgroundConsumer<PriceChangedEvent>(consumerFactory, logger, dlq)
 {
@@ -21,32 +21,51 @@ public class PriceChangedConsumer(
 
     protected override string Topic => TopicNames.Price;
 
-    protected override bool HoldCommitWhenDeferred => true;
-
     protected override async Task<bool> HandleAsync(PriceChangedEvent message, Headers headers, CancellationToken ct)
     {
-        if (message is { Version: { } version })
-            await buffer.TryApplyAsync(message.AggregateId, version, new MessageEnvelope<PriceChangedEvent>(message, CorrelationContext.CorrelationId), ApplyAsync, ct);
-
-        return !buffer.HasPendingGaps;
-    }
-
-    private async Task<ReadModelUpdateOutcome> ApplyAsync(Guid aggregateId, long version, MessageEnvelope<PriceChangedEvent> data,
-        CancellationToken ct)
-    {
-        CorrelationContext.CorrelationId = data.CorrelationId;
+        if (message.Version is not { } version)
+        {
+            logger.LogWarning("PriceChangedEvent for aggregate {AggregateId} has no version, moving it to fatal DLQ",
+                message.AggregateId);
+            return await TryPublishToDeadLetterAsync(() =>
+                dlq.PublishAsync(TopicNames.Price, message, false, 1, null, ct), message, ct);
+        }
 
         await using var scope = serviceScopeFactory.CreateAsyncScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
         try
         {
-            return await mediator.Send(new UpdateReadModelCommand(aggregateId, data.Message.PriceChange, version), ct);
+            var outcome = await mediator.Send(
+                new UpdateReadModelCommand(message.AggregateId, message.PriceChange, version), ct);
+
+            if (outcome == ReadModelUpdateOutcome.Gap)
+                await mediator.Send(new ReplayReadModelCommand(message.AggregateId, version), ct);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error occurred while applying price change event for aggregate {AggregateId}",
-                aggregateId);
-            return ReadModelUpdateOutcome.Gap;
+            logger.LogWarning(ex, "Error processing PriceChangedEvent with id {AggregateId}", message.AggregateId);
+
+            return await TryPublishToDeadLetterAsync(() =>
+                dlq.PublishAsync(TopicNames.Price, message, ex, 1, ct), message, ct);
+        }
+
+        return true;
+    }
+
+    private async Task<bool> TryPublishToDeadLetterAsync(Func<Task> publish, PriceChangedEvent message,
+        CancellationToken ct)
+    {
+        try
+        {
+            await publish();
+            return true;
+        }
+        catch (Exception dlqEx) when (!ct.IsCancellationRequested)
+        {
+            logger.LogError(dlqEx, "Failed to publish price changed event for aggregate {AggregateId} to DLQ",
+                message.AggregateId);
+            return false;
         }
     }
 }

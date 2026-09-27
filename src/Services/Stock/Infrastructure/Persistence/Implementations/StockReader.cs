@@ -15,6 +15,7 @@ public class StockReader(IDbContext dbContext) : IStockReader
                       s.trading_end_time as TradingEndTime, 
                       s.name as Name, 
                       s.is_open_to_trade as IsOpenToTrade, 
+                      s.price as Price,
                       s.updated_at as UpdatedAt 
                   FROM stock_data_projection s 
                   WHERE s.aggregate_id = @StockId

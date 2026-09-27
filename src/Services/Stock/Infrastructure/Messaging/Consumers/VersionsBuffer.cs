@@ -3,6 +3,7 @@ using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Messaging.Consumers;
 
+[Obsolete("Out of order for now: price gaps are filled by ReplayReadModelCommand in PriceChangedConsumer")]
 public class VersionsBuffer<T>(
     ILogger<VersionsBuffer<T>> logger,
     ISystemClock clock,
