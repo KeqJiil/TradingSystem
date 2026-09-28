@@ -157,6 +157,27 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
     }
 
     [Fact]
+    public async Task ExecuteAsync_RetryAttemptsExhausted_AndOwnDlqRejects_SendsToUnknownDlqAndMarksCompleted()
+    {
+        var fatalTopic = TopicNames.StockCreated + _dlqOptions.TopicSuffix + ".fatal";
+        await KafkaTopics.CreateWithMaxMessageBytesAsync(_kafkaFixture.BootstrapAddress, fatalTopic, 100);
+        await EnsureTopicsExistAsync(_dlqOptions.UnknownTopic);
+        var id = await InsertOutboxRowAsync(
+            EventTypeNames.StockCreated,
+            JsonSerializer.Serialize(new AppEvents.StockCreatedEvent(Guid.NewGuid(), "AAPL", true, "USD",
+                new TimeOnly(9, 30), new TimeOnly(16, 0))),
+            attempts: 3);
+
+        await _service.StartAsync(CancellationToken.None);
+
+        var result = ConsumeJson<OutboxData>(_dlqOptions.UnknownTopic, m => m.Id == id);
+        Assert.Equal(EventTypeNames.StockCreated, result.Message.Value.EventType);
+
+        var status = await WaitForStatusAsync(id, "COMPLETED");
+        Assert.Equal("COMPLETED", status);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_PublishFails_LeavesRecordNotCompleted_WithAttemptCounted()
     {
         var oversizedName = new string('A', 2_000_000);

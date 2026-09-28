@@ -15,6 +15,7 @@ public class MssqlFixture : IAsyncLifetime
     private static readonly Lazy<Task> ContainerStart = new(() => SharedContainer.StartAsync());
 
     private readonly string _databaseName = $"stock_tests_{Guid.NewGuid():N}";
+    private readonly List<string> _emptyDatabases = [];
 
     public string ConnectionString { get; private set; } = null!;
 
@@ -22,23 +23,36 @@ public class MssqlFixture : IAsyncLifetime
     {
         await ContainerStart.Value;
 
-        await ExecuteOnMasterAsync($"CREATE DATABASE [{_databaseName}]");
-
-        ConnectionString = new SqlConnectionStringBuilder(SharedContainer.GetConnectionString())
-        {
-            InitialCatalog = _databaseName
-        }.ConnectionString;
+        ConnectionString = await CreateDatabaseAsync(_databaseName);
 
         await Task.Run(() => DbMigrator.ApplyMigrations(ConnectionString));
+    }
+
+    public async Task<string> CreateEmptyDatabaseAsync()
+    {
+        var name = $"stock_migration_tests_{Guid.NewGuid():N}";
+        _emptyDatabases.Add(name);
+        return await CreateDatabaseAsync(name);
     }
 
     public async Task DisposeAsync()
     {
         SqlConnection.ClearAllPools();
-        await ExecuteOnMasterAsync($"""
-                                    ALTER DATABASE [{_databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-                                    DROP DATABASE [{_databaseName}];
-                                    """);
+        foreach (var name in _emptyDatabases.Append(_databaseName))
+            await ExecuteOnMasterAsync($"""
+                                        ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+                                        DROP DATABASE [{name}];
+                                        """);
+    }
+
+    private static async Task<string> CreateDatabaseAsync(string name)
+    {
+        await ExecuteOnMasterAsync($"CREATE DATABASE [{name}]");
+
+        return new SqlConnectionStringBuilder(SharedContainer.GetConnectionString())
+        {
+            InitialCatalog = name
+        }.ConnectionString;
     }
 
     private static async Task ExecuteOnMasterAsync(string sql)

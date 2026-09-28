@@ -1,15 +1,21 @@
 using Dapper;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
 using Stock.Application.Events;
 using Stock.Application.Services;
 using Stock.Infrastructure.Persistence.Implementations;
+using Stock.Presentation.Builder;
 using Xunit;
 
 namespace Stock.Tests.Infrastructure.Persistence;
 
 public class StockEventStoreTests : IClassFixture<MssqlFixture>, IAsyncLifetime
 {
+    private const int VersionConflict = 2601;
+
     private readonly MssqlFixture _fixture;
     private TestDbContext DbContext { get; }
 
@@ -73,6 +79,67 @@ public class StockEventStoreTests : IClassFixture<MssqlFixture>, IAsyncLifetime
         Assert.False(second);
         Assert.Equal(1, await CountRows("events_store", request.AggregateId));
         Assert.Equal(1, await CountRows("outbox", request.AggregateId));
+    }
+
+    [Fact]
+    public async Task VersionConflict_IsRetriedByProductionResiliencePipeline()
+    {
+        var aggregateId = Guid.NewGuid();
+        await new StockEventStore(DbContext).AppendAsync(NewRequest(aggregateId, 1m), CancellationToken.None);
+        var attempts = 0;
+
+        var exception = await Assert.ThrowsAsync<SqlException>(() => ProductionPipeline().ExecuteAsync(async _ =>
+        {
+            attempts++;
+            await DbContext.Connection.ExecuteAsync("""
+                INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change)
+                VALUES (NEWID(), @AggregateId, 1, 'PriceChangedEvent', '{}', 1)
+                """, new { AggregateId = aggregateId });
+        }).AsTask());
+
+        Assert.Equal(VersionConflict, exception.Number);
+        Assert.Equal(4, attempts);
+    }
+
+    [Fact]
+    public async Task ConcurrentAppends_ForSameAggregate_AllSucceed_WithContiguousVersions()
+    {
+        const int writers = 2;
+        var aggregateId = Guid.NewGuid();
+        var pipeline = ProductionPipeline();
+        var unitsOfWork = Enumerable.Range(0, writers)
+            .Select(_ => new UnitOfWork(new TestDbConnectionFactory(_fixture.ConnectionString)))
+            .ToList();
+
+        try
+        {
+            var results = await Task.WhenAll(unitsOfWork.Select(unitOfWork => Task.Run(() =>
+                new EventStoreService(
+                        new StockEventStore(unitOfWork),
+                        new UnitOfWorkDecorator(unitOfWork, pipeline, NullLogger<UnitOfWorkDecorator>.Instance),
+                        new OutboxWriter(unitOfWork))
+                    .ChangePriceAppendAsync(NewRequest(aggregateId, 1m), CancellationToken.None))));
+
+            Assert.All(results, Assert.True);
+        }
+        finally
+        {
+            foreach (var unitOfWork in unitsOfWork)
+                await unitOfWork.DisposeAsync();
+        }
+
+        var versions = await DbContext.Connection.QueryAsync<long>(
+            "SELECT version FROM events_store WHERE aggregate_id = @AggregateId ORDER BY version",
+            new { AggregateId = aggregateId });
+        Assert.Equal(Enumerable.Range(1, writers).Select(v => (long)v), versions);
+        Assert.Equal(writers, await CountRows("outbox", aggregateId));
+    }
+
+    private static ResiliencePipeline ProductionPipeline()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.AddResilence();
+        return builder.Services.BuildServiceProvider().GetRequiredService<ResiliencePipeline>();
     }
 
     private static PriceChangeRequested NewRequest(Guid aggregateId, decimal priceChange)

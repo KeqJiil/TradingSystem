@@ -82,6 +82,28 @@ public class DlqRetryableConsumerTests : IClassFixture<KafkaFixture>
     }
 
     [Fact]
+    public async Task Consume_HandlerThrowsNonRetryable_RoutesToFatalImmediately()
+    {
+        var sourceTopic = UniqueTopic();
+        var handler = new StubHandler { Fail = true, NonRetryable = true };
+
+        await EnsureTopicsExistAsync(RetryTopic(sourceTopic), FatalTopic(sourceTopic));
+        await using var harness = CreateHarness(sourceTopic, new StockCreatedDlqEventToCommandMapper(), handler,
+            5);
+        Seed(sourceTopic, NewStockCreatedEvent(), 0);
+
+        await harness.Sut.StartAsync(CancellationToken.None);
+        await WaitUntilAsync(() => ConsumeAll<StockCreatedEvent>(FatalTopic(sourceTopic)).Count >= 1);
+
+        var retryMessages = ConsumeAll<StockCreatedEvent>(RetryTopic(sourceTopic));
+        var fatalMessages = ConsumeAll<StockCreatedEvent>(FatalTopic(sourceTopic));
+
+        Assert.Single(retryMessages);
+        Assert.Single(fatalMessages);
+        Assert.Equal(1, handler.ReceivedCount);
+    }
+
+    [Fact]
     public async Task Consume_HandlerThrowsAtMaxAttempts_RoutesToFatalInsteadOfRetry()
     {
         var sourceTopic = UniqueTopic();
@@ -350,6 +372,7 @@ public class DlqRetryableConsumerTests : IClassFixture<KafkaFixture>
     private sealed class StubHandler : IRequestHandler<CreateReadModelCommand>
     {
         public bool Fail { get; init; }
+        public bool NonRetryable { get; init; }
         public int FailFirstNCalls { get; init; }
         public int ReceivedCount { get; private set; }
 
@@ -357,7 +380,9 @@ public class DlqRetryableConsumerTests : IClassFixture<KafkaFixture>
         {
             ReceivedCount++;
             if (Fail || ReceivedCount <= FailFirstNCalls)
-                throw new TimeoutException("simulated handler failure");
+                throw NonRetryable
+                    ? new InvalidOperationException("simulated handler failure")
+                    : new TimeoutException("simulated handler failure");
             return Task.CompletedTask;
         }
     }

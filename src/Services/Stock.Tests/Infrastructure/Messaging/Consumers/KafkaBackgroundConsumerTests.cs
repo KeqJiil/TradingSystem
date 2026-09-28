@@ -75,6 +75,47 @@ public class KafkaBackgroundConsumerTests : IClassFixture<KafkaFixture>, IDispos
     }
 
     [Fact]
+    public async Task FatalDlqUnavailable_MessageIsNeitherCommittedNorSkipped_UntilDlqRecovers()
+    {
+        var topic = UniqueTopic();
+        var group = UniqueGroup();
+        var received = new ConcurrentQueue<Guid>();
+        var poison = Guid.NewGuid();
+        var good = Guid.NewGuid();
+        var poisonCalls = 0;
+        await KafkaTopics.CreateWithMaxMessageBytesAsync(_fixture.BootstrapAddress, FatalTopic(topic), 100);
+
+        await using var consumer = CreateConsumer(topic, group, message =>
+        {
+            if (message.AggregateId == poison)
+            {
+                Interlocked.Increment(ref poisonCalls);
+                throw new InvalidOperationException("simulated handler failure");
+            }
+
+            received.Enqueue(message.AggregateId);
+            return Task.FromResult(true);
+        });
+
+        Produce(topic, poison);
+        Produce(topic, good);
+
+        await consumer.StartAsync(CancellationToken.None);
+        await Polling.WaitUntilAsync(() => Task.FromResult(Volatile.Read(ref poisonCalls) >= 7), Timeout);
+
+        Assert.Empty(received);
+        Assert.Equal(Offset.Unset.Value, CommittedOffset(topic, group));
+
+        await KafkaTopics.SetMaxMessageBytesAsync(_fixture.BootstrapAddress, FatalTopic(topic), 1_048_588);
+        await Polling.WaitUntilAsync(() => Task.FromResult(received.Contains(good)), Timeout);
+        await consumer.StopAsync(CancellationToken.None);
+
+        var fatal = ConsumeFirst<PriceChangedEvent>(FatalTopic(topic));
+        Assert.Equal(poison, fatal.Message.Value.AggregateId);
+        Assert.Equal(2L, CommittedOffset(topic, group));
+    }
+
+    [Fact]
     public async Task UndeserializableMessage_IsMovedToFatalAsRawBytes_AndConsumerKeepsGoing()
     {
         var topic = UniqueTopic();
