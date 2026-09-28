@@ -1,77 +1,100 @@
 using Dapper;
-using Stock.Application.Abstractions;
 using Stock.Application.Queries.GetHourlyReadModel;
+using Stock.Application.Queries.GetHourReadModel;
 using Stock.Infrastructure.Persistence.Implementations;
 using Stock.Tests.Infrastructure;
 using Xunit;
 
 namespace Stock.Tests.Application.Queries;
-/*
+
 public class GetHourlyReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifetime
 {
-    private IStockPriceHistoryReader Reader { get; init; }
-    private GetHourlyReadModelHandler Handler { get; init; }
-    private MssqlFixture MssqlFixture { get; init; }
-    private TestDbContext DbContext { get; init; }
+    private static readonly DateTimeOffset From = new(2026, 3, 5, 9, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset To = new(2026, 3, 5, 17, 0, 0, TimeSpan.Zero);
 
-    public GetHourlyReadModelHandlerTests(MssqlFixture mssqlFixture)
+    private readonly TestDbContext _dbContext;
+    private readonly GetHourlyReadModelHandler _rangeHandler;
+    private readonly GetHourReadModelHandler _hourHandler;
+
+    public GetHourlyReadModelHandlerTests(MssqlFixture fixture)
     {
-        MssqlFixture = mssqlFixture;
-        var dbContext = new TestDbContext(MssqlFixture.ConnectionString);
-        DbContext = dbContext;
-        Reader = new StockPriceHistoryReader(dbContext);
-        Handler = new GetHourlyReadModelHandler(Reader);
+        _dbContext = new TestDbContext(fixture.ConnectionString);
+        var reader = new StockPriceHourlyReader(_dbContext);
+        _rangeHandler = new GetHourlyReadModelHandler(reader);
+        _hourHandler = new GetHourReadModelHandler(reader);
     }
 
     public async Task InitializeAsync()
     {
-        await DbContext.EnsureConnectionOpenAsync(CancellationToken.None);
-        await TestDatabase.ResetAsync(DbContext);
+        await _dbContext.EnsureConnectionOpenAsync(CancellationToken.None);
+        await TestDatabase.ResetAsync(_dbContext);
     }
 
     public async Task DisposeAsync()
     {
-        await DbContext.Connection.CloseAsync();
+        await _dbContext.DisposeAsync();
     }
 
     [Fact]
-    public async Task Handle_ShouldReturnOnlyPriceChanges_WithinRequestedRange()
+    public async Task Handle_ReturnsHoursFromInclusiveToExclusive_OrderedByTime()
     {
         var stockId = Guid.NewGuid();
-        var from = new DateTimeOffset(2026, 3, 5, 9, 0, 0, TimeSpan.Zero);
-        var to = new DateTimeOffset(2026, 3, 5, 17, 0, 0, TimeSpan.Zero);
-        await SeedEvent(stockId, 1, from.AddHours(-1), 100m);
-        await SeedEvent(stockId, 2, from.AddHours(1), 1.5m);
-        await SeedEvent(stockId, 3, to, 200m);
-        await SeedEvent(Guid.NewGuid(), 1, from.AddHours(1), 300m);
+        await SeedHour(stockId, From.AddHours(-1), open: 1m, close: 1m);
+        await SeedHour(stockId, From.AddHours(3), open: 12m, close: 15m);
+        await SeedHour(stockId, From, open: 10m, close: 12m);
+        await SeedHour(stockId, To, open: 99m, close: 99m);
+        await SeedHour(Guid.NewGuid(), From.AddHours(1), open: 50m, close: 50m);
 
-        var result = await Handler.Handle(
-            new GetHourlyReadModelQuery(stockId, from, to, new TimeOnly(1, 0)), CancellationToken.None);
+        var result = await _rangeHandler.Handle(new GetHourlyReadModelQuery(stockId, From, To), CancellationToken.None);
 
-        Assert.NotNull(result);
         Assert.Equal(stockId, result.AggregateId);
-        var priceChange = Assert.Single(result.PriceChanges);
-        Assert.Equal(1.5m, priceChange.PriceDifference);
+        var hours = result.PriceChanges.ToList();
+        Assert.Equal([From, From.AddHours(3)], hours.Select(h => h.DateTime));
+        Assert.Equal([2m, 3m], hours.Select(h => h.Difference));
     }
 
-    private async Task SeedEvent(Guid aggregateId, long version, DateTimeOffset occuredAt, decimal priceChange)
+    [Fact]
+    public async Task Handle_ReturnsEmpty_WhenNoHoursInRange()
     {
-        await DbContext.Connection.ExecuteAsync("""
-            INSERT INTO events_store
-                (event_id, aggregate_id, version, event_type, payload, price_change, occured_at)
+        var stockId = Guid.NewGuid();
+        await SeedHour(stockId, To, open: 1m, close: 2m);
+
+        var result = await _rangeHandler.Handle(new GetHourlyReadModelQuery(stockId, From, To), CancellationToken.None);
+
+        Assert.Empty(result.PriceChanges);
+    }
+
+    [Fact]
+    public async Task HandleHour_ReturnsExactHour_AndNullForMissingHour()
+    {
+        var stockId = Guid.NewGuid();
+        await SeedHour(stockId, From, open: 10m, close: 12m);
+
+        var hour = await _hourHandler.Handle(new GetHourReadModelQuery(stockId, From), CancellationToken.None);
+        var missing = await _hourHandler.Handle(new GetHourReadModelQuery(stockId, From.AddHours(1)),
+            CancellationToken.None);
+
+        Assert.NotNull(hour);
+        Assert.Equal((10m, 12m, From), (hour.Value.OpenPrice, hour.Value.ClosePrice, hour.Value.DateTime));
+        Assert.Null(missing);
+    }
+
+    private async Task SeedHour(Guid aggregateId, DateTimeOffset hourStart, decimal open, decimal close)
+    {
+        await _dbContext.Connection.ExecuteAsync("""
+            INSERT INTO hourly_stock_data_projection
+                (id, aggregate_id, open_price, low_price, high_price, close_price, price_difference, last_version, date_time)
             VALUES
-                (@EventId, @AggregateId, @Version, @EventType, @Payload, @PriceChange, @OccuredAt)
+                (NEWID(), @AggregateId, @Open, @Low, @High, @Close, @Close - @Open, 1, @HourStart)
             """,
             new
             {
-                EventId = Guid.NewGuid(),
                 AggregateId = aggregateId,
-                Version = version,
-                EventType = "PriceChangedEvent",
-                Payload = "{}",
-                PriceChange = priceChange,
-                OccuredAt = occuredAt
+                Open = open,
+                Low = Math.Min(open, close),
+                High = Math.Max(open, close),
+                Close = close,
+                HourStart = hourStart
             });
     }
 }
-*/

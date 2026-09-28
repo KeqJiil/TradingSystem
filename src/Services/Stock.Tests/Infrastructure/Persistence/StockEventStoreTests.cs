@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Dapper;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Data.SqlClient;
@@ -79,6 +80,31 @@ public class StockEventStoreTests : IClassFixture<MssqlFixture>, IAsyncLifetime
         Assert.False(second);
         Assert.Equal(1, await CountRows("events_store", request.AggregateId));
         Assert.Equal(1, await CountRows("outbox", request.AggregateId));
+    }
+
+    [Fact]
+    public async Task ChangePriceAppendAsync_WritesPriceChangedEventWithAssignedVersionToOutbox()
+    {
+        await using var unitOfWork = new UnitOfWork(new TestDbConnectionFactory(_fixture.ConnectionString));
+        var service = new EventStoreService(
+            new StockEventStore(unitOfWork),
+            new UnitOfWorkDecorator(unitOfWork, new ResiliencePipelineBuilder().Build(), NullLogger<UnitOfWorkDecorator>.Instance),
+            new OutboxWriter(unitOfWork));
+        
+        var aggregateId = Guid.NewGuid();
+        await service.ChangePriceAppendAsync(NewRequest(aggregateId, 3m), CancellationToken.None);
+        var request = NewRequest(aggregateId, 7m);
+
+        await service.ChangePriceAppendAsync(request, CancellationToken.None);
+
+        var events = (await DbContext.Connection.QueryAsync<string>(
+                "SELECT payload FROM outbox WHERE aggregate_id = @AggregateId AND event_type = @EventType",
+                new { AggregateId = aggregateId, EventType = nameof(PriceChangedEvent) }))
+            .Select(p => JsonSerializer.Deserialize<PriceChangedEvent>(p)!)
+            .OrderBy(e => e.Version)
+            .ToList();
+        Assert.Equal([1L, 2L], events.Select(e => e.Version!.Value));
+        Assert.Equal(new PriceChangedEvent(aggregateId, 7m, 2, request.OccuredAt), events[1]);
     }
 
     [Fact]

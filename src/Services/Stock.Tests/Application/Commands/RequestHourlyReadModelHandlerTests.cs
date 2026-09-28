@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Dapper;
-using Stock.Application.Commands.RequestDailyReadModels;
+using Stock.Application.Commands.RequestHourlyReadModel;
 using Stock.Application.Events;
 using Stock.Infrastructure.Persistence.Implementations;
 using Stock.Tests.Infrastructure;
@@ -8,15 +8,17 @@ using Xunit;
 
 namespace Stock.Tests.Application.Commands;
 
-public class RequestDailyReadModelsHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifetime
+public class RequestHourlyReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifetime
 {
-    private readonly TestDbContext _dbContext;
-    private readonly RequestDailyReadModelsHandler _handler;
+    private static readonly DateOnly Date = new(2026, 3, 5);
 
-    public RequestDailyReadModelsHandlerTests(MssqlFixture fixture)
+    private readonly TestDbContext _dbContext;
+    private readonly RequestHourlyReadModelHandler _handler;
+
+    public RequestHourlyReadModelHandlerTests(MssqlFixture fixture)
     {
         _dbContext = new TestDbContext(fixture.ConnectionString);
-        _handler = new RequestDailyReadModelsHandler(new OutboxWriter(_dbContext), new StockDataReader(_dbContext));
+        _handler = new RequestHourlyReadModelHandler(new OutboxWriter(_dbContext), new StockDataReader(_dbContext));
     }
 
     public async Task InitializeAsync()
@@ -32,35 +34,32 @@ public class RequestDailyReadModelsHandlerTests : IClassFixture<MssqlFixture>, I
 
     [Theory]
     [InlineData(0)]
-    [InlineData(99)]
     [InlineData(100)]
     [InlineData(101)]
-    [InlineData(200)]
     [InlineData(250)]
-    public async Task Handle_WritesExactlyOneDailyRequestPerStock_AcrossBatchBoundaries(int stocks)
+    public async Task Handle_WritesExactlyOneHourlyRequestPerStock_AcrossBatchBoundaries(int stocks)
     {
         var stockIds = await SeedStocks(stocks);
 
-        await _handler.Handle(new RequestDailyReadModelsCommand(DateTime.UtcNow), CancellationToken.None);
+        await _handler.Handle(new RequestHourlyReadModelCommand(Date, 10), CancellationToken.None);
 
         var aggregateIds = await _dbContext.Connection.QueryAsync<Guid>(
             "SELECT aggregate_id FROM outbox WHERE event_type = @EventType",
-            new { EventType = nameof(DailyReadModelRequested) });
+            new { EventType = nameof(HourlyReadModelRequested) });
         Assert.Equal(stockIds.Order(), aggregateIds.Order());
     }
 
     [Fact]
-    public async Task Handle_PayloadCarriesStockIdAndDateOfRequest()
+    public async Task Handle_PayloadCarriesStockIdDateAndHourOfRequest()
     {
         var stockId = (await SeedStocks(1)).Single();
-        var requestDate = new DateTime(2026, 3, 5, 14, 30, 0, DateTimeKind.Utc);
 
-        await _handler.Handle(new RequestDailyReadModelsCommand(requestDate), CancellationToken.None);
+        await _handler.Handle(new RequestHourlyReadModelCommand(Date, 23), CancellationToken.None);
 
-        var payload = JsonSerializer.Deserialize<DailyReadModelRequested>(
+        var payload = JsonSerializer.Deserialize<HourlyReadModelRequested>(
             await _dbContext.Connection.QuerySingleAsync<string>(
                 "SELECT payload FROM outbox WHERE aggregate_id = @Id", new { Id = stockId }))!;
-        Assert.Equal(new DailyReadModelRequested(stockId, new DateOnly(2026, 3, 5)), payload);
+        Assert.Equal(new HourlyReadModelRequested(stockId, Date, 23), payload);
     }
 
     private async Task<List<Guid>> SeedStocks(int count)
