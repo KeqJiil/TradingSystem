@@ -85,3 +85,5 @@ file class AllowAllDashboardAuthorizationFilter : IDashboardAuthorizationFilter
         return true;
     }
 }
+
+public partial class Program;

@@ -32,6 +32,10 @@ public static class AddKafkaClass
         builder.Services.AddSingleton<IKafkaPublisher, KafkaPublisher>();
         builder.Services.AddSingleton<IKafkaConsumerFactory, KafkaConsumerFactory>();
         builder.Services.AddSingleton<IKafkaProducerFactory, KafkaProducerFactory>();
+        builder.Services.AddSingleton<IAdminClient>(sp => new AdminClientBuilder(new AdminClientConfig
+        {
+            BootstrapServers = sp.GetRequiredService<IOptions<KafkaOptions>>().Value.BootstrapServers
+        }).Build());
 
         builder.Services.AddHostedService<KafkaTopicsInitializer>();
 
