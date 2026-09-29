@@ -1,9 +1,10 @@
 using MediatR;
+using Microsoft.Extensions.Internal;
 using Stock.Application.Commands.RequestDailyReadModels;
 
 namespace Stock.Infrastructure.Cron;
 
-public class DailyCronWorker(IServiceScopeFactory serviceScopeFactory)
+public class DailyCronWorker(IServiceScopeFactory serviceScopeFactory, ISystemClock clock)
 {
     public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -12,6 +13,7 @@ public class DailyCronWorker(IServiceScopeFactory serviceScopeFactory)
 
         CorrelationContext.CorrelationId = Guid.NewGuid();
 
-        await mediator.Send(new RequestDailyReadModelsCommand(DateTime.UtcNow.Date.AddDays(-1)), stoppingToken);
+        await mediator.Send(new RequestDailyReadModelsCommand(clock.UtcNow.UtcDateTime.Date.AddDays(-1)),
+            stoppingToken);
     }
 }

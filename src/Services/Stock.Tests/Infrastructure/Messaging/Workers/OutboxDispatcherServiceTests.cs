@@ -127,6 +127,7 @@ public class OutboxDispatcherServiceTests : IClassFixture<KafkaFixture>, IClassF
     {
         var id = await InsertOutboxRowAsync(EventTypeNames.StockToggledStatus, "not-valid-json");
 
+        await EnsureTopicsExistAsync(_dlqOptions.UnknownTopic);
         await _service.StartAsync(CancellationToken.None);
 
         var result = ConsumeJson<OutboxData>(_dlqOptions.UnknownTopic, m => m.Id == id);
