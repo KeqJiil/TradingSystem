@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+message StockCreatedEvent {
+    string AggregateId = 1;
+    string Name = 2;
+    bool IsOpenToTrade = 3;
+    string Currency = 4;
+    google.protobuf.Timestamp TradingStartTime = 5;
+    google.protobuf.Timestamp TradingCloseTime = 6;
+}

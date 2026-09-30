@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+message TimeChangedEvent {
+    string AggregateId = 1;
+    google.protobuf.Timestamp TradingStartTime = 2;
+    google.protobuf.Timestamp TradingCloseTime = 3;
+    int64 Version = 4;
+}

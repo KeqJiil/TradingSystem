@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+message NameChangedEvent {
+    string AggregateId = 1;
+    string Name = 2;
+    int64 Version = 3;
+}

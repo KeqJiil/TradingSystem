@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+message PriceChangedEvent {
+    string PriceChange = 1;
+    string AggregateId = 2;
+    int64 Version = 3;
+    google.protobuf.Timestamp OccuredAt = 4;
+}

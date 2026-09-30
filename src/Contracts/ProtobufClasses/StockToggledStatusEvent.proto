@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+message StockToggledStatusEvent {
+    string AggregateId = 1;
+    google.protobuf.Timestamp OccuredAt = 4;
+    bool IsOpenToTrade = 2;
+    int64 StatusVersion = 3;
+}
