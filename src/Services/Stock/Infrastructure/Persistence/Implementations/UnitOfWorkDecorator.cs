@@ -3,33 +3,51 @@ using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class UnitOfWorkDecorator : IUnitOfWorkDecorator
+public class UnitOfWorkDecorator(
+    IUnitOfWork unitOfWork,
+    ResiliencePipeline pipeline,
+    ILogger<UnitOfWorkDecorator> logger) : IUnitOfWorkDecorator
 {
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ResiliencePipeline _pipeline;
-
-    public UnitOfWorkDecorator(IUnitOfWork unitOfWork, ResiliencePipeline pipeline)
-    {
-        _unitOfWork = unitOfWork;
-        _pipeline = pipeline;
-    }
-
     public async Task ExecuteAsync(Func<Task> action, CancellationToken ct)
     {
-        await _pipeline.ExecuteAsync(async (state, token) =>
+        if (ResilienceScope.IsActive)
         {
-            await _unitOfWork.StartTransactionAsync(token);
+            await RunInTransactionAsync(action, ct);
+            return;
+        }
 
+        await pipeline.ExecuteAsync(async (state, token) =>
+        {
+            ResilienceScope.IsActive = true;
+            await state.Decorator.RunInTransactionAsync(state.Action, token);
+        }, (Decorator: this, Action: action), ct);
+    }
+
+    private async Task RunInTransactionAsync(Func<Task> action, CancellationToken ct)
+    {
+        if (!await unitOfWork.StartTransactionAsync(ct))
+        {
+            await action();
+            return;
+        }
+
+        try
+        {
+            await action();
+            await unitOfWork.CommitAsync(ct);
+        }
+        catch
+        {
             try
             {
-                await state.Action();
-                await state.UnitOfWork.CommitAsync(token);
+                await unitOfWork.RollbackAsync(CancellationToken.None);
             }
-            catch
+            catch (Exception rbEx)
             {
-                await state.UnitOfWork.RollbackAsync(token);
-                throw;
+                logger.LogError(rbEx, "Rollback failed");
             }
-        }, (UnitOfWork: _unitOfWork, Action: action), ct);
+
+            throw;
+        }
     }
 }

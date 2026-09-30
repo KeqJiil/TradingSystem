@@ -1,15 +1,19 @@
 using MediatR;
-using Stock.Application.Commands.CreateDailyReadModel;
+using Microsoft.Extensions.Internal;
+using Stock.Application.Commands.RequestDailyReadModels;
 
 namespace Stock.Infrastructure.Cron;
 
-public class DailyCronWorker(IServiceScopeFactory serviceScopeFactory)
+public class DailyCronWorker(IServiceScopeFactory serviceScopeFactory, ISystemClock clock)
 {
     public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var scope = serviceScopeFactory.CreateScope();
+        await using var scope = serviceScopeFactory.CreateAsyncScope();
         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
-        await mediator.Send(new CreateDailyReadModelCommand(DateTime.UtcNow.Date), stoppingToken);
+        CorrelationContext.CorrelationId = Guid.NewGuid();
+
+        await mediator.Send(new RequestDailyReadModelsCommand(clock.UtcNow.UtcDateTime.Date.AddDays(-1)),
+            stoppingToken);
     }
 }

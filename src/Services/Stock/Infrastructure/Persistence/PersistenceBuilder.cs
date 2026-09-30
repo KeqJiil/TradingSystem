@@ -7,6 +7,8 @@ public static class PersistenceBuilder
 {
     public static void AddPersistence(this WebApplicationBuilder builder)
     {
+        DapperTypeHandlers.Register();
+
         builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 
         builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -16,6 +18,7 @@ public static class PersistenceBuilder
         builder.Services.AddScoped<IOutboxReader, OutboxReader>();
         builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
         builder.Services.AddScoped<IOutboxMarker, OutboxWriter>();
+        builder.Services.AddScoped<IOutboxCleaner, OutboxWriter>();
 
         builder.Services.AddScoped<IStockReader, StockReader>();
         builder.Services.AddScoped<IStockWriter, StockDataWriter>();
@@ -27,5 +30,7 @@ public static class PersistenceBuilder
 
         builder.Services.AddScoped<IStockEventStore, StockEventStore>();
         builder.Services.AddScoped<IStockEventStoreReader, StockEventStoreReader>();
+        builder.Services.AddScoped<IStockHourlyReadModelWriter, StockHourlyReadModelWriter>();
+        builder.Services.AddScoped<IStockPriceHourlyReader, StockPriceHourlyReader>();
     }
 }

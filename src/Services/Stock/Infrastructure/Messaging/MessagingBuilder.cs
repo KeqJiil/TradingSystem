@@ -10,11 +10,12 @@ public static class MessagingBuilder
 {
     public static void AddMessaging(this WebApplicationBuilder builder)
     {
-        builder.Services.AddSingleton(typeof(VersionsBuffer<>));
-
         builder.Services.AddHostedService<OutboxDispatcherService>();
 
         builder.Services.AddScoped<IJobEventProcessor<DailyReadModelRequested>, DailyReadModelWorker>();
         builder.Services.AddScoped<DailyCronWorker>();
+        builder.Services.AddScoped<IJobEventProcessor<HourlyReadModelRequested>, HourlyReadModelWorker>();
+        builder.Services.AddScoped<HourlyCronWorker>();
+        builder.Services.AddScoped<OutboxCleanupCronWorker>();
     }
 }

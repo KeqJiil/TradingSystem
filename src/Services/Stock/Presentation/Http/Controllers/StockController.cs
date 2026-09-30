@@ -3,80 +3,89 @@ using Microsoft.AspNetCore.Mvc;
 using Stock.Application.Commands.ChangeStockName;
 using Stock.Application.Commands.ChangeStockTradingTime;
 using Stock.Application.Commands.CreateStock;
-using Stock.Application.Commands.ToggleStockOpenToTrade;
+using Stock.Application.Commands.SetStockOpenToTrade;
 
 namespace Stock.Presentation.Http.Controllers;
 
 public static class StockController
 {
-    public static void MapStockController(this WebApplication app)
+    public static void MapStockController(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/stock", async (
+        app.MapPut("/{id:Guid}", async (
+                [FromRoute] Guid id,
                 [FromBody] CreateStockRequest request,
                 [FromServices] IMediator mediator,
                 CancellationToken cancellationToken) =>
             {
                 var command = new CreateStockCommand(
+                    id,
                     request.Name,
                     request.IsOpenToTrade,
                     request.Currency,
                     request.TradingStartTime,
                     request.TradingEndTime);
 
-                var id = await mediator.Send(command, cancellationToken);
-
-                return Results.Created($"/api/stock/{id}/metadata", new { Id = id });
+                return await mediator.Send(command, cancellationToken) switch
+                {
+                    CreateStockResult.Created => Results.Created($"/api/v1/stocks/{id}/metadata", new { Id = id }),
+                    CreateStockResult.AlreadyExists => Results.Ok(new { Id = id }),
+                    _ => Results.Conflict()
+                };
             })
             .WithName("CreateStock")
-            .WithTags("Stock")
-            .WithDescription("Creates a stock's metadata record")
+            .WithDescription(
+                "Creates a stock's metadata record under a client-generated id, repeating it returns 200, repeating with a different body returns 409, Location points to the strongly consistent metadata")
             .Produces(201)
-            .Produces(400);
+            .Produces(200)
+            .ProducesValidationProblem()
+            .ProducesProblem(409);
 
-        app.MapPatch("/api/stock/{id:Guid}/name", async (
+        app.MapPatch("/{id:Guid}/name", async (
                 [FromRoute] Guid id,
                 [FromBody] ChangeStockNameRequest request,
                 [FromServices] IMediator mediator,
                 CancellationToken cancellationToken) =>
             {
-                await mediator.Send(new ChangeStockNameCommand(id, request.Name), cancellationToken);
-                return Results.NoContent();
+                var found = await mediator.Send(new ChangeStockNameCommand(id, request.Name), cancellationToken);
+                return found ? Results.NoContent() : Results.NotFound();
             })
             .WithName("ChangeStockName")
-            .WithTags("Stock")
             .WithDescription("Changes a stock's name")
             .Produces(204)
-            .Produces(400);
+            .ProducesValidationProblem()
+            .ProducesProblem(404);
 
-        app.MapPatch("/api/stock/{id:Guid}/trading-time", async (
+        app.MapPatch("/{id:Guid}/trading-time", async (
                 [FromRoute] Guid id,
                 [FromBody] ChangeStockTradingTimeRequest request,
                 [FromServices] IMediator mediator,
                 CancellationToken cancellationToken) =>
             {
-                await mediator.Send(
+                var found = await mediator.Send(
                     new ChangeStockTradingTimeCommand(id, request.OpenTime, request.CloseTime), cancellationToken);
-                return Results.NoContent();
+                return found ? Results.NoContent() : Results.NotFound();
             })
             .WithName("ChangeStockTradingTime")
-            .WithTags("Stock")
             .WithDescription("Changes a stock's trading hours")
             .Produces(204)
-            .Produces(400);
+            .ProducesValidationProblem()
+            .ProducesProblem(404);
 
-        app.MapPost("/api/stock/{id:Guid}/toggle-open-to-trade", async (
+        app.MapPut("/{id:Guid}/open-to-trade", async (
                 [FromRoute] Guid id,
+                [FromBody] SetStockOpenToTradeRequest request,
                 [FromServices] IMediator mediator,
                 CancellationToken cancellationToken) =>
             {
-                await mediator.Send(new ToggleStockOpenToTradeCommand(id), cancellationToken);
-                return Results.NoContent();
+                var found = await mediator.Send(new SetStockOpenToTradeCommand(id, request.IsOpenToTrade),
+                    cancellationToken);
+                return found ? Results.NoContent() : Results.NotFound();
             })
-            .WithName("ToggleStockOpenToTrade")
-            .WithTags("Stock")
-            .WithDescription("Toggles whether a stock is open to trade")
+            .WithName("SetStockOpenToTrade")
+            .WithDescription("Sets whether a stock is open to trade")
             .Produces(204)
-            .Produces(400);
+            .ProducesValidationProblem()
+            .ProducesProblem(404);
     }
 }
 
@@ -90,3 +99,5 @@ public record CreateStockRequest(
 public record ChangeStockNameRequest(string Name);
 
 public record ChangeStockTradingTimeRequest(TimeOnly OpenTime, TimeOnly CloseTime);
+
+public record SetStockOpenToTradeRequest(bool IsOpenToTrade);

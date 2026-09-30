@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Dapper;
+using Microsoft.Data.SqlClient;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
 
@@ -8,13 +9,20 @@ namespace Stock.Infrastructure.Persistence.Implementations;
 
 public class StockEventStore(IDbContext dbContext) : IStockEventStore
 {
-    public async Task<PriceChangedEvent> AppendAsync(PriceChangedEvent stockEvent, CancellationToken ct)
+    public async Task<PriceChangedEvent?> AppendAsync(PriceChangeRequested stockEvent, CancellationToken ct)
     {
-        var result = await AppendAsync([stockEvent], ct);
-        return result.Single();
+        try
+        {
+            var result = await AppendAsync([stockEvent], ct);
+            return result.Single();
+        }
+        catch (SqlException ex) when (ex.Number == 2627)
+        {
+            return null;
+        }
     }
 
-    public async Task<IEnumerable<PriceChangedEvent>> AppendAsync(IEnumerable<PriceChangedEvent> stockEvents,
+    public async Task<IEnumerable<PriceChangedEvent>> AppendAsync(IEnumerable<PriceChangeRequested> stockEvents,
         CancellationToken ct)
     {
         var events = stockEvents.ToList();
@@ -24,18 +32,18 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
 
         var aggregateIds = events.Select(e => e.AggregateId).Distinct().ToList();
 
-        var currentVersions = (await dbContext.Connection.QueryAsync<(Guid AggregateId, long Version)>("""
+        var currentVersions = (await dbContext.Connection.QueryAsync<(Guid AggregateId, long Version)>(new CommandDefinition("""
                     SELECT aggregate_id AS AggregateId, MAX(version) AS Version
                     FROM events_store
                     WHERE aggregate_id IN @AggregateIds
                     GROUP BY aggregate_id
-                """, new { AggregateIds = aggregateIds }, dbContext.Transaction))
+                """, new { AggregateIds = aggregateIds }, dbContext.Transaction, cancellationToken: ct)))
             .ToDictionary(x => x.AggregateId, x => x.Version);
 
         var parameters = new DynamicParameters();
         var sqlBuilder =
             new StringBuilder(
-                "INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change) VALUES ");
+                "INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change, occured_at) VALUES ");
 
         var result = new PriceChangedEvent[events.Count];
 
@@ -46,20 +54,22 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
             var version = currentVersions.GetValueOrDefault(stockEvent.AggregateId, 0) + 1;
             currentVersions[stockEvent.AggregateId] = version;
 
-            result[i] = events[i] with { Version = version };
+            result[i] = new(stockEvent.AggregateId, stockEvent.PriceChange, version, stockEvent.OccuredAt);
 
             if (i > 0) sqlBuilder.Append(", ");
-            sqlBuilder.Append($"(@Id{i}, @AggregateId{i}, @Version{i}, @EventType{i}, @Payload{i}, @PriceChange{i})");
+            sqlBuilder.Append(
+                $"(@Id{i}, @AggregateId{i}, @Version{i}, @EventType{i}, @Payload{i}, @PriceChange{i}, @OccuredAt{i})");
 
-            parameters.Add($"Id{i}", Guid.NewGuid());
+            parameters.Add($"Id{i}", stockEvent.EventId);
             parameters.Add($"AggregateId{i}", stockEvent.AggregateId);
             parameters.Add($"Version{i}", version);
             parameters.Add($"EventType{i}", nameof(PriceChangedEvent));
             parameters.Add($"Payload{i}", JsonSerializer.Serialize(stockEvent));
             parameters.Add($"PriceChange{i}", stockEvent.PriceChange);
+            parameters.Add($"OccuredAt{i}", stockEvent.OccuredAt);
         }
 
-        await dbContext.Connection.ExecuteAsync(sqlBuilder.ToString(), parameters, dbContext.Transaction);
+        await dbContext.Connection.ExecuteAsync(new CommandDefinition(sqlBuilder.ToString(), parameters, dbContext.Transaction, cancellationToken: ct));
 
         return result;
     }
@@ -69,7 +79,7 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
     {
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        var version = await dbContext.Connection.ExecuteAsync(
+        var version = await dbContext.Connection.ExecuteAsync(new CommandDefinition(
             """
                 INSERT INTO events_store (event_id, aggregate_id, version, event_type, payload, price_change)
                 VALUES (@Id, @AggregateId, COALESCE((SELECT MAX(e.version) FROM events_store e WHERE e.aggregate_id = @AggregateId), 0) + 1, @EventType, @Payload, @PriceChange)
@@ -79,8 +89,7 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
                 Id = Guid.NewGuid(), AggregateId = stockEvent.AggregateId,
                 EventType = nameof(PriceChangedEvent), Payload = JsonSerializer.Serialize(stockEvent),
                 PriceChange = stockEvent.PriceChange
-            },
-            dbContext.Transaction);
+            }, dbContext.Transaction, cancellationToken: ct));
 
         return stockEvent with { Version = version };
     }

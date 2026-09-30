@@ -10,13 +10,27 @@ public class StockDailyReadModelWriter(IDbContext dbContext) : IStockDailyReadMo
         var sql = """
                   INSERT INTO daily_stock_data_projection
                       (id, aggregate_id, open_price, low_price, high_price, close_price, price_difference, last_version, date)
-                  VALUES
-                      (@Id, @AggregateId, @OpenPrice, @LowPrice, @HighPrice, @ClosePrice, @PriceDifference, @LastVersion, @Date)
+                  SELECT 
+                        @Id,
+                        @AggregateId,
+                        @OpenPrice,
+                        @LowPrice,
+                        @HighPrice,
+                        @ClosePrice,
+                        @PriceDifference,
+                        @LastVersion,
+                        @Date
+                  WHERE NOT EXISTS (
+                      SELECT 1
+                      FROM daily_stock_data_projection
+                      WHERE aggregate_id = @AggregateId
+                        AND date = @Date
+                  );
                   """;
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        await dbContext.Connection.ExecuteAsync(sql, new
+        await dbContext.Connection.ExecuteAsync(new CommandDefinition(sql, new
         {
             Id = Guid.NewGuid(),
             aggregate.AggregateId,
@@ -27,6 +41,6 @@ public class StockDailyReadModelWriter(IDbContext dbContext) : IStockDailyReadMo
             aggregate.PriceDifference,
             aggregate.LastVersion,
             aggregate.Date
-        }, dbContext.Transaction);
+        }, dbContext.Transaction, cancellationToken: ct));
     }
 }

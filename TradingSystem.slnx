@@ -10,4 +10,5 @@
     </Folder>
     
     <Project Path="src\Services\Stock\Stock.csproj" />
+    <Project Path="src\Services\Stock.Tests\Stock.Tests.csproj" />
 </Solution>

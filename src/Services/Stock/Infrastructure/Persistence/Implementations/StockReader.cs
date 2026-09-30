@@ -15,6 +15,7 @@ public class StockReader(IDbContext dbContext) : IStockReader
                       s.trading_end_time as TradingEndTime, 
                       s.name as Name, 
                       s.is_open_to_trade as IsOpenToTrade, 
+                      s.price as Price,
                       s.updated_at as UpdatedAt 
                   FROM stock_data_projection s 
                   WHERE s.aggregate_id = @StockId
@@ -22,7 +23,21 @@ public class StockReader(IDbContext dbContext) : IStockReader
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
-        return await dbContext.Connection.QuerySingleOrDefaultAsync<StockReadModel?>(sql, new { StockId = stockId },
-            dbContext.Transaction);
+        var rows = await dbContext.Connection.QueryAsync<StockReadModel>(new CommandDefinition(sql, new { StockId = stockId }, dbContext.Transaction, cancellationToken: cancellationToken));
+
+        return rows.Select(row => (StockReadModel?)row).SingleOrDefault();
+    }
+
+    public async Task<long?> GetVersionAsync(Guid aggregateId, CancellationToken cancellationToken = default)
+    {
+        var sql = """
+                  SELECT s.version
+                  FROM stock_data_projection s
+                  WHERE s.aggregate_id = @AggregateId
+                  """;
+
+        await dbContext.EnsureConnectionOpenAsync(cancellationToken);
+
+        return await dbContext.Connection.ExecuteScalarAsync<long?>(new CommandDefinition(sql, new { AggregateId = aggregateId }, dbContext.Transaction, cancellationToken: cancellationToken));
     }
 }

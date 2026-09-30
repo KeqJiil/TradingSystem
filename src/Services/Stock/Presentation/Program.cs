@@ -1,41 +1,89 @@
 using Hangfire;
+using Hangfire.Dashboard;
+using Microsoft.AspNetCore.Http.Timeouts;
+using Microsoft.Extensions.Internal;
+using Stock.Infrastructure;
 using Stock.Infrastructure.Cron;
+using Stock.Infrastructure.Handlers;
 using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Persistence;
 using Stock.Presentation.Builder;
+using Stock.Presentation.Builder.Observability;
 using Stock.Presentation.Http.Controllers;
+using Stock.Presentation.Http.ExceptionHandlers;
+using Stock.Presentation.Http.Middlewares;
 using Stock.Presentation.Kafka;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.RespectRequiredConstructorParameters = true;
+    options.SerializerOptions.RespectNullableAnnotations = true;
+});
+builder.Services.AddRequestTimeouts(options =>
+    options.DefaultPolicy = new RequestTimeoutPolicy { Timeout = TimeSpan.FromSeconds(10) });
+builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
+    context.ProblemDetails.Extensions["correlationId"] = CorrelationContext.CorrelationId);
+builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.AddResilence();
 builder.AddPersistence();
 builder.AddApplication();
 builder.AddKafka();
 builder.AddMessaging();
-builder.Services.AddHangfire(config =>
-    config.UseSqlServerStorage(
-        builder.Configuration.GetConnectionString("Default")));
-builder.Services.AddHangfireServer();
-
+builder.AddObservability();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
                        ?? throw new InvalidOperationException(
                            "Connection string 'DefaultConnection' is not configured.");
 
+builder.Services.AddHangfire(config =>
+    config.UseSqlServerStorage(connectionString).UseFilter(new CorrelationJobFilter()));
+builder.Services.AddHangfireServer();
+builder.Services.AddSingleton<ISystemClock, SystemClock>();
+
+builder.Services.AddHealthChecks().AddCheck<KafkaHealthCheck>("kafka", tags: ["ready"]).AddSqlServer(
+    builder.Configuration.GetConnectionString("DefaultConnection")!,
+    name: "sqlserver",
+    tags: ["ready"]);
+
 DbMigrator.ApplyMigrations(connectionString);
 
 var app = builder.Build();
 
-app.MapStockController();
-app.MapStockReadController();
-app.MapStockMetadataController();
-app.UseHangfireDashboard();
+app.UseMiddleware<CorrelationMiddleware>();
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
+app.UseRequestTimeouts();
+
+// dev only
+if (app.Environment.IsDevelopment())
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = [new AllowAllDashboardAuthorizationFilter()]
+    });
 app.UseCronJobs();
 
 if (app.Environment.IsDevelopment()) app.MapOpenApi();
 
 app.UseHttpsRedirection();
 
+var stocks = app.MapGroup("/api/v1/stocks").WithTags("Stock");
+stocks.MapStockController();
+stocks.MapStockReadController();
+stocks.MapStockMetadataController();
+app.MapHealthChecksController();
+
 app.Run();
+
+file class AllowAllDashboardAuthorizationFilter : IDashboardAuthorizationFilter
+{
+    public bool Authorize(DashboardContext context)
+    {
+        return true;
+    }
+}
+
+public partial class Program;

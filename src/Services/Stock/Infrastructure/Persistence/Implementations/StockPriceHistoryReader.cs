@@ -24,10 +24,9 @@ public class StockPriceHistoryReader(IDbContext dbContext) : IStockPriceHistoryR
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        return await dbContext.Connection.QueryAsync<PriceHistoryDateOnlyReadModel>(
+        return await dbContext.Connection.QueryAsync<PriceHistoryDateOnlyReadModel>(new CommandDefinition(
             sql,
-            new { To = to, From = from, StockId = stockId },
-            dbContext.Transaction);
+            new { To = to, From = from, StockId = stockId }, dbContext.Transaction, cancellationToken: ct));
     }
 
     public async Task<PriceHistoryDateOnlyReadModel?> GetDayPriceHistoryAsync(Guid stockId, DateOnly date,
@@ -47,26 +46,10 @@ public class StockPriceHistoryReader(IDbContext dbContext) : IStockPriceHistoryR
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        return await dbContext.Connection.QuerySingleOrDefaultAsync<PriceHistoryDateOnlyReadModel>(
+        var rows = await dbContext.Connection.QueryAsync<PriceHistoryDateOnlyReadModel>(new CommandDefinition(
             sql,
-            new { Date = date, StockId = stockId },
-            dbContext.Transaction);
-    }
+            new { Date = date, StockId = stockId }, dbContext.Transaction, cancellationToken: ct));
 
-    public async Task<HourlyReadModel?> GetHourlyPriceHistoryAsync(Guid stockId, DateTimeOffset from, DateTimeOffset to,
-        CancellationToken ct)
-    {
-        var sql = """
-                    SELECT es.created_at AS TimeStamp, es.price_change AS PriceDifference
-                    FROM events_store es
-                    WHERE es.created_at < @DateTo AND es.created_at >= @DateFrom AND es.aggregate_id = @StockId
-                  """;
-
-        await dbContext.EnsureConnectionOpenAsync(ct);
-
-        var priceChanges = await dbContext.Connection.QueryAsync<PriceChange>(sql,
-            new { DateTo = to, DateFrom = from, StockId = stockId }, dbContext.Transaction);
-        
-        return new HourlyReadModel(stockId, priceChanges);
+        return rows.Select(row => (PriceHistoryDateOnlyReadModel?)row).SingleOrDefault();
     }
 }

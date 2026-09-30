@@ -3,6 +3,8 @@ namespace Stock.Application.Abstractions;
 public interface IStockReader
 {
     public Task<StockReadModel?> GetByIdAsync(Guid aggregateId, CancellationToken cancellationToken = default);
+
+    public Task<long?> GetVersionAsync(Guid aggregateId, CancellationToken cancellationToken = default);
 }
 
 public readonly record struct StockReadModel(

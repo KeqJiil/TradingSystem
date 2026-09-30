@@ -1,14 +1,15 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Stock.Application.Abstractions;
 using Stock.Application.Queries.GetStockMetadata;
 
 namespace Stock.Presentation.Http.Controllers;
 
 public static class StockMetadataController
 {
-    public static void MapStockMetadataController(this WebApplication app)
+    public static void MapStockMetadataController(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/stock/{id:Guid}/metadata", async (
+        app.MapGet("/{id:Guid}/metadata", async (
                 [FromRoute] Guid id,
                 [FromServices] IMediator mediator,
                 CancellationToken cancellationToken) =>
@@ -17,9 +18,8 @@ public static class StockMetadataController
                 return metadata is not null ? Results.Ok(metadata) : Results.NotFound();
             })
             .WithName("GetStockMetadata")
-            .WithTags("Stock")
             .WithDescription("Gets a stock's metadata")
-            .Produces(200)
-            .Produces(404);
+            .Produces<StockMetadata>(200)
+            .ProducesProblem(404);
     }
 }

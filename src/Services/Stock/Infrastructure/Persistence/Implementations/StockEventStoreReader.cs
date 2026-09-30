@@ -14,46 +14,97 @@ public class StockEventStoreReader(IDbContext dbContext) : IStockEventStoreReade
     {
         var sql = """
                   SELECT TOP (@PageSize) s.aggregate_id AS StockId, s.price_change AS PriceChange,
-                         s.created_at AS Timestamp, s.version AS Version
+                         s.occured_at AS Timestamp, s.version AS Version
                   FROM events_store s
                   WHERE s.aggregate_id = @AggregateId
-                    AND s.created_at >= @From AND s.created_at < @To
-                    AND (@LastVersion IS NULL OR s.version > @LastVersion)
+                    AND s.occured_at >= @From AND s.occured_at < @To
+                    AND (
+                      @LastOccuredAt IS NULL
+                      OR s.occured_at > @LastOccuredAt
+                      OR (s.occured_at = @LastOccuredAt AND s.version > @LastVersion)
+                    )
+                  ORDER BY s.occured_at ASC, s.version ASC
+                  """;
+
+        await dbContext.EnsureConnectionOpenAsync(ct);
+
+        DateTimeOffset? lastOccuredAt = null;
+        long? lastVersion = null;
+
+        while (true)
+        {
+            var page = (await dbContext.Connection.QueryAsync<EventRow>(new CommandDefinition(
+                sql,
+                new
+                {
+                    PageSize, AggregateId = aggregateId, From = from, To = to, LastOccuredAt = lastOccuredAt,
+                    LastVersion = lastVersion
+                }, dbContext.Transaction, cancellationToken: ct))).ToList();
+
+            if (page.Count == 0) yield break;
+
+            foreach (var row in page)
+                yield return new PriceChangedEvent(row.StockId, row.PriceChange, row.Version, row.Timestamp);
+
+            lastOccuredAt = page[^1].Timestamp;
+            lastVersion = page[^1].Version;
+        }
+    }
+
+    public async Task<IEnumerable<PriceChangedEvent>> ListEventsByVersionAsync(Guid aggregateId, long from, long to,
+        CancellationToken ct = default)
+    {
+        var sql = """
+                  SELECT s.aggregate_id AS StockId, s.price_change AS PriceChange,
+                         s.occured_at AS Timestamp, s.version AS Version
+                  FROM events_store s
+                  WHERE s.aggregate_id = @AggregateId
+                    AND s.version > @From AND s.version <= @To
                   ORDER BY s.version ASC
                   """;
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        long? lastVersion = null;
-
-        while (true)
-        {
-            var page = (await dbContext.Connection.QueryAsync<EventRow>(
+        var page = (await dbContext.Connection.QueryAsync<EventRow>(new CommandDefinition(
                 sql,
-                new { PageSize, AggregateId = aggregateId, From = from, To = to, LastVersion = lastVersion },
-                dbContext.Transaction)).ToList();
+                new
+                {
+                    AggregateId = aggregateId, From = from, To = to
+                }, dbContext.Transaction, cancellationToken: ct)))
+            .Select(x => new PriceChangedEvent(x.StockId, x.PriceChange, x.Version, x.Timestamp))
+            .ToList();
 
-            if (page.Count == 0) yield break;
-
-            foreach (var row in page)
-                yield return new PriceChangedEvent(row.StockId, row.PriceChange, row.Version);
-
-            lastVersion = page[^1].Version;
-        }
+        return page;
     }
 
-    public async Task<long?> GetLastVersionAsync(Guid aggregateId, DateTimeOffset before, CancellationToken ct = default)
+    public async Task<long?> GetLastVersionAsync(Guid aggregateId, DateTimeOffset before,
+        CancellationToken ct = default)
     {
         var sql = """
                   SELECT MAX(s.version)
                   FROM events_store s
-                  WHERE s.aggregate_id = @AggregateId AND s.created_at < @Before
+                  WHERE s.aggregate_id = @AggregateId AND s.occured_at < @Before
                   """;
 
         await dbContext.EnsureConnectionOpenAsync(ct);
 
-        return await dbContext.Connection.ExecuteScalarAsync<long?>(
-            sql, new { AggregateId = aggregateId, Before = before }, dbContext.Transaction);
+        return await dbContext.Connection.ExecuteScalarAsync<long?>(new CommandDefinition(
+            sql, new { AggregateId = aggregateId, Before = before }, dbContext.Transaction, cancellationToken: ct));
+    }
+
+    public async Task<decimal> SumPriceChangeAsync(Guid aggregateId, DateTimeOffset from, DateTimeOffset to,
+        CancellationToken ct = default)
+    {
+        var sql = """
+                  SELECT COALESCE(SUM(price_change), 0)
+                  FROM events_store
+                  WHERE aggregate_id = @AggregateId AND occured_at >= @From AND occured_at < @To
+                  """;
+
+        await dbContext.EnsureConnectionOpenAsync(ct);
+
+        return await dbContext.Connection.ExecuteScalarAsync<decimal>(new CommandDefinition(
+            sql, new { AggregateId = aggregateId, From = from, To = to }, dbContext.Transaction, cancellationToken: ct));
     }
 
     private readonly record struct EventRow(Guid StockId, decimal PriceChange, DateTimeOffset Timestamp, long Version);

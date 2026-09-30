@@ -2,7 +2,18 @@ namespace Stock.Infrastructure.Persistence;
 
 public interface IOutboxReader
 {
-    public Task<IReadOnlyList<OutboxData>> GetPendingAsync(int amount, int maxWaitMinutes, CancellationToken cancellationToken);
+    public Task<IReadOnlyList<OutboxData>> GetPendingAsync(int amount, int maxWaitMinutes,
+        CancellationToken cancellationToken);
 }
 
-public record struct OutboxData(Guid Id, Guid AggregateId, string EventType, string Status, string Payload);
+public record struct OutboxData(
+    Guid Id,
+    Guid AggregateId,
+    string EventType,
+    string Status,
+    string Payload,
+    int RetryCount,
+    Guid? CorrelationId,
+    string? TraceParent,
+    string? TraceState,
+    DateTimeOffset CreatedAt);
