@@ -1,5 +1,4 @@
 using FluentValidation;
-using MediatR;
 using Stock.Application.Services;
 using Stock.Infrastructure.MediatrPipelines;
 
