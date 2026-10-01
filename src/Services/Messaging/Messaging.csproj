@@ -19,8 +19,4 @@
         <ProjectReference Include="..\Messaging.Abstractions\Messaging.Abstractions.csproj"/>
     </ItemGroup>
 
-    <ItemGroup>
-        <Folder Include="Dlq\"/>
-    </ItemGroup>
-
 </Project>

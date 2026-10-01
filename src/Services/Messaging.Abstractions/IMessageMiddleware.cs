@@ -9,8 +9,10 @@ public interface IMessagePublishMiddleware
     /// <param name="next">Function to invoke the next middleware in the pipeline</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns></returns>
-    Task OnPublishAsync(IMessageContext context, Func<Task> next, CancellationToken cancellationToken);
+    Task OnPublishAsync(IPublishContext context, Func<Task> next, CancellationToken cancellationToken);
 }
+
+public delegate Task<ConsumeOutcome> DeliveryDelegate();
 
 public interface IMessageDeliveryMiddleware
 {
@@ -20,6 +22,6 @@ public interface IMessageDeliveryMiddleware
     /// <param name="context">Message Context from Serialization</param>
     /// <param name="next">Function to invoke the next middleware in the pipeline</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns></returns>
-    Task OnDeliveryAsync(IMessageContext context, Func<Task> next, CancellationToken cancellationToken);
+    /// <returns>The outcome of the consume operation</returns>
+    Task<ConsumeOutcome> OnDeliveryAsync(IDeliveryContext context, DeliveryDelegate next, CancellationToken cancellationToken);
 }

@@ -16,7 +16,6 @@
 
     <ItemGroup>
         <Folder Include="Inbox\"/>
-        <Folder Include="Outbox\"/>
     </ItemGroup>
 
 </Project>

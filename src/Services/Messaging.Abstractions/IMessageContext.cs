@@ -1,6 +1,6 @@
 namespace Messaging.Abstractions;
 
-public interface IMessageContext
+public interface IDeliveryContext
 {
     /// <summary>
     /// Message topic name.
@@ -16,6 +16,12 @@ public interface IMessageContext
     /// Key for the message, used for partitioning in Kafka.
     /// </summary>
     string KeyId { get; }
+
+    string ConsumerGroup { get; }
+
+    int Partition { get; }
+
+    long Offset { get; }
 
     /// <summary>
     /// Message type name, used for deserialization.
@@ -35,5 +41,15 @@ public interface IMessageContext
     /// <summary>
     /// Headers associated with the message, used for metadata and additional information.
     /// </summary>
+    IDictionary<string, string> Headers { get; }
+}
+
+public interface IPublishContext
+{
+    string Topic { get; }
+    string MessageId { get; }
+    string KeyId { get; }
+    string MessageType { get; }
+    byte[] Message { get; }
     IDictionary<string, string> Headers { get; }
 }
