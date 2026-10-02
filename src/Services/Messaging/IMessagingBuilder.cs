@@ -5,12 +5,12 @@ namespace Messaging;
 
 public interface IMessagingBuilder
 {
-    IServiceCollection Services { get; }
-
+    public IServiceCollection Services { get; }
+    
     IMessagingBuilder AddConsumer<TMessage, TConsumer>(ConsumerOptions options)
         where TConsumer : class, IMessageConsumer<TMessage>;
 
-    IMessagingBuilder AddMessage<TMessage>(string? name, string topic, IMessageSerializer serializer);
+    IMessagingBuilder AddMessage<TMessage>(string topic, IMessageSerializer serializer);
 
     IMessagingBuilder AddDeliveryMiddleware<TMiddleware>() where TMiddleware : class, IMessageDeliveryMiddleware;
 

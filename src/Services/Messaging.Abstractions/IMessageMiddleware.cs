@@ -1,5 +1,7 @@
 namespace Messaging.Abstractions;
 
+public delegate Task PublishDelegate();
+
 public interface IMessagePublishMiddleware
 {
     /// <summary>
@@ -9,7 +11,7 @@ public interface IMessagePublishMiddleware
     /// <param name="next">Function to invoke the next middleware in the pipeline</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns></returns>
-    Task OnPublishAsync(IPublishContext context, Func<Task> next, CancellationToken cancellationToken);
+    Task OnPublishAsync(IPublishContext context, PublishDelegate next, CancellationToken cancellationToken);
 }
 
 public delegate Task<ConsumeOutcome> DeliveryDelegate();

@@ -20,7 +20,7 @@ public class LoggingMiddleware(ILogger<LoggingMiddleware> logger)
         return outcome;
     }
 
-    public Task OnPublishAsync(IPublishContext context, Func<Task> next, CancellationToken cancellationToken)
+    public Task OnPublishAsync(IPublishContext context, PublishDelegate next, CancellationToken cancellationToken)
     {
         logger.LogDebug("Publishing message with ID: {MessageId}, to topic {Topic}", context.MessageId, context.Topic);
         return next();
