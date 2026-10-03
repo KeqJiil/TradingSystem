@@ -26,21 +26,23 @@ internal static class MessagingPipeline
 
 internal static class MessagingPublishPipeline
 {
-    public static Task RunPublish<TMessage>(
+    public static Task<PublishOutcome> RunPublish<TMessage>(
         PublishContext<TMessage> ctx, IServiceProvider services,
-        PublishDelegate terminal, CancellationToken ct)
+        IPublishTerminal terminal, CancellationToken ct)
     {
         var middlewares = services
             .GetKeyedServices<IMessagePublishMiddleware>("MessagingPublishMiddleware").ToList();
 
-        var next = terminal;
+        PublishDelegate next = (headers, token) =>
+            terminal.SendAsync(ctx.Topic, ctx.KeyId, ctx.MessageId, ctx.Message, headers, token);
+        
         for (var i = middlewares.Count - 1; i >= 0; i--)
         {
             var middleware = middlewares[i];
             var inner = next;
-            next = () => middleware.OnPublishAsync(ctx, inner, ct);
+            next = middleware.OnPublishAsync(ctx, inner, ct);
         }
 
-        return next();
+        return next(ctx.Headers, ct);
     }
 }

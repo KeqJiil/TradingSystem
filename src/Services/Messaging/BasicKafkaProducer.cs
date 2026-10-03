@@ -1,5 +1,6 @@
 using Confluent.Kafka;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Messaging;
 
@@ -12,9 +13,9 @@ internal class BasicKafkaProducer : IDisposable
     private readonly Lock _gate = new();
     private bool _disposed;
 
-    public BasicKafkaProducer(MessagingOptions options, ILogger<BasicKafkaProducer> logger)
+    public BasicKafkaProducer(IOptions<MessagingOptions> options, ILogger<BasicKafkaProducer> logger)
     {
-        _options = options;
+        _options = options.Value;
         _logger = logger;
         _producer = CreateProducer();
     }
@@ -41,20 +42,19 @@ internal class BasicKafkaProducer : IDisposable
             producer = _producer;
         }
 
+        var tcs = new TaskCompletionSource<ProduceResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            await producer.ProduceAsync(topic, message, ct);
-            return new ProduceResult(true);
+            producer.Produce(topic, message, r =>
+                tcs.TrySetResult(r.Error.IsError ? new ProduceResult(false, r.Error) : new ProduceResult(true)));
+            var result = await tcs.Task.WaitAsync(ct);
+            if (result.Error is { IsFatal: true }) Replace(producer);
+            return result;
         }
         catch (ProduceException<string, byte[]> ex)
         {
-            if (ex.Error.IsFatal)
-            {
-                _logger.LogCritical(ex, "Kafka producer hit a fatal error while publishing to {Topic}, recreating it",
-                    topic);
-                Replace(producer);
-            }
-
+            _logger.LogError(ex, "Failed to publish message to {Topic}: {Error}", topic, ex.Error.Reason);
+            if (ex.Error.IsFatal) Replace(producer);
             return new ProduceResult(false, ex.Error);
         }
         catch (OperationCanceledException)

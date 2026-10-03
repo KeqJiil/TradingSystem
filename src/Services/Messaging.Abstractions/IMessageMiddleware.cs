@@ -1,6 +1,6 @@
 namespace Messaging.Abstractions;
 
-public delegate Task PublishDelegate();
+public delegate Task<PublishOutcome> PublishDelegate(Dictionary<string, string> headers, CancellationToken cancellationToken);
 
 public interface IMessagePublishMiddleware
 {
@@ -10,8 +10,8 @@ public interface IMessagePublishMiddleware
     /// <param name="context">Message Context after Serialization</param>
     /// <param name="next">Function to invoke the next middleware in the pipeline</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns></returns>
-    Task OnPublishAsync<TMessage>(PublishContext<TMessage> context, PublishDelegate next, CancellationToken cancellationToken);
+    /// <returns>The outcome of the publish operation</returns>
+    PublishDelegate OnPublishAsync<TMessage>(PublishContext<TMessage> context, PublishDelegate next, CancellationToken cancellationToken);
 }
 
 public delegate Task<ConsumeOutcome> DeliveryDelegate();

@@ -25,7 +25,7 @@ internal class KafkaTopicRegister(
         {
             await adminClient.CreateTopicsAsync(topicList);
 
-            logger.LogInformation("Topics {Topic} created successfully", topicList);
+            logger.LogInformation("Topics {Topic} created successfully", string.Join(", ", topicList.Select(t => t.Name)));
         }
         catch (CreateTopicsException e) when (e.Results.Any(r => r.Error.Code == ErrorCode.TopicAlreadyExists))
         {

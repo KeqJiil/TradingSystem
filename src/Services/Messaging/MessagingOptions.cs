@@ -30,6 +30,8 @@ public class MessagingOptions
     public string BootstrapServers { get; set; } = string.Empty;
 
     public string ProducerClientId { get; set; } = string.Empty;
+    
+    public bool EnableTopicRegistration { get; set; } = true;
 }
 
 public record struct TopicData(string Name, short ReplicationFactor, int NumPartitions);

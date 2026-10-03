@@ -8,4 +8,4 @@ public interface IMessagePublisher
 
 public record struct PublishOutcome(bool IsSuccessful, string? ErrorMessage = null);
 
-public record struct PublishOptions(string KeyId, string? Topic = null, IDictionary<string, string>? Headers = null);
+public record struct PublishOptions(string KeyId, string Topic, Dictionary<string, string> Headers);

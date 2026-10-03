@@ -1,7 +1,9 @@
+using Confluent.Kafka;
 using Messaging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Messaging;
 
@@ -11,6 +13,11 @@ public static class MessagingBuilderExtension
         Action<MessagingOptions> configureOptions)
     {
         var registry = new MessagingRegistry();
+        
+        builder.AddSingleton<IAdminClient>(sp =>
+            new AdminClientBuilder(new AdminClientConfig { BootstrapServers = sp.GetRequiredService<IOptions<MessagingOptions>>().Value.BootstrapServers }).Build());
+        builder.AddSingleton<KafkaTopicRegister>();
+        builder.AddHostedService<TopicRegistrationService>();
 
         builder.AddSingleton(registry);
 
@@ -19,30 +26,41 @@ public static class MessagingBuilderExtension
 
         var options = new MessagingOptions();
         configureOptions(options);
-        
-        builder.AddSingleton(options);
-        foreach (var (topic, group) in registry.Consumers.Keys)
+
+        builder.AddOptions<MessagingOptions>().Configure(o =>
         {
-            builder.AddSingleton<IHostedService>(sp => new BasicKafkaConsumer(
-                sp, registry, options,
-                sp.GetRequiredService<ILogger<BasicKafkaConsumer>>(),
-                clientId: $"{options.ProducerClientId}-{group}-{topic}",
-                groupId: group,
-                topic: topic));
-        }
-        
+            o.UseAutoCommit = options.UseAutoCommit;
+            o.AutoCommitIntervalMs = options.AutoCommitIntervalMs;
+            o.ConnectionString = options.ConnectionString;
+            o.ProducerIdempotency = options.ProducerIdempotency;
+            o.Topics = options.Topics;
+            o.BootstrapServers = options.BootstrapServers;
+            o.ProducerClientId = options.ProducerClientId;
+            o.EnableTopicRegistration = options.EnableTopicRegistration;
+        });
+
+        builder.AddSingleton<IPublishTerminal, DefaultPublishTerminal>();
+        builder.AddScoped<IMessagePublisher, MessagingPublisher>();
 
         builder.AddSingleton<BasicKafkaProducer>();
 
-        result.Messages.ForEach(c => registry.Messages.Add(c.MessageType.ToString(), (c.Topic, c.Serializer)));
+        result.Messages.ForEach(c => registry.Messages.Add(c.MessageType, (c.Topic, c.Serializer)));
         result.Consumers.ForEach(c =>
         {
             registry.Consumers.TryAdd((c.Options.Topic, c.Options.ConsumerGroup),
                 new Dictionary<string, ConsumerBinding>());
-            var serializer = registry.Messages[c.MessageType.ToString()].Serializer;
-            registry.Consumers[(c.Options.Topic, c.Options.ConsumerGroup)].Add(c.MessageType.ToString(),
+            var serializer = registry.Messages[c.MessageType].Serializer;
+            registry.Consumers[(c.Options.Topic, c.Options.ConsumerGroup)].Add(c.MessageType.Name,
                 new ConsumerBinding(c.Options, c.Bind.Invoke(serializer)));
         });
+
+        foreach (var (topic, group) in registry.Consumers.Keys)
+            builder.AddSingleton<IHostedService>(sp => new BasicKafkaConsumer(
+                sp, registry, options,
+                sp.GetRequiredService<ILogger<BasicKafkaConsumer>>(),
+                $"{options.ProducerClientId}-{group}-{topic}",
+                group,
+                topic));
     }
 }
 
@@ -66,7 +84,10 @@ public class MessagingBuilder(IServiceCollection sc) : IMessagingBuilder
                     return Task.FromResult(new ConsumeOutcome(MessageConsumeResult.DeadLetter, result.Error));
 
                 var context = new DeliveryContext<TMessage>(payload.Topic, payload.ConsumerGroup, payload.Partition,
-                    payload.Offset, payload.Headers.TryGetValue(MessagingHeaders.MessageId, out var messageId) ? messageId : string.Empty,
+                    payload.Offset,
+                    payload.Headers.TryGetValue(MessagingHeaders.MessageId, out var messageId)
+                        ? messageId
+                        : string.Empty,
                     payload.MessageType,
                     result.Message, payload.Timestamp, payload.Headers
                 );
@@ -74,6 +95,12 @@ public class MessagingBuilder(IServiceCollection sc) : IMessagingBuilder
                     () => sp.GetRequiredService<TConsumer>().ConsumeAsync(result.Message, ct), ct);
             }));
         sc.AddScoped<TConsumer>();
+        return this;
+    }
+    
+    public IMessagingBuilder AddProducer<TProducer>() where TProducer : class, IMessagePublisher
+    {
+        sc.AddScoped<IMessagePublisher, TProducer>();
         return this;
     }
 

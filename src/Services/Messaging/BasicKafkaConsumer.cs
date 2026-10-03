@@ -51,7 +51,7 @@ internal class BasicKafkaConsumer(IServiceProvider sp, MessagingRegistry registr
             EnableAutoCommit = options.UseAutoCommit,
             EnableAutoOffsetStore = false,
             ClientId = clientId,
-            AutoCommitIntervalMs = 1000
+            AutoCommitIntervalMs = options.AutoCommitIntervalMs
         };
         
         var builder = new ConsumerBuilder<string, byte[]>(config)
