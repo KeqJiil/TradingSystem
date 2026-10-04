@@ -138,15 +138,40 @@ public class DeliveryPipelineMatrixTests
 
     [Fact(Skip =
         "Probe captures context. Assert Message, Topic, ConsumerGroup, Partition, Offset, MessageId equal the input.")]
-    public Task RunDelivery_MiddlewaresReceiveTypedMessageAndContext()
+    public void RunDelivery_MiddlewaresReceiveTypedMessageAndContext()
     {
-        return Task.CompletedTask;
     }
 
-    [Fact(Skip = "Resolve pipeline in two scopes. Assert middleware instances differ between scopes.")]
-    public Task RunDelivery_ScopedMiddleware_NewInstancePerScope()
+    [Fact]
+    public async Task RunDelivery_ScopedMiddleware_NewInstancePerScope()
     {
-        return Task.CompletedTask;
+        var services = new ServiceCollection();
+        services.AddScoped<OutcomeLog>();
+        new MessagingBuilder(services)
+            .AddDeliveryMiddleware<OutcomeCaptureMiddleware>();
+
+        await using var provider = services.BuildServiceProvider();
+        await using var scope1 = provider.CreateAsyncScope();
+        await using var scope2 = provider.CreateAsyncScope();
+
+        var outcome1 = scope1.ServiceProvider.GetRequiredService<OutcomeLog>();
+        var outcome2 = scope2.ServiceProvider.GetRequiredService<OutcomeLog>();
+
+        var context = CreateContext();
+
+        var outcomeTask1 = MessagingPipeline.RunDelivery(context, scope1.ServiceProvider,
+            () => { return Task.FromResult(new ConsumeOutcome(MessageConsumeResult.Success)); },
+            CancellationToken.None);
+
+        var outcomeTask2 = MessagingPipeline.RunDelivery(context, scope2.ServiceProvider,
+            () => { return Task.FromResult(new ConsumeOutcome(MessageConsumeResult.Success)); },
+            CancellationToken.None);
+
+        await outcomeTask1;
+        await outcomeTask2;
+
+        Assert.NotSame(outcome1, outcome2);
+        Assert.Equal(outcome1.Seen, outcome2.Seen);
     }
 
     [Fact(Skip =

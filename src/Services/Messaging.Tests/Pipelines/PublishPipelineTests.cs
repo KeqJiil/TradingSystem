@@ -1,3 +1,7 @@
+using Messaging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Messaging.Tests.Pipelines;
@@ -34,9 +38,22 @@ public class PublishPipelineTests
         return Task.CompletedTask;
     }
 
-    [Fact(Skip = "Two scopes. Assert different middleware instances.")]
-    public Task RunPublish_ScopedMiddleware_NewInstancePerScope()
+    [Fact]
+    public void RunPublish_ScopedMiddleware_NewInstancePerScope()
     {
-        return Task.CompletedTask;
+        var services = new ServiceCollection();
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddMessaging(
+            builder => { builder.AddPublishMiddleware<EmptyMiddleware>(); },
+            options => { options.BootstrapServers = "localhost:9092"; });
+
+        var provider = services.BuildServiceProvider();
+        var scope1 = provider.CreateScope();
+        var scope2 = provider.CreateScope();
+
+        var publisher1 = scope1.ServiceProvider.GetRequiredService<IMessagePublisher>();
+        var publisher2 = scope2.ServiceProvider.GetRequiredService<IMessagePublisher>();
+
+        Assert.NotSame(publisher1, publisher2);
     }
 }

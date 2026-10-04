@@ -69,3 +69,12 @@ public sealed class ProbeA(TraceLog log) : ProbeMiddleware("A", log);
 public sealed class ProbeB(TraceLog log) : ProbeMiddleware("B", log);
 
 public sealed class ProbeC(TraceLog log) : ProbeMiddleware("C", log);
+
+public sealed class EmptyMiddleware : IMessagePublishMiddleware
+{
+    public PublishDelegate OnPublishAsync<TMessage>(PublishContext<TMessage> context,
+        PublishDelegate next, CancellationToken cancellationToken)
+    {
+        return next;
+    }
+}
