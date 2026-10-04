@@ -19,4 +19,8 @@
         <ProjectReference Include="..\Messaging.Abstractions\Messaging.Abstractions.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="Messaging.Tests"/>
+    </ItemGroup>
+
 </Project>
