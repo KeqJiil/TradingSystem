@@ -1,9 +1,6 @@
-using Messaging.Abstractions;
-using Xunit;
+namespace Messaging.Tests.Publisher;
 
-namespace Messaging.Tests.TestSupport;
-
-public class HarnessSanityTests
+public class PublisherHarnessTests
 {
     [Fact]
     public async Task Publish_ReachesRecordingTerminalWithTopicKeyAndPayload()

@@ -1,36 +1,12 @@
-using Messaging.Abstractions;
 using Messaging.Serializers;
-using Messaging.Tests.Pipelines;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Messaging.Tests.Registry;
 
 public class RegistrationValidationTests
 {
-    private sealed class TestMessageHandler : IMessageConsumer<TestMessage>
-    {
-        public Task<ConsumeOutcome> ConsumeAsync(TestMessage message, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(new ConsumeOutcome(MessageConsumeResult.Success));
-        }
-    }
-
-    private sealed class TestMessageHandler2 : IMessageConsumer<TestMessage2>
-    {
-        public Task<ConsumeOutcome> ConsumeAsync(TestMessage2 message, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(new ConsumeOutcome(MessageConsumeResult.Success));
-        }
-    }
-
-    private record TestMessage(string Value);
-
-    private record TestMessage2(string Value);
-
     [Fact]
     public void AddMessage_RegistersTopicAndSerializerByType()
     {
@@ -145,7 +121,7 @@ public class RegistrationValidationTests
             b => b.AddMessage<TestMessage>("topic", new JsonDefaultSerializer())
                 .AddConsumer<TestMessage, TestMessageHandler>(new ConsumerOptions("topic", "group")),
             o => o.BootstrapServers = "localhost:9092"
-            );
+        );
 
         var hosted = services.Where(d => d.ServiceType == typeof(IHostedService)).ToList();
 

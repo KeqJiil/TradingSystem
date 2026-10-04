@@ -1,0 +1,9 @@
+global using Messaging.Abstractions;
+global using Messaging.Tests.TestSupport;
+global using Messaging.Tests.TestSupport.Consumers;
+global using Messaging.Tests.TestSupport.Delivery;
+global using Messaging.Tests.TestSupport.Dispatch;
+global using Messaging.Tests.TestSupport.Messages;
+global using Messaging.Tests.TestSupport.Publish;
+global using Microsoft.Extensions.DependencyInjection;
+global using Xunit;

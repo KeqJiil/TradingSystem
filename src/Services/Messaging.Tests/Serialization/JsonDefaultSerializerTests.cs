@@ -1,5 +1,4 @@
 using Messaging.Serializers;
-using Xunit;
 
 namespace Messaging.Tests.Serialization;
 

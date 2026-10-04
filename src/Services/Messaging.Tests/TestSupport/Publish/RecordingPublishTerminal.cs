@@ -1,8 +1,4 @@
-using Messaging.Abstractions;
-
-namespace Messaging.Tests.TestSupport;
-
-public sealed record SampleMessage(string Name, int Value);
+namespace Messaging.Tests.TestSupport.Publish;
 
 public sealed record PublishCall(
     string Topic,

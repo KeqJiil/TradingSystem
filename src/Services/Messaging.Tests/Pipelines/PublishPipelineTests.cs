@@ -1,41 +1,102 @@
-using Messaging.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Messaging.Tests.Pipelines;
 
 public class PublishPipelineTests
 {
-    [Fact(Skip = "Fake terminal records args. Assert topic, key, messageId, payload and headers equal the context.")]
+    private static ServiceProvider BuildProvider(Action<MessagingBuilder>? configure = null, TraceLog? log = null,
+        PublishOutcomeLog? outcomes = null)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(log ?? new TraceLog());
+        services.AddSingleton(outcomes ?? new PublishOutcomeLog());
+        configure?.Invoke(new MessagingBuilder(services));
+        return services.BuildServiceProvider();
+    }
+
+    [Fact]
     public async Task RunPublish_WithoutMiddlewares_CallsTerminalWithContextValues()
     {
+        using var provider = BuildProvider();
+        using var scope = provider.CreateScope();
+        var terminal = new RecordingPublishTerminal();
+        var context = PublishContexts.Sample(new Dictionary<string, string> { ["x"] = "y" });
+
+        var outcome = await MessagingPublishPipeline.RunPublish(context, scope.ServiceProvider, terminal,
+            CancellationToken.None);
+
+        Assert.True(outcome.IsSuccessful);
+        var call = Assert.Single(terminal.Calls);
+        Assert.Equal(context.Topic, call.Topic);
+        Assert.Equal(context.KeyId, call.Key);
+        Assert.Equal(context.MessageId, call.MessageId);
+        Assert.Equal(context.Message, call.Payload);
+        Assert.Equal("y", call.Headers["x"]);
     }
 
-    [Fact(Skip = "A, B, C publish probes. Assert before in registration order, terminal, after in reverse.")]
-    public Task RunPublish_RunsMiddlewaresOutsideInAroundTerminal()
+    [Fact]
+    public async Task RunPublish_RunsMiddlewaresOutsideInAroundTerminal()
     {
-        return Task.CompletedTask;
+        var log = new TraceLog();
+        using var provider = BuildProvider(b => b
+            .AddPublishMiddleware<PublishProbeA>()
+            .AddPublishMiddleware<PublishProbeB>()
+            .AddPublishMiddleware<PublishProbeC>(), log);
+        using var scope = provider.CreateScope();
+        var terminal = new RecordingPublishTerminal();
+
+        await MessagingPublishPipeline.RunPublish(PublishContexts.Sample(), scope.ServiceProvider, terminal,
+            CancellationToken.None);
+
+        Assert.Equal(["A:before", "B:before", "C:before", "C:after", "B:after", "A:after"], log.Entries);
+        Assert.Single(terminal.Calls);
     }
 
-    [Fact(Skip = "Middleware adds traceparent. Assert terminal receives it.")]
-    public Task RunPublish_MiddlewareChangesHeaders_ChangedHeadersReachTerminal()
+    [Fact]
+    public async Task RunPublish_MiddlewareChangesHeaders_ChangedHeadersReachTerminal()
     {
-        return Task.CompletedTask;
+        using var provider = BuildProvider(b => b.AddPublishMiddleware<HeaderStampPublishMiddleware>());
+        using var scope = provider.CreateScope();
+        var terminal = new RecordingPublishTerminal();
+
+        await MessagingPublishPipeline.RunPublish(PublishContexts.Sample(), scope.ServiceProvider, terminal,
+            CancellationToken.None);
+
+        var call = Assert.Single(terminal.Calls);
+        Assert.Equal(HeaderStampPublishMiddleware.HeaderValue, call.Headers[HeaderStampPublishMiddleware.HeaderName]);
     }
 
-    [Fact(Skip = "Middleware returns failed outcome without next. Assert terminal not called and outcome returned.")]
-    public Task RunPublish_MiddlewareShortCircuits_TerminalNotCalled()
+    [Fact]
+    public async Task RunPublish_MiddlewareShortCircuits_TerminalNotCalled()
     {
-        return Task.CompletedTask;
+        using var provider = BuildProvider(b => b.AddPublishMiddleware<ShortCircuitPublishMiddleware>());
+        using var scope = provider.CreateScope();
+        var terminal = new RecordingPublishTerminal();
+
+        var outcome = await MessagingPublishPipeline.RunPublish(PublishContexts.Sample(), scope.ServiceProvider,
+            terminal, CancellationToken.None);
+
+        Assert.False(outcome.IsSuccessful);
+        Assert.Equal(ShortCircuitPublishMiddleware.Error, outcome.ErrorMessage);
+        Assert.Empty(terminal.Calls);
     }
 
-    [Fact(Skip =
-        "Terminal returns failed outcome. Assert middlewares and caller see IsSuccessful false and the error message.")]
-    public Task RunPublish_TerminalFails_OutcomeFlowsThroughMiddlewares()
+    [Fact]
+    public async Task RunPublish_TerminalFails_OutcomeFlowsThroughMiddlewares()
     {
-        return Task.CompletedTask;
+        var outcomes = new PublishOutcomeLog();
+        await using var provider = BuildProvider(b => b.AddPublishMiddleware<OutcomeCapturePublishMiddleware>(),
+            outcomes: outcomes);
+        using var scope = provider.CreateScope();
+        var terminal = new RecordingPublishTerminal { Result = new PublishOutcome(false, "kafka down") };
+
+        var outcome = await MessagingPublishPipeline.RunPublish(PublishContexts.Sample(), scope.ServiceProvider,
+            terminal, CancellationToken.None);
+
+        Assert.False(outcome.IsSuccessful);
+        Assert.Equal("kafka down", outcome.ErrorMessage);
+        Assert.Equal(outcome, Assert.Single(outcomes.Seen));
     }
 
     [Fact]
@@ -44,7 +105,7 @@ public class PublishPipelineTests
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddMessaging(
-            builder => { builder.AddPublishMiddleware<EmptyMiddleware>(); },
+            builder => { builder.AddPublishMiddleware<EmptyPublishMiddleware>(); },
             options => { options.BootstrapServers = "localhost:9092"; });
 
         var provider = services.BuildServiceProvider();

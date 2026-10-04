@@ -1,13 +1,10 @@
-using Messaging.Abstractions;
 using Messaging.Serializers;
-using Messaging.Tests.TestSupport;
-using Xunit;
 
 namespace Messaging.Tests.Publisher;
 
 public class MessagingPublisherTests
 {
-    private record TestMessage(string Name, int Value);
+    private sealed record UnregisteredMessage(string Value);
 
     [Fact]
     public async Task PublishAsync_NullOptions_ReturnsFailedOutcome()
@@ -106,15 +103,15 @@ public class MessagingPublisherTests
         Assert.Equal("kafka down", outcome.ErrorMessage);
     }
 
-    [Fact(Skip = "Document current behavior for a type never passed to AddMessage.")]
-    public async Task PublishAsync_UnregisteredMessageType_Behavior()
+    [Fact]
+    public async Task PublishAsync_UnregisteredMessageType_ThrowsWithoutCallingTerminal()
     {
-        await Task.CompletedTask;
-    }
+        using var harness = new PublisherHarness();
 
-    [Fact(Skip = "Serializer returns failure. Document current behavior (outcome or exception).")]
-    public Task PublishAsync_SerializationFails_Behavior()
-    {
-        return Task.CompletedTask;
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.PublishAsync(new UnregisteredMessage("x"), PublisherHarness.DefaultOptions()));
+
+        Assert.Contains(nameof(UnregisteredMessage), exception.Message);
+        Assert.Empty(harness.Terminal.Calls);
     }
 }

@@ -1,13 +1,17 @@
-using Confluent.Kafka;
 using Messaging.Abstractions;
 
 namespace Messaging;
 
-internal class MessagingPublisher(IServiceProvider sp, IPublishTerminal publishTerminal) : IMessagePublisher
+internal class MessagingPublisher(IServiceProvider sp, IPublishTerminal publishTerminal, MessagingRegistry registry)
+    : IMessagePublisher
 {
     public Task<PublishOutcome> PublishAsync<TMessage>(TMessage message, PublishOptions? options,
         CancellationToken cancellationToken)
     {
+        if (!registry.Messages.ContainsKey(typeof(TMessage)))
+            throw new InvalidOperationException(
+                $"Message type {typeof(TMessage).Name} is not registered. Call AddMessage<{typeof(TMessage).Name}> first.");
+
         if (options is null) return Task.FromResult(new PublishOutcome(false, "PublishOptions cannot be null"));
 
         var context = new PublishContext<TMessage>(

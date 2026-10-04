@@ -1,12 +1,9 @@
-using Messaging.Abstractions;
 using Messaging.Serializers;
-using Messaging.Tests.Pipelines;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Messaging.Tests.TestSupport;
+namespace Messaging.Tests.TestSupport.Publish;
 
 public sealed class PublisherHarness : IDisposable
 {
@@ -24,8 +21,11 @@ public sealed class PublisherHarness : IDisposable
 
     public ServiceProvider Provider { get; }
 
-    public PublisherHarness(Action<MessagingBuilder>? configure = null)
+    public IMessageSerializer Serializer { get; set; }
+
+    public PublisherHarness(Action<MessagingBuilder>? configure = null, IMessageSerializer? serializer = null)
     {
+        Serializer = serializer ?? new JsonDefaultSerializer();
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddSingleton(Log);
@@ -36,7 +36,7 @@ public sealed class PublisherHarness : IDisposable
         services.AddMessaging(
             builder =>
             {
-                builder.AddMessage<SampleMessage>(Topic, new JsonDefaultSerializer());
+                builder.AddMessage<SampleMessage>(Topic, Serializer);
                 configure?.Invoke(builder);
             },
             options => options.BootstrapServers = "localhost:9092");
@@ -51,7 +51,7 @@ public sealed class PublisherHarness : IDisposable
         return Provider.CreateScope();
     }
 
-    public async Task<PublishOutcome> PublishAsync(SampleMessage message, PublishOptions? options)
+    public async Task<PublishOutcome> PublishAsync<TMessage>(TMessage message, PublishOptions? options)
     {
         using var scope = CreateScope();
         var publisher = scope.ServiceProvider.GetRequiredService<IMessagePublisher>();
@@ -66,15 +66,5 @@ public sealed class PublisherHarness : IDisposable
     public void Dispose()
     {
         Provider.Dispose();
-    }
-}
-
-public static class PublishContexts
-{
-    public static PublishContext<SampleMessage> Sample(Dictionary<string, string>? headers = null)
-    {
-        return new PublishContext<SampleMessage>(
-            PublisherHarness.Topic, "key", "message-id", nameof(SampleMessage),
-            new SampleMessage("name", 1), headers ?? new Dictionary<string, string>());
     }
 }
