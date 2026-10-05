@@ -120,6 +120,19 @@ internal class BasicKafkaConsumer : BackgroundService
                     StoreOffset(consumeMessage.TopicPartitionOffset);
                     break;
                 case MessageConsumeResult.Retry:
+                    var attempt = RegisterFailure(consumeMessage.TopicPartitionOffset);
+                    if (attempt < _options.MaxAttempts)
+                    {
+                        _logger.LogWarning(
+                            "Failed to process a message from {Topic} at {Offset}, attempt {Attempt}/{MaxAttempts}, retrying after {RetryDelay}",
+                            consumeMessage.Topic, consumeMessage.Offset.Value, attempt, _options.MaxAttempts,
+                            _options.RetryDelay);
+                        
+                        Seek(consumeMessage.TopicPartitionOffset);
+                        await Task.Delay(_options.RetryDelay, stoppingToken);
+                    }
+                    else
+                        await ParkAsync(consumeMessage, rawMessage, DlqReasons.Exhausted, result.Reason, attempt, stoppingToken);
                     break;
                 case MessageConsumeResult.DeadLetter:
                     await ParkAsync(consumeMessage, rawMessage, DlqReasons.DeadLetter, result.Reason,
@@ -198,6 +211,18 @@ internal class BasicKafkaConsumer : BackgroundService
         {
             _logger.LogWarning(ex, "Failed to seek an offset for {Topic}", _topic);
         }
+    }
+    
+    private int RegisterFailure(TopicPartitionOffset offset)
+    {
+        if (_failingOffset is not null && _failingOffset.Equals(offset))
+            _failedAttempts++;
+        else
+        {
+            _failingOffset = offset;
+            _failedAttempts = 1;
+        }
+        return _failedAttempts;
     }
 
     private IConsumer<string, byte[]> ConfigureConsumer()

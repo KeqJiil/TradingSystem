@@ -32,6 +32,16 @@ public class MessagingOptions
     public string ProducerClientId { get; set; } = string.Empty;
     
     public bool EnableTopicRegistration { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the maximum number of delivery attempts before a message is moved to the DLQ.
+    /// </summary>
+    public int MaxAttempts { get; set; } = 5;
+
+    /// <summary>
+    /// Gets or sets the pause before a failed message is read again.
+    /// </summary>
+    public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
 }
 
 public record struct TopicData(string Name, short ReplicationFactor, int NumPartitions);

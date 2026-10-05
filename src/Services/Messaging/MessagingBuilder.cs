@@ -42,6 +42,8 @@ public static class MessagingBuilderExtension
             o.BootstrapServers = options.BootstrapServers;
             o.ProducerClientId = options.ProducerClientId;
             o.EnableTopicRegistration = options.EnableTopicRegistration;
+            o.MaxAttempts = options.MaxAttempts;
+            o.RetryDelay = options.RetryDelay;
         });
 
         builder.AddSingleton<IPublishTerminal, DefaultPublishTerminal>();
