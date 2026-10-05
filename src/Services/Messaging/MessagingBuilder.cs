@@ -1,5 +1,6 @@
 using Confluent.Kafka;
 using Messaging.Abstractions;
+using Messaging.Dlq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -47,6 +48,7 @@ public static class MessagingBuilderExtension
         builder.AddScoped<IMessagePublisher, MessagingPublisher>();
 
         builder.AddSingleton<BasicKafkaProducer>();
+        builder.AddSingleton<IDeadLetterPublisher, DlqKafkaProducer>();
 
         result.Messages.ForEach(c => registry.Messages.Add(c.MessageType, (c.Topic, c.Serializer)));
         result.Consumers.ForEach(c =>
@@ -62,6 +64,7 @@ public static class MessagingBuilderExtension
             builder.AddSingleton<IHostedService>(sp => new BasicKafkaConsumer(
                 sp, registry, options,
                 sp.GetRequiredService<ILogger<BasicKafkaConsumer>>(),
+                sp.GetRequiredService<IDeadLetterPublisher>(),
                 $"{options.ProducerClientId}-{group}-{topic}",
                 group,
                 topic));

@@ -1,6 +1,7 @@
 using System.Text;
 using Confluent.Kafka;
 using Messaging.Abstractions;
+using Messaging.Dlq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -17,18 +18,21 @@ internal class BasicKafkaConsumer : BackgroundService
     private readonly MessagingRegistry _registry;
     private readonly MessagingOptions _options;
     private readonly ILogger<BasicKafkaConsumer> _logger;
+    private readonly IDeadLetterPublisher _deadLetter;
 
     private readonly string _clientId;
     private readonly string _groupId;
     private readonly string _topic;
 
     public BasicKafkaConsumer(IServiceProvider sp, MessagingRegistry registry, MessagingOptions options,
-        ILogger<BasicKafkaConsumer> logger, string clientId, string groupId, string topic)
+        ILogger<BasicKafkaConsumer> logger, IDeadLetterPublisher deadLetter, string clientId, string groupId,
+        string topic)
     {
         _sp = sp;
         _registry = registry;
         _options = options;
         _logger = logger;
+        _deadLetter = deadLetter;
         _clientId = clientId;
         _groupId = groupId;
         _topic = topic;
@@ -37,6 +41,8 @@ internal class BasicKafkaConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await Task.Yield();
+
         while (!stoppingToken.IsCancellationRequested)
         {
             ConsumeResult<string, byte[]> consumeMessage;
@@ -62,6 +68,17 @@ internal class BasicKafkaConsumer : BackgroundService
                 continue;
             }
 
+            if (consumeMessage.Message.Value is null)
+            {
+                _logger.LogWarning("Received a message without payload from {Topic} at {Offset}, skipping",
+                    consumeMessage.Topic, consumeMessage.Offset.Value);
+                await ParkAsync(consumeMessage, new RawMessage([], consumeMessage.Topic, _groupId,
+                    "Unknown", consumeMessage.Offset.Value, consumeMessage.Partition.Value,
+                    consumeMessage.Message.Timestamp.UtcDateTime, new Dictionary<string, string>()), DlqReasons.UnknownType,
+                    "Missing payload", 0, stoppingToken);
+                continue;
+            }
+
             using var scope = _sp.CreateScope();
 
             var headers = new Dictionary<string, string>();
@@ -70,29 +87,28 @@ internal class BasicKafkaConsumer : BackgroundService
 
             headers.TryGetValue(MessagingHeaders.EventType, out var messageType);
 
+            var rawMessage = new RawMessage(
+                consumeMessage.Message.Value, consumeMessage.Topic, _groupId, messageType ?? "Unknown",
+                consumeMessage.Offset.Value, consumeMessage.Partition.Value,
+                consumeMessage.Message.Timestamp.UtcDateTime, headers, consumeMessage.Message.Key);
+
             if (messageType is null)
             {
-                _logger.LogWarning("Received message without {EventTypeHeader} header, skipping",
+                _logger.LogWarning("Received message without {EventTypeHeader} header, moving it to the DLQ",
                     MessagingHeaders.EventType);
-                MovePoisonedMessage(new RawMessage(consumeMessage.Message.Value, consumeMessage.Topic, _groupId,
-                    "Unknown", consumeMessage.Offset.Value,
-                    consumeMessage.Partition.Value, consumeMessage.Message.Timestamp.UtcDateTime, headers));
-                StoreOffset(consumeMessage.TopicPartitionOffset);
+                await ParkAsync(consumeMessage, rawMessage, DlqReasons.UnknownType,
+                    $"Missing {MessagingHeaders.EventType} header", 0, stoppingToken);
                 continue;
             }
-
-            var rawMessage = new RawMessage(
-                consumeMessage.Message.Value, consumeMessage.Topic, _groupId, messageType, consumeMessage.Offset.Value,
-                consumeMessage.Partition.Value, consumeMessage.Message.Timestamp.UtcDateTime, headers);
 
             if (!_registry.Consumers.TryGetValue((consumeMessage.Topic, _groupId), out var bindings)
                 || !bindings.TryGetValue(messageType, out var consumerBinding))
             {
                 _logger.LogWarning(
-                    "No consumer registered for message type {MessageType} from topic {Topic} in group {Group}, skipping",
+                    "No consumer registered for message type {MessageType} from topic {Topic} in group {Group}, moving it to the DLQ",
                     messageType, consumeMessage.Topic, _groupId);
-                MovePoisonedMessage(rawMessage);
-                StoreOffset(consumeMessage.TopicPartitionOffset);
+                await ParkAsync(consumeMessage, rawMessage, DlqReasons.UnknownType,
+                    $"No consumer registered for message type {messageType}", 0, stoppingToken);
                 continue;
             }
 
@@ -106,7 +122,8 @@ internal class BasicKafkaConsumer : BackgroundService
                 case MessageConsumeResult.Retry:
                     break;
                 case MessageConsumeResult.DeadLetter:
-                    MoveToDeadLetterQueue(rawMessage);
+                    await ParkAsync(consumeMessage, rawMessage, DlqReasons.DeadLetter, result.Reason,
+                        _failedAttempts, stoppingToken);
                     break;
             }
         }
@@ -119,14 +136,22 @@ internal class BasicKafkaConsumer : BackgroundService
         GC.SuppressFinalize(this);
     }
 
-    private void MoveToDeadLetterQueue(RawMessage message)
+    private async Task ParkAsync(ConsumeResult<string, byte[]> consumed, RawMessage raw, string reason,
+        string? details, int attempt, CancellationToken ct)
     {
-        throw new NotImplementedException();
-    }
+        var parked = await _deadLetter.PublishAsync(raw, reason, details, attempt, ct);
 
-    private void MovePoisonedMessage(RawMessage message)
-    {
-        throw new NotImplementedException();
+        if (parked)
+        {
+            StoreOffset(consumed.TopicPartitionOffset);
+            return;
+        }
+
+        _logger.LogError(
+            "Failed to publish a message from {Topic} at {Offset} to the DLQ, it will be read again",
+            consumed.Topic, consumed.Offset.Value);
+        Seek(consumed.TopicPartitionOffset);
+        await Task.Delay(TimeSpan.FromSeconds(5), ct);
     }
 
     private void CloseConsumer()
@@ -209,4 +234,5 @@ internal record RawMessage(
     long Offset,
     int Partition,
     DateTimeOffset Timestamp,
-    Dictionary<string, string> Headers);
+    Dictionary<string, string> Headers,
+    string? Key = null);

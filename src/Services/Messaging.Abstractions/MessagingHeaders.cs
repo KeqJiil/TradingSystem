@@ -12,6 +12,7 @@ public static class MessagingHeaders
     public const string Attempt = "attempt";
     public const string FirstFailureAt = "first-failure-at";
     public const string OriginalTopic = "original-topic";
+    public const string DlqReason = "dlq-reason";
 
     public const string ExceptionType = "exception-type";
     public const string ExceptionMessage = "exception-message";
