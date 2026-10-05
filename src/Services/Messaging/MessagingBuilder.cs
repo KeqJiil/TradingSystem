@@ -13,9 +13,13 @@ public static class MessagingBuilderExtension
         Action<MessagingOptions> configureOptions)
     {
         var registry = new MessagingRegistry();
-        
+
+        builder.AddSingleton<IExceptionToOutcome, BasicExceptionToOutcome>();
+
         builder.AddSingleton<IAdminClient>(sp =>
-            new AdminClientBuilder(new AdminClientConfig { BootstrapServers = sp.GetRequiredService<IOptions<MessagingOptions>>().Value.BootstrapServers }).Build());
+            new AdminClientBuilder(new AdminClientConfig
+                    { BootstrapServers = sp.GetRequiredService<IOptions<MessagingOptions>>().Value.BootstrapServers })
+                .Build());
         builder.AddSingleton<KafkaTopicRegister>();
         builder.AddHostedService<TopicRegistrationService>();
 
@@ -97,7 +101,7 @@ public class MessagingBuilder(IServiceCollection sc) : IMessagingBuilder
         sc.AddScoped<TConsumer>();
         return this;
     }
-    
+
     public IMessagingBuilder AddProducer<TProducer>() where TProducer : class, IMessagePublisher
     {
         sc.AddScoped<IMessagePublisher, TProducer>();
