@@ -8,40 +8,19 @@ using Microsoft.Extensions.Logging;
 
 namespace Messaging;
 
-internal class BasicKafkaConsumer : BackgroundService
+internal class BasicKafkaConsumer(IServiceProvider sp, MessagingRegistry registry, MessagingOptions options,
+    ILogger<BasicKafkaConsumer> logger, IDeadLetterPublisher deadLetter, string clientId, string groupId,
+    string topic) : BackgroundService
 {
-    private IConsumer<string, byte[]> _kafkaConsumer;
+    private IConsumer<string, byte[]>? _kafkaConsumer;
     private TopicPartitionOffset? _failingOffset;
     private int _failedAttempts;
-
-    private readonly IServiceProvider _sp;
-    private readonly MessagingRegistry _registry;
-    private readonly MessagingOptions _options;
-    private readonly ILogger<BasicKafkaConsumer> _logger;
-    private readonly IDeadLetterPublisher _deadLetter;
-
-    private readonly string _clientId;
-    private readonly string _groupId;
-    private readonly string _topic;
-
-    public BasicKafkaConsumer(IServiceProvider sp, MessagingRegistry registry, MessagingOptions options,
-        ILogger<BasicKafkaConsumer> logger, IDeadLetterPublisher deadLetter, string clientId, string groupId,
-        string topic)
-    {
-        _sp = sp;
-        _registry = registry;
-        _options = options;
-        _logger = logger;
-        _deadLetter = deadLetter;
-        _clientId = clientId;
-        _groupId = groupId;
-        _topic = topic;
-        _kafkaConsumer = ConfigureConsumer();
-    }
-
+    
+    
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Yield();
+        _kafkaConsumer ??= ConfigureConsumer();
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -59,27 +38,27 @@ internal class BasicKafkaConsumer : BackgroundService
             {
                 if (ex.Error.IsFatal)
                 {
-                    _logger.LogCritical(ex, "Fatal error while consuming a message from {Topic}", _topic);
+                    logger.LogCritical(ex, "Fatal error while consuming a message from {Topic}", topic);
                     throw;
                 }
 
-                _logger.LogError(ex, "Failed to consume a message from {Topic}", _topic);
+                logger.LogError(ex, "Failed to consume a message from {Topic}", topic);
                 await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
                 continue;
             }
 
             if (consumeMessage.Message.Value is null)
             {
-                _logger.LogWarning("Received a message without payload from {Topic} at {Offset}, skipping",
+                logger.LogWarning("Received a message without payload from {Topic} at {Offset}, skipping",
                     consumeMessage.Topic, consumeMessage.Offset.Value);
-                await ParkAsync(consumeMessage, new RawMessage([], consumeMessage.Topic, _groupId,
+                await ParkAsync(consumeMessage, new RawMessage([], consumeMessage.Topic, groupId,
                     "Unknown", consumeMessage.Offset.Value, consumeMessage.Partition.Value,
                     consumeMessage.Message.Timestamp.UtcDateTime, new Dictionary<string, string>()), DlqReasons.UnknownType,
                     "Missing payload", 0, stoppingToken);
                 continue;
             }
 
-            using var scope = _sp.CreateScope();
+            await using var scope = sp.CreateAsyncScope();
 
             var headers = new Dictionary<string, string>();
             foreach (var h in consumeMessage.Message.Headers)
@@ -88,25 +67,25 @@ internal class BasicKafkaConsumer : BackgroundService
             headers.TryGetValue(MessagingHeaders.EventType, out var messageType);
 
             var rawMessage = new RawMessage(
-                consumeMessage.Message.Value, consumeMessage.Topic, _groupId, messageType ?? "Unknown",
+                consumeMessage.Message.Value, consumeMessage.Topic, groupId, messageType ?? "Unknown",
                 consumeMessage.Offset.Value, consumeMessage.Partition.Value,
                 consumeMessage.Message.Timestamp.UtcDateTime, headers, consumeMessage.Message.Key);
 
             if (messageType is null)
             {
-                _logger.LogWarning("Received message without {EventTypeHeader} header, moving it to the DLQ",
+                logger.LogWarning("Received message without {EventTypeHeader} header, moving it to the DLQ",
                     MessagingHeaders.EventType);
                 await ParkAsync(consumeMessage, rawMessage, DlqReasons.UnknownType,
                     $"Missing {MessagingHeaders.EventType} header", 0, stoppingToken);
                 continue;
             }
 
-            if (!_registry.Consumers.TryGetValue((consumeMessage.Topic, _groupId), out var bindings)
+            if (!registry.Consumers.TryGetValue((consumeMessage.Topic, groupId), out var bindings)
                 || !bindings.TryGetValue(messageType, out var consumerBinding))
             {
-                _logger.LogWarning(
+                logger.LogWarning(
                     "No consumer registered for message type {MessageType} from topic {Topic} in group {Group}, moving it to the DLQ",
-                    messageType, consumeMessage.Topic, _groupId);
+                    messageType, consumeMessage.Topic, groupId);
                 await ParkAsync(consumeMessage, rawMessage, DlqReasons.UnknownType,
                     $"No consumer registered for message type {messageType}", 0, stoppingToken);
                 continue;
@@ -121,15 +100,15 @@ internal class BasicKafkaConsumer : BackgroundService
                     break;
                 case MessageConsumeResult.Retry:
                     var attempt = RegisterFailure(consumeMessage.TopicPartitionOffset);
-                    if (attempt < _options.MaxAttempts)
+                    if (attempt < options.MaxAttempts)
                     {
-                        _logger.LogWarning(
+                        logger.LogWarning(
                             "Failed to process a message from {Topic} at {Offset}, attempt {Attempt}/{MaxAttempts}, retrying after {RetryDelay}",
-                            consumeMessage.Topic, consumeMessage.Offset.Value, attempt, _options.MaxAttempts,
-                            _options.RetryDelay);
+                            consumeMessage.Topic, consumeMessage.Offset.Value, attempt, options.MaxAttempts,
+                            options.RetryDelay);
                         
                         Seek(consumeMessage.TopicPartitionOffset);
-                        await Task.Delay(_options.RetryDelay, stoppingToken);
+                        await Task.Delay(options.RetryDelay, stoppingToken);
                     }
                     else
                         await ParkAsync(consumeMessage, rawMessage, DlqReasons.Exhausted, result.Reason, attempt, stoppingToken);
@@ -149,10 +128,16 @@ internal class BasicKafkaConsumer : BackgroundService
         GC.SuppressFinalize(this);
     }
 
+    public override async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await base.StopAsync(cancellationToken);
+        CloseConsumer();
+    }
+
     private async Task ParkAsync(ConsumeResult<string, byte[]> consumed, RawMessage raw, string reason,
         string? details, int attempt, CancellationToken ct)
     {
-        var parked = await _deadLetter.PublishAsync(raw, reason, details, attempt, ct);
+        var parked = await deadLetter.PublishAsync(raw, reason, details, attempt, ct);
 
         if (parked)
         {
@@ -160,7 +145,7 @@ internal class BasicKafkaConsumer : BackgroundService
             return;
         }
 
-        _logger.LogError(
+        logger.LogError(
             "Failed to publish a message from {Topic} at {Offset} to the DLQ, it will be read again",
             consumed.Topic, consumed.Offset.Value);
         Seek(consumed.TopicPartitionOffset);
@@ -169,8 +154,8 @@ internal class BasicKafkaConsumer : BackgroundService
 
     private void CloseConsumer()
     {
-        if (_kafkaConsumer is null) return;
         var consumer = Interlocked.Exchange(ref _kafkaConsumer, null);
+        if (consumer is null) return;
 
         try
         {
@@ -178,7 +163,7 @@ internal class BasicKafkaConsumer : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to close the consumer for {Topic}", _topic);
+            logger.LogWarning(ex, "Failed to close the consumer for {Topic}", topic);
         }
         finally
         {
@@ -193,11 +178,11 @@ internal class BasicKafkaConsumer : BackgroundService
 
         try
         {
-            _kafkaConsumer.StoreOffset(new TopicPartitionOffset(handled.TopicPartition, handled.Offset + 1));
+            _kafkaConsumer?.StoreOffset(new TopicPartitionOffset(handled.TopicPartition, handled.Offset + 1));
         }
         catch (KafkaException ex)
         {
-            _logger.LogWarning(ex, "Failed to store an offset for {Topic}", _topic);
+            logger.LogWarning(ex, "Failed to store an offset for {Topic}", topic);
         }
     }
 
@@ -205,11 +190,11 @@ internal class BasicKafkaConsumer : BackgroundService
     {
         try
         {
-            _kafkaConsumer.Seek(offset);
+            _kafkaConsumer?.Seek(offset);
         }
         catch (KafkaException ex)
         {
-            _logger.LogWarning(ex, "Failed to seek an offset for {Topic}", _topic);
+            logger.LogWarning(ex, "Failed to seek an offset for {Topic}", topic);
         }
     }
     
@@ -229,23 +214,23 @@ internal class BasicKafkaConsumer : BackgroundService
     {
         var config = new ConsumerConfig
         {
-            BootstrapServers = _options.BootstrapServers,
-            GroupId = _groupId,
+            BootstrapServers = options.BootstrapServers,
+            GroupId = groupId,
             AutoOffsetReset = AutoOffsetReset.Earliest,
-            EnableAutoCommit = _options.UseAutoCommit,
+            EnableAutoCommit = options.UseAutoCommit,
             EnableAutoOffsetStore = false,
-            ClientId = _clientId,
-            AutoCommitIntervalMs = _options.AutoCommitIntervalMs
+            ClientId = clientId,
+            AutoCommitIntervalMs = options.AutoCommitIntervalMs
         };
 
         var builder = new ConsumerBuilder<string, byte[]>(config)
-            .SetErrorHandler((_, error) => KafkaClientLogging.LogError(_logger, _clientId, error))
-            .SetLogHandler((_, message) => KafkaClientLogging.LogMessage(_logger, message))
+            .SetErrorHandler((_, error) => KafkaClientLogging.LogError(logger, clientId, error))
+            .SetLogHandler((_, message) => KafkaClientLogging.LogMessage(logger, message))
             .SetOffsetsCommittedHandler((_, committed) =>
-                KafkaClientLogging.LogCommitted(_logger, _clientId, committed))
+                KafkaClientLogging.LogCommitted(logger, clientId, committed))
             .Build();
 
-        builder.Subscribe(_topic);
+        builder.Subscribe(topic);
 
         return builder;
     }

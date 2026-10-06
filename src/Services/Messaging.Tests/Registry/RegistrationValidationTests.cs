@@ -42,10 +42,27 @@ public class RegistrationValidationTests
     {
         var services = new ServiceCollection();
 
-        Assert.Throws<KeyNotFoundException>(() =>
+        var exception = Assert.Throws<InvalidOperationException>(() =>
             services.AddMessaging(
                 b => b.AddConsumer<TestMessage, TestMessageHandler>(new ConsumerOptions("topic", "group")),
                 o => o.BootstrapServers = "localhost:9092"));
+
+        Assert.Contains(nameof(TestMessage), exception.Message);
+    }
+
+    [Fact]
+    public void AddConsumer_BeforeAddMessage_IsAccepted()
+    {
+        var services = new ServiceCollection();
+
+        services.AddMessaging(
+            b => b.AddConsumer<TestMessage, TestMessageHandler>(new ConsumerOptions("topic", "group"))
+                .AddMessage<TestMessage>("topic", new JsonDefaultSerializer()),
+            o => o.BootstrapServers = "localhost:9092");
+
+        using var provider = services.BuildServiceProvider();
+
+        Assert.Single(provider.GetRequiredService<MessagingRegistry>().Consumers);
     }
 
     [Fact]

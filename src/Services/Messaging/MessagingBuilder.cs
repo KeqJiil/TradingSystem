@@ -31,6 +31,7 @@ public static class MessagingBuilderExtension
 
         var options = new MessagingOptions();
         configureOptions(options);
+        options.Validate();
 
         builder.AddOptions<MessagingOptions>().Configure(o =>
         {
@@ -44,6 +45,8 @@ public static class MessagingBuilderExtension
             o.EnableTopicRegistration = options.EnableTopicRegistration;
             o.MaxAttempts = options.MaxAttempts;
             o.RetryDelay = options.RetryDelay;
+            o.DefaultNumPartitions = options.DefaultNumPartitions;
+            o.DefaultReplicationFactor = options.DefaultReplicationFactor;
         });
 
         builder.AddSingleton<IPublishTerminal, DefaultPublishTerminal>();
@@ -57,9 +60,12 @@ public static class MessagingBuilderExtension
         {
             registry.Consumers.TryAdd((c.Options.Topic, c.Options.ConsumerGroup),
                 new Dictionary<string, ConsumerBinding>());
-            var serializer = registry.Messages[c.MessageType].Serializer;
+            if (!registry.Messages.TryGetValue(c.MessageType, out var message))
+                throw new InvalidOperationException(
+                    $"A consumer is registered for {c.MessageType.Name} but the message is not. Call AddMessage<{c.MessageType.Name}>(topic, serializer).");
+
             registry.Consumers[(c.Options.Topic, c.Options.ConsumerGroup)].Add(c.MessageType.Name,
-                new ConsumerBinding(c.Options, c.Bind.Invoke(serializer)));
+                new ConsumerBinding(c.Options, c.Bind.Invoke(message.Serializer)));
         });
 
         foreach (var (topic, group) in registry.Consumers.Keys)

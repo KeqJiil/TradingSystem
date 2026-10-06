@@ -7,6 +7,7 @@ namespace Messaging;
 
 internal class KafkaTopicRegister(
     IOptions<MessagingOptions> options,
+    MessagingRegistry registry,
     ILogger<KafkaTopicRegister> logger,
     IAdminClient adminClient)
 {
@@ -14,12 +15,9 @@ internal class KafkaTopicRegister(
 
     public async Task RegisterTopicsAsync(CancellationToken ct)
     {
-        var topicList = _messagingOptions.Topics.Select(t => new TopicSpecification
-        {
-            Name = t.Name,
-            NumPartitions = t.NumPartitions,
-            ReplicationFactor = t.ReplicationFactor
-        }).ToList();
+        var topicList = TopicPlanner.Plan(registry, _messagingOptions);
+
+        if (topicList.Count == 0) return;
 
         try
         {
@@ -27,10 +25,18 @@ internal class KafkaTopicRegister(
 
             logger.LogInformation("Topics {Topic} created successfully", string.Join(", ", topicList.Select(t => t.Name)));
         }
-        catch (CreateTopicsException e) when (e.Results.Any(r => r.Error.Code == ErrorCode.TopicAlreadyExists))
+        catch (CreateTopicsException e)
         {
-            logger.LogWarning("Topic {Topic} already exists",
-                e.Results.Where(r => r.Error.Code == ErrorCode.TopicAlreadyExists).Select(r => r.Topic));
+            if (e.Results.Any(r => r.Error.IsError && r.Error.Code != ErrorCode.TopicAlreadyExists))
+            {
+                logger.LogCritical(e, "Failed to create topics {Topic}",
+                    string.Join(", ", e.Results.Where(r => r.Error.IsError && r.Error.Code != ErrorCode.TopicAlreadyExists)
+                        .Select(r => $"{r.Topic}: {r.Error.Reason}")));
+                throw;
+            }
+
+            logger.LogInformation("Topics {Topic} already exist",
+                string.Join(", ", e.Results.Where(r => r.Error.Code == ErrorCode.TopicAlreadyExists).Select(r => r.Topic)));
         }
     }
 }
