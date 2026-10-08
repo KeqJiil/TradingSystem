@@ -28,6 +28,27 @@ public class RetryTests(KafkaFixture kafka, ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Retry_ConsumerMaxAttempts_OverridesGlobalMaxAttempts()
+    {
+        var topic = TestNames.Unique("orders");
+        var group = TestNames.Unique("billing");
+        var recorder = new ConsumerRecorder<OrderPlaced>
+        {
+            Behavior = (_, _) => new ConsumeOutcome(MessageConsumeResult.Retry, "still failing")
+        };
+        await using var host = await OrdersHost.StartAsync(kafka, output, topic, group, recorder,
+            options => options.MaxAttempts = 5,
+            consumerOptions: new ConsumerOptions(topic, group) { MaxAttempts = 2 });
+
+        await host.PublishAsync(First, topic, "key-1");
+
+        var parked = Assert.Single(await host.Kafka.ReadAsync(OrdersHost.DlqTopic(topic, group), 1));
+        Assert.Equal(2, recorder.CallsFor(First));
+        Assert.Equal("exhausted", parked.Headers[MessagingHeaders.DlqReason]);
+        Assert.Equal("2", parked.Headers[MessagingHeaders.Attempt]);
+    }
+
+    [Fact]
     public async Task Retry_Exhausted_ParksMessageInDlqAndContinuesWithNext()
     {
         var topic = TestNames.Unique("orders");

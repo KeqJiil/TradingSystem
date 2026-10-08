@@ -47,6 +47,7 @@ public static class MessagingBuilderExtension
             o.RetryDelay = options.RetryDelay;
             o.DefaultNumPartitions = options.DefaultNumPartitions;
             o.DefaultReplicationFactor = options.DefaultReplicationFactor;
+            o.MessageTimeoutMs = options.MessageTimeoutMs;
         });
 
         builder.AddSingleton<IPublishTerminal, DefaultPublishTerminal>();
@@ -58,11 +59,15 @@ public static class MessagingBuilderExtension
         result.Messages.ForEach(c => registry.Messages.Add(c.MessageType, (c.Topic, c.Serializer)));
         result.Consumers.ForEach(c =>
         {
-            registry.Consumers.TryAdd((c.Options.Topic, c.Options.ConsumerGroup),
-                new Dictionary<string, ConsumerBinding>());
             if (!registry.Messages.TryGetValue(c.MessageType, out var message))
                 throw new InvalidOperationException(
                     $"A consumer is registered for {c.MessageType.Name} but the message is not. Call AddMessage<{c.MessageType.Name}>(topic, serializer).");
+            if (c.Options.MaxAttempts is < 1)
+                throw new InvalidOperationException(
+                    $"{nameof(ConsumerOptions.MaxAttempts)} of the consumer for {c.MessageType.Name} must be at least 1.");
+
+            registry.Consumers.TryAdd((c.Options.Topic, c.Options.ConsumerGroup),
+                new Dictionary<string, ConsumerBinding>());
 
             registry.Consumers[(c.Options.Topic, c.Options.ConsumerGroup)].Add(c.MessageType.Name,
                 new ConsumerBinding(c.Options, c.Bind.Invoke(message.Serializer)));
@@ -85,8 +90,6 @@ public class MessagingBuilder(IServiceCollection sc) : IMessagingBuilder
     internal List<(string Topic, Type MessageType, IMessageSerializer Serializer)> Messages { get; } = new();
 
     public IServiceCollection Services => sc;
-    public bool RetryTopic { get; set; } = true;
-    public bool DeadLetterTopic { get; set; } = true;
 
     public IMessagingBuilder AddConsumer<TMessage, TConsumer>(ConsumerOptions options)
         where TConsumer : class, IMessageConsumer<TMessage>

@@ -51,20 +51,6 @@ internal class BasicKafkaConsumer(
                 continue;
             }
 
-            if (consumeMessage.Message.Value is null)
-            {
-                logger.LogWarning("Received a message without payload from {Topic} at {Offset}, skipping",
-                    consumeMessage.Topic, consumeMessage.Offset.Value);
-                await ParkAsync(consumeMessage, new RawMessage([], consumeMessage.Topic, groupId,
-                        "Unknown", consumeMessage.Offset.Value, consumeMessage.Partition.Value,
-                        consumeMessage.Message.Timestamp.UtcDateTime, new Dictionary<string, string>()),
-                    DlqReasons.UnknownType,
-                    "Missing payload", 0, stoppingToken);
-                continue;
-            }
-
-            await using var scope = sp.CreateAsyncScope();
-
             var headers = new Dictionary<string, string>();
             foreach (var h in consumeMessage.Message.Headers)
                 headers[h.Key] = Encoding.UTF8.GetString(h.GetValueBytes());
@@ -72,9 +58,20 @@ internal class BasicKafkaConsumer(
             headers.TryGetValue(MessagingHeaders.EventType, out var messageType);
 
             var rawMessage = new RawMessage(
-                consumeMessage.Message.Value, consumeMessage.Topic, groupId, messageType ?? "Unknown",
-                consumeMessage.Offset.Value, consumeMessage.Partition.Value,
+                consumeMessage.Message.Value ?? Array.Empty<byte>(), consumeMessage.Topic, groupId,
+                messageType ?? "Unknown", consumeMessage.Offset.Value, consumeMessage.Partition.Value,
                 consumeMessage.Message.Timestamp.UtcDateTime, headers, consumeMessage.Message.Key);
+
+            if (consumeMessage.Message.Value is null)
+            {
+                logger.LogWarning("Received a message without payload from {Topic} at {Offset}, moving it to the DLQ",
+                    consumeMessage.Topic, consumeMessage.Offset.Value);
+                await ParkAsync(consumeMessage, rawMessage, DlqReasons.EmptyPayload, "Message has no payload", 0,
+                    stoppingToken);
+                continue;
+            }
+
+            await using var scope = sp.CreateAsyncScope();
 
             if (messageType is null)
             {
@@ -105,11 +102,12 @@ internal class BasicKafkaConsumer(
                     break;
                 case MessageConsumeResult.Retry:
                     var attempt = RegisterFailure(consumeMessage.TopicPartitionOffset);
-                    if (attempt < options.MaxAttempts)
+                    var maxAttempts = consumerBinding.Options.MaxAttempts ?? options.MaxAttempts;
+                    if (attempt < maxAttempts)
                     {
                         logger.LogWarning(
                             "Failed to process a message from {Topic} at {Offset}, attempt {Attempt}/{MaxAttempts}, retrying after {RetryDelay}",
-                            consumeMessage.Topic, consumeMessage.Offset.Value, attempt, options.MaxAttempts,
+                            consumeMessage.Topic, consumeMessage.Offset.Value, attempt, maxAttempts,
                             options.RetryDelay);
 
                         Seek(consumeMessage.TopicPartitionOffset);

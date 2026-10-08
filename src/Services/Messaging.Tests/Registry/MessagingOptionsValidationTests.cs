@@ -62,6 +62,22 @@ public class MessagingOptionsValidationTests
     }
 
     [Fact]
+    public void AddMessaging_ZeroMessageTimeout_Throws()
+    {
+        Assert.Throws<InvalidOperationException>(() => Register(o =>
+        {
+            o.BootstrapServers = "localhost:9092";
+            o.MessageTimeoutMs = 0;
+        }));
+    }
+
+    [Fact]
+    public void MessageTimeoutMs_DefaultsToNinetySeconds()
+    {
+        Assert.Equal(90_000, new MessagingOptions().MessageTimeoutMs);
+    }
+
+    [Fact]
     public void AddMessaging_NewOptions_AreCopiedIntoRegisteredOptions()
     {
         var services = new ServiceCollection();
@@ -72,6 +88,7 @@ public class MessagingOptionsValidationTests
             o.RetryDelay = TimeSpan.FromSeconds(7);
             o.DefaultNumPartitions = 4;
             o.DefaultReplicationFactor = 2;
+            o.MessageTimeoutMs = 5_000;
         });
 
         using var provider = services.BuildServiceProvider();
@@ -81,5 +98,6 @@ public class MessagingOptionsValidationTests
         Assert.Equal(TimeSpan.FromSeconds(7), options.RetryDelay);
         Assert.Equal(4, options.DefaultNumPartitions);
         Assert.Equal(2, options.DefaultReplicationFactor);
+        Assert.Equal(5_000, options.MessageTimeoutMs);
     }
 }

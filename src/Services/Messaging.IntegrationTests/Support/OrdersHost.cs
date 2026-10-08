@@ -6,7 +6,8 @@ public static class OrdersHost
 {
     public static Task<MessagingTestHost> StartAsync(KafkaFixture kafka, ITestOutputHelper output, string topic,
         string group, ConsumerRecorder<OrderPlaced> recorder, Action<MessagingOptions>? configureOptions = null,
-        DeliveryCaptureLog? capture = null, Action<MessagingBuilder>? configureMessaging = null)
+        DeliveryCaptureLog? capture = null, Action<MessagingBuilder>? configureMessaging = null,
+        ConsumerOptions? consumerOptions = null)
     {
         return MessagingTestHost.StartAsync(kafka, output,
             services =>
@@ -18,7 +19,8 @@ public static class OrdersHost
             {
                 messaging
                     .AddMessage<OrderPlaced>(topic, new JsonDefaultSerializer())
-                    .AddConsumer<OrderPlaced, ScriptedConsumer<OrderPlaced>>(new ConsumerOptions(topic, group));
+                    .AddConsumer<OrderPlaced, ScriptedConsumer<OrderPlaced>>(
+                        consumerOptions ?? new ConsumerOptions(topic, group));
                 if (capture is not null) messaging.AddDeliveryMiddleware<CaptureDeliveryMiddleware>();
                 configureMessaging?.Invoke(messaging);
             },

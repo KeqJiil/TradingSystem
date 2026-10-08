@@ -10,6 +10,7 @@ internal static class DlqReasons
     public const string DeadLetter = "dead-letter";
     public const string UnknownType = "unknown-type";
     public const string Exhausted = "exhausted";
+    public const string EmptyPayload = "empty-payload";
 }
 
 internal static class DlqMessageBuilder

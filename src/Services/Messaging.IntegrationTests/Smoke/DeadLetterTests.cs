@@ -55,6 +55,31 @@ public class DeadLetterTests(KafkaFixture kafka, ITestOutputHelper output)
         Assert.Equal("dead-letter", parked.Headers[MessagingHeaders.DlqReason]);
     }
 
+    [Fact]
+    public async Task EmptyPayload_ParksMessageWithKeyAndHeadersWithoutCallingConsumer()
+    {
+        var topic = TestNames.Unique("orders");
+        var group = TestNames.Unique("billing");
+        var recorder = new ConsumerRecorder<OrderPlaced>();
+        await using var host = await OrdersHost.StartAsync(kafka, output, topic, group, recorder);
+
+        await host.Kafka.ProduceAsync(topic, "key-1", null, new Dictionary<string, string>
+        {
+            [MessagingHeaders.EventType] = nameof(OrderPlaced),
+            ["x-custom"] = "kept"
+        });
+        await host.PublishAsync(Valid, topic, "key-2");
+
+        var parked = Assert.Single(await host.Kafka.ReadAsync(OrdersHost.DlqTopic(topic, group), 1));
+        await Wait.UntilAsync(() => recorder.CallsFor(Valid) == 1, "the next message to be processed");
+        Assert.Equal([Valid], recorder.Calls);
+        Assert.Equal("key-1", parked.Key);
+        Assert.Empty(parked.Value);
+        Assert.Equal("empty-payload", parked.Headers[MessagingHeaders.DlqReason]);
+        Assert.Equal("kept", parked.Headers["x-custom"]);
+        Assert.Equal(nameof(OrderPlaced), parked.Headers[MessagingHeaders.EventType]);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("SomethingElse")]

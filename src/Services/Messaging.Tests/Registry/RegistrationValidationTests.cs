@@ -50,6 +50,38 @@ public class RegistrationValidationTests
         Assert.Contains(nameof(TestMessage), exception.Message);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void AddConsumer_MaxAttemptsBelowOne_Throws(int maxAttempts)
+    {
+        var services = new ServiceCollection();
+
+        Assert.Throws<InvalidOperationException>(() =>
+            services.AddMessaging(
+                b => b.AddMessage<TestMessage>("topic", new JsonDefaultSerializer())
+                    .AddConsumer<TestMessage, TestMessageHandler>(
+                        new ConsumerOptions("topic", "group") { MaxAttempts = maxAttempts }),
+                o => o.BootstrapServers = "localhost:9092"));
+    }
+
+    [Fact]
+    public void AddConsumer_MaxAttempts_IsKeptInBindingOptions()
+    {
+        var services = new ServiceCollection();
+
+        services.AddMessaging(
+            b => b.AddMessage<TestMessage>("topic", new JsonDefaultSerializer())
+                .AddConsumer<TestMessage, TestMessageHandler>(
+                    new ConsumerOptions("topic", "group") { MaxAttempts = 2 }),
+            o => o.BootstrapServers = "localhost:9092");
+
+        using var provider = services.BuildServiceProvider();
+        var registry = provider.GetRequiredService<MessagingRegistry>();
+
+        Assert.Equal(2, registry.Consumers[("topic", "group")][nameof(TestMessage)].Options.MaxAttempts);
+    }
+
     [Fact]
     public void AddConsumer_BeforeAddMessage_IsAccepted()
     {

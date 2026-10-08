@@ -28,7 +28,7 @@ internal class BasicKafkaProducer : IDisposable
                 EnableIdempotence = _options.ProducerIdempotency,
                 ClientId = _options.ProducerClientId,
                 LingerMs = 5,
-                MessageTimeoutMs = 90_000
+                MessageTimeoutMs = _options.MessageTimeoutMs
             }).SetErrorHandler((_, e) => KafkaClientLogging.LogError(_logger, _options.ProducerClientId, e))
             .SetLogHandler((_, m) => KafkaClientLogging.LogMessage(_logger, m)).Build();
     }

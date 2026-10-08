@@ -53,8 +53,15 @@ public class MessagingOptions
     /// </summary>
     public short DefaultReplicationFactor { get; set; } = 1;
 
+    /// <summary>
+    /// Gets or sets how long the producer keeps trying to deliver a message before failing it, in milliseconds.
+    /// </summary>
+    public int MessageTimeoutMs { get; set; } = 90_000;
+
     internal void Validate()
     {
+        if (MessageTimeoutMs < 1)
+            throw new InvalidOperationException($"{nameof(MessageTimeoutMs)} must be at least 1.");
         if (string.IsNullOrWhiteSpace(BootstrapServers))
             throw new InvalidOperationException($"{nameof(MessagingOptions)}.{nameof(BootstrapServers)} must be set.");
         if (MaxAttempts < 1)

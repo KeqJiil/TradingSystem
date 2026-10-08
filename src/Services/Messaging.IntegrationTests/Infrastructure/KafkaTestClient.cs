@@ -4,14 +4,21 @@ using Confluent.Kafka.Admin;
 
 namespace Messaging.IntegrationTests.Infrastructure;
 
-public sealed record ReadMessage(string? Key, byte[] Value, IReadOnlyDictionary<string, string> Headers)
+public sealed record ReadMessage(
+    string? Key, byte[] Value, IReadOnlyDictionary<string, string> Headers,
+    IReadOnlyList<KeyValuePair<string, string>> RawHeaders)
 {
     public string Text => Encoding.UTF8.GetString(Value);
+
+    public int HeaderCount(string name)
+    {
+        return RawHeaders.Count(h => h.Key == name);
+    }
 }
 
 public sealed class KafkaTestClient(string bootstrapServers)
 {
-    public async Task ProduceAsync(string topic, string? key, byte[] value,
+    public async Task ProduceAsync(string topic, string? key, byte[]? value,
         IDictionary<string, string>? headers = null)
     {
         using var producer = new ProducerBuilder<string, byte[]>(
@@ -24,7 +31,7 @@ public sealed class KafkaTestClient(string bootstrapServers)
         await producer.ProduceAsync(topic, new Message<string, byte[]>
         {
             Key = key!,
-            Value = value,
+            Value = value!,
             Headers = kafkaHeaders
         });
     }
@@ -70,9 +77,14 @@ public sealed class KafkaTestClient(string bootstrapServers)
             var result = consumer.Consume(TimeSpan.FromMilliseconds(200));
             if (result is null) continue;
 
-            var headers = result.Message.Headers.ToDictionary(
-                h => h.Key, h => Encoding.UTF8.GetString(h.GetValueBytes()));
-            messages.Add(new ReadMessage(result.Message.Key, result.Message.Value, headers));
+            var rawHeaders = result.Message.Headers
+                .Select(h => new KeyValuePair<string, string>(h.Key, Encoding.UTF8.GetString(h.GetValueBytes())))
+                .ToList();
+            var headers = new Dictionary<string, string>();
+            foreach (var (name, value) in rawHeaders)
+                headers[name] = value;
+
+            messages.Add(new ReadMessage(result.Message.Key, result.Message.Value, headers, rawHeaders));
         }
 
         return messages;
