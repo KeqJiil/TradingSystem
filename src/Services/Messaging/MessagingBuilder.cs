@@ -2,6 +2,7 @@ using Confluent.Kafka;
 using Messaging.Abstractions;
 using Messaging.Dlq;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -51,7 +52,7 @@ public static class MessagingBuilderExtension
         });
 
         builder.AddSingleton<IPublishTerminal, DefaultPublishTerminal>();
-        builder.AddScoped<IMessagePublisher, MessagingPublisher>();
+        builder.TryAddScoped<IMessagePublisher, MessagingPublisher>();
 
         builder.AddSingleton<BasicKafkaProducer>();
         builder.AddSingleton<IDeadLetterPublisher, DlqKafkaProducer>();

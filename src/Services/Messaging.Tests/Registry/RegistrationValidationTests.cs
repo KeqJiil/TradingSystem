@@ -83,6 +83,21 @@ public class RegistrationValidationTests
     }
 
     [Fact]
+    public void AddProducer_ReplacesDefaultPublisher()
+    {
+        var services = new ServiceCollection();
+
+        services.AddMessaging(
+            b => b.AddProducer<CustomPublisher>(),
+            o => o.BootstrapServers = "localhost:9092");
+
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        Assert.IsType<CustomPublisher>(scope.ServiceProvider.GetRequiredService<IMessagePublisher>());
+    }
+
+    [Fact]
     public void AddConsumer_BeforeAddMessage_IsAccepted()
     {
         var services = new ServiceCollection();
