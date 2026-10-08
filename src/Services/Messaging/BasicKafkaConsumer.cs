@@ -8,15 +8,19 @@ using Microsoft.Extensions.Logging;
 
 namespace Messaging;
 
-internal class BasicKafkaConsumer(IServiceProvider sp, MessagingRegistry registry, MessagingOptions options,
-    ILogger<BasicKafkaConsumer> logger, IDeadLetterPublisher deadLetter, string clientId, string groupId,
+internal class BasicKafkaConsumer(
+    IServiceProvider sp,
+    MessagingRegistry registry,
+    MessagingOptions options,
+    ILogger<BasicKafkaConsumer> logger,
+    IDeadLetterPublisher deadLetter,
+    string clientId,
+    string groupId,
     string topic) : BackgroundService
 {
     private IConsumer<string, byte[]>? _kafkaConsumer;
-    private TopicPartitionOffset? _failingOffset;
-    private int _failedAttempts;
-    
-    
+    private readonly Dictionary<TopicPartition, (long Offset, int Attempts)> _failures = new();
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Yield();
@@ -52,8 +56,9 @@ internal class BasicKafkaConsumer(IServiceProvider sp, MessagingRegistry registr
                 logger.LogWarning("Received a message without payload from {Topic} at {Offset}, skipping",
                     consumeMessage.Topic, consumeMessage.Offset.Value);
                 await ParkAsync(consumeMessage, new RawMessage([], consumeMessage.Topic, groupId,
-                    "Unknown", consumeMessage.Offset.Value, consumeMessage.Partition.Value,
-                    consumeMessage.Message.Timestamp.UtcDateTime, new Dictionary<string, string>()), DlqReasons.UnknownType,
+                        "Unknown", consumeMessage.Offset.Value, consumeMessage.Partition.Value,
+                        consumeMessage.Message.Timestamp.UtcDateTime, new Dictionary<string, string>()),
+                    DlqReasons.UnknownType,
                     "Missing payload", 0, stoppingToken);
                 continue;
             }
@@ -106,16 +111,21 @@ internal class BasicKafkaConsumer(IServiceProvider sp, MessagingRegistry registr
                             "Failed to process a message from {Topic} at {Offset}, attempt {Attempt}/{MaxAttempts}, retrying after {RetryDelay}",
                             consumeMessage.Topic, consumeMessage.Offset.Value, attempt, options.MaxAttempts,
                             options.RetryDelay);
-                        
+
                         Seek(consumeMessage.TopicPartitionOffset);
                         await Task.Delay(options.RetryDelay, stoppingToken);
                     }
                     else
-                        await ParkAsync(consumeMessage, rawMessage, DlqReasons.Exhausted, result.Reason, attempt, stoppingToken);
+                    {
+                        await ParkAsync(consumeMessage, rawMessage, DlqReasons.Exhausted, result.Reason, attempt,
+                            stoppingToken);
+                    }
+
                     break;
                 case MessageConsumeResult.DeadLetter:
                     await ParkAsync(consumeMessage, rawMessage, DlqReasons.DeadLetter, result.Reason,
-                        _failedAttempts, stoppingToken);
+                        _failures.TryGetValue(consumeMessage.TopicPartition, out var failure) ? failure.Attempts : 0,
+                        stoppingToken);
                     break;
             }
         }
@@ -173,8 +183,7 @@ internal class BasicKafkaConsumer(IServiceProvider sp, MessagingRegistry registr
 
     private void StoreOffset(TopicPartitionOffset handled)
     {
-        _failingOffset = null;
-        _failedAttempts = 0;
+        _failures.Remove(handled.TopicPartition);
 
         try
         {
@@ -197,17 +206,14 @@ internal class BasicKafkaConsumer(IServiceProvider sp, MessagingRegistry registr
             logger.LogWarning(ex, "Failed to seek an offset for {Topic}", topic);
         }
     }
-    
+
     private int RegisterFailure(TopicPartitionOffset offset)
     {
-        if (_failingOffset is not null && _failingOffset.Equals(offset))
-            _failedAttempts++;
-        else
-        {
-            _failingOffset = offset;
-            _failedAttempts = 1;
-        }
-        return _failedAttempts;
+        var attempts = _failures.TryGetValue(offset.TopicPartition, out var failure) && failure.Offset == offset.Offset
+            ? failure.Attempts + 1
+            : 1;
+        _failures[offset.TopicPartition] = (offset.Offset, attempts);
+        return attempts;
     }
 
     private IConsumer<string, byte[]> ConfigureConsumer()
