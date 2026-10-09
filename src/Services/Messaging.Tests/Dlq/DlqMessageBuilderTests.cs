@@ -63,20 +63,18 @@ public class DlqMessageBuilderTests
     }
 
     [Fact]
-    public void Build_MessageFromRetryTopic_KeepsOriginalTopicAndFirstFailureTime()
+    public void Build_InboundOriginalTopicHeader_DoesNotRedirectDlq()
     {
         var headers = new Dictionary<string, string>
         {
-            [MessagingHeaders.OriginalTopic] = "orders",
-            [MessagingHeaders.FirstFailureAt] = "earlier"
+            [MessagingHeaders.OriginalTopic] = "payments"
         };
 
-        var (topic, message) = DlqMessageBuilder.Build(Raw("group.orders.retry", headers: headers),
-            DlqReasons.Exhausted, null, 5, Now);
+        var (topic, message) = DlqMessageBuilder.Build(Raw(headers: headers),
+            DlqReasons.DeadLetter, null, 0, Now);
 
         Assert.Equal("group.orders.dlq", topic);
         Assert.Equal("orders", Header(message, MessagingHeaders.OriginalTopic));
-        Assert.Equal("earlier", Header(message, MessagingHeaders.FirstFailureAt));
     }
     
     private static RawMessage Raw(string topic = "orders", string? key = "key-1",
