@@ -185,7 +185,9 @@ internal class BasicKafkaConsumer(
 
         try
         {
-            _kafkaConsumer?.StoreOffset(new TopicPartitionOffset(handled.TopicPartition, handled.Offset + 1));
+            var next = new TopicPartitionOffset(handled.TopicPartition, handled.Offset + 1);
+            _kafkaConsumer?.StoreOffset(next);
+            if (!options.UseAutoCommit) _kafkaConsumer?.Commit([next]);
         }
         catch (KafkaException ex)
         {

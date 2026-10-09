@@ -20,7 +20,7 @@ public record struct ConsumeOutcome(MessageConsumeResult Kind, string? Reason = 
 
 /// <summary>
 /// Represents the result of a message consumption attempt.
-/// Retry: The message consumption failed, and the message should be sent to the retry topic.
+/// Retry: The message consumption failed, and the same message will be redelivered from the current topic (no separate retry topic is used) until attempts are exhausted, after which it is dead-lettered.
 /// DeadLetter: The message consumption failed, and the message should be sent to the dead letter topic.
 /// Success: The message consumption succeeded, and the offset should be committed.
 /// </summary>

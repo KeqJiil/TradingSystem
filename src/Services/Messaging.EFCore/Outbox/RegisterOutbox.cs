@@ -1,3 +1,5 @@
+using Messaging;
+
 namespace Messaging.EFCore.Outbox;
 
 public static class RegisterOutbox

@@ -1,3 +1,5 @@
+using Messaging;
+
 namespace Messaging.Dapper.Outbox;
 
 public static class RegisterOutbox

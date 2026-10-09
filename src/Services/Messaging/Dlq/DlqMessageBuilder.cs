@@ -21,7 +21,7 @@ internal static class DlqMessageBuilder
         int attempt, DateTimeOffset now)
     {
         var headers = new Dictionary<string, string>(raw.Headers);
-        headers.TryAdd(MessagingHeaders.OriginalTopic, raw.Topic);
+        headers[MessagingHeaders.OriginalTopic] = raw.Topic;
         headers.TryAdd(MessagingHeaders.FirstFailureAt, now.ToString("O", CultureInfo.InvariantCulture));
         headers[MessagingHeaders.DlqReason] = reason;
         headers[MessagingHeaders.Attempt] = attempt.ToString(CultureInfo.InvariantCulture);
@@ -40,7 +40,7 @@ internal static class DlqMessageBuilder
             Headers = kafkaHeaders
         };
 
-        return (TopicNames.Dlq(raw.ConsumerGroup, headers[MessagingHeaders.OriginalTopic]), message);
+        return (TopicNames.Dlq(raw.ConsumerGroup, raw.Topic), message);
     }
 
     private static string Truncate(string value, int maxLength)
