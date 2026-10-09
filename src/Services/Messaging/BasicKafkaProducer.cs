@@ -61,6 +61,10 @@ internal class BasicKafkaProducer : IDisposable
         {
             return new ProduceResult(false, new Error(ErrorCode.Local_TimedOut, "Canceled"));
         }
+        catch (ObjectDisposedException)
+        {
+            return new ProduceResult(false, new Error(ErrorCode.Local_Destroy, "Producer was replaced"));
+        }
     }
 
     public void Dispose()
