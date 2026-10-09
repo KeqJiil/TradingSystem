@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Dapper"/>
+        <PackageReference Include="dbup-sqlserver"/>
+        <PackageReference Include="Microsoft.Data.SqlClient"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Messaging\Messaging.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Folder Include="Inbox\"/>
+    </ItemGroup>
+
+</Project>

@@ -8,26 +8,26 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="AspNetCore.HealthChecks.SqlServer" Version="9.0.0"/>
-        <PackageReference Include="Confluent.Kafka" Version="2.15.0"/>
-        <PackageReference Include="Dapper" Version="2.1.79"/>
-        <PackageReference Include="dbup-sqlserver" Version="7.2.0"/>
-        <PackageReference Include="FluentValidation" Version="12.1.1"/>
-        <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1"/>
-        <PackageReference Include="Hangfire" Version="1.8.25"/>
-        <PackageReference Include="MediatR" Version="14.2.0"/>
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10"/>
-        <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2"/>
-        <PackageReference Include="Microsoft.OpenApi" Version="2.9.0"/>
-        <PackageReference Include="Newtonsoft.Json" Version="13.0.4"/>
-        <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1"/>
-        <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.19.1"/>
-        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.19.0"/>
-        <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.19.0"/>
-        <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.19.0"/>
-        <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient" Version="1.19.0"/>
-        <PackageReference Include="Polly" Version="8.7.0"/>
-        <PackageReference Include="protobuf-net" Version="3.4.14"/>
+        <PackageReference Include="AspNetCore.HealthChecks.SqlServer"/>
+        <PackageReference Include="Confluent.Kafka"/>
+        <PackageReference Include="Dapper"/>
+        <PackageReference Include="dbup-sqlserver"/>
+        <PackageReference Include="FluentValidation"/>
+        <PackageReference Include="FluentValidation.DependencyInjectionExtensions"/>
+        <PackageReference Include="Hangfire"/>
+        <PackageReference Include="MediatR"/>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
+        <PackageReference Include="Microsoft.Data.SqlClient"/>
+        <PackageReference Include="Microsoft.OpenApi"/>
+        <PackageReference Include="Newtonsoft.Json"/>
+        <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol"/>
+        <PackageReference Include="OpenTelemetry.Extensions.Hosting"/>
+        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore"/>
+        <PackageReference Include="OpenTelemetry.Instrumentation.Http"/>
+        <PackageReference Include="OpenTelemetry.Instrumentation.Runtime"/>
+        <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient"/>
+        <PackageReference Include="Polly"/>
+        <PackageReference Include="protobuf-net"/>
     </ItemGroup>
 
     <ItemGroup>

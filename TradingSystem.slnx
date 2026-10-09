@@ -10,5 +10,13 @@
     </Folder>
     
     <Project Path="src\Services\Stock\Stock.csproj" />
+    <Folder Name="/src/Services/">
+        <Project Path="src/Services/Messaging.Abstractions/Messaging.Abstractions.csproj" />
+        <Project Path="src/Services/Messaging.Dapper/Messaging.Dapper.csproj" />
+        <Project Path="src/Services/Messaging.EFCore/Messaging.EFCore.csproj" />
+        <Project Path="src/Services/Messaging/Messaging.csproj" />
+        <Project Path="src/Services/Messaging.Tests/Messaging.Tests.csproj" />
+        <Project Path="src/Services/Messaging.IntegrationTests/Messaging.IntegrationTests.csproj" />
+    </Folder>
     <Project Path="src\Services\Stock.Tests\Stock.Tests.csproj" />
 </Solution>
