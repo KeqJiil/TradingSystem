@@ -17,6 +17,8 @@ public static class MessagingBuilderExtension
     {
         var registry = new MessagingRegistry();
 
+        builder.AddSingleton(TimeProvider.System);
+
         builder.AddSingleton<IExceptionToOutcome, BasicExceptionToOutcome>();
         builder.AddSingleton<IMessageSerializerResolver, RegistrySerializerResolver>();
 
