@@ -1,6 +1,7 @@
 using Confluent.Kafka;
 using Messaging.Abstractions;
 using Messaging.Dlq;
+using Messaging.Serializers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -17,6 +18,7 @@ public static class MessagingBuilderExtension
         var registry = new MessagingRegistry();
 
         builder.AddSingleton<IExceptionToOutcome, BasicExceptionToOutcome>();
+        builder.AddSingleton<IMessageSerializer, JsonDefaultSerializer>();
 
         builder.AddSingleton<IAdminClient>(sp =>
             new AdminClientBuilder(new AdminClientConfig
@@ -138,6 +140,12 @@ public class MessagingBuilder(IServiceCollection sc) : IMessagingBuilder
     public IMessagingBuilder AddPublishMiddleware<TMiddleware>() where TMiddleware : class, IMessagePublishMiddleware
     {
         sc.AddKeyedScoped<IMessagePublishMiddleware, TMiddleware>("MessagingPublishMiddleware");
+        return this;
+    }
+    
+    public IMessagingBuilder AddSerializer<TSerializer>() where TSerializer : class, IMessageSerializer
+    {
+        sc.AddScoped<IMessageSerializer, TSerializer>();
         return this;
     }
 }
