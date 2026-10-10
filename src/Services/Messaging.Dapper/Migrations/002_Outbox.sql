@@ -1,7 +1,7 @@
 IF OBJECT_ID('dbo.outbox', 'U') IS NULL
     CREATE TABLE "outbox"
     (
-        "id"           UNIQUEIDENTIFIER NOT NULL CONSTRAINT "pk_outbox" PRIMARY KEY,
+        "id"           BIGINT IDENTITY (1, 1) NOT NULL CONSTRAINT "pk_outbox" PRIMARY KEY CLUSTERED,
         "message_id"   VARCHAR(100)     NOT NULL,
         "message_type" VARCHAR(200)     NOT NULL,
         "topic"        VARCHAR(255)     NOT NULL,
@@ -19,7 +19,7 @@ IF NOT EXISTS (SELECT 1
                FROM sys.indexes
                WHERE object_id = OBJECT_ID('dbo.outbox')
                  AND name = 'idx_outbox_pending')
-    CREATE INDEX "idx_outbox_pending" ON "outbox" ("created_at") WHERE "status" <> 'COMPLETED';
+    CREATE INDEX "idx_outbox_pending" ON "outbox" ("id") WHERE "status" <> 'COMPLETED';
 GO
 
 IF NOT EXISTS (SELECT 1
@@ -32,7 +32,7 @@ GO
 IF TYPE_ID('dbo.outbox_event_tvp') IS NULL
     CREATE TYPE dbo.outbox_event_tvp AS TABLE
     (
-        "id"           UNIQUEIDENTIFIER NOT NULL,
+        "ordinal"      INT              NOT NULL,
         "message_id"   VARCHAR(100)     NOT NULL,
         "message_type" VARCHAR(200)     NOT NULL,
         "topic"        VARCHAR(255)     NOT NULL,

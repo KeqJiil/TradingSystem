@@ -12,7 +12,7 @@ internal class OutboxReader(ITransactionContext context)
                         FROM outbox WITH (READPAST)
                         WHERE (processed_at IS NULL OR DATEDIFF(MINUTE, processed_at, SYSDATETIMEOFFSET()) > @MaxWaitMinutes)
                             AND status <> 'COMPLETED'
-                        ORDER BY created_at
+                        ORDER BY id
                             )
                     UPDATE cte
                     SET processed_at = SYSDATETIMEOFFSET(), status = 'PROCESSING', attempts = cte.attempts + 1

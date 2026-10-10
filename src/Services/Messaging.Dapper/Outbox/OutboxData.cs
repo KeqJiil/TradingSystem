@@ -9,7 +9,7 @@ internal record OutboxEntry(
     IReadOnlyDictionary<string, string> Headers);
 
 internal record OutboxData(
-    Guid Id,
+    long Id,
     string MessageId,
     string MessageType,
     string Topic,
@@ -21,7 +21,7 @@ internal record OutboxData(
 
 internal class OutboxRow
 {
-    public Guid Id { get; init; }
+    public long Id { get; init; }
     public string MessageId { get; init; } = "";
     public string MessageType { get; init; } = "";
     public string Topic { get; init; } = "";
