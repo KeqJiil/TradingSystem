@@ -14,6 +14,11 @@ public interface IMessagePublishMiddleware
     PublishDelegate OnPublishAsync<TMessage>(PublishContext<TMessage> context, PublishDelegate next, CancellationToken cancellationToken);
 }
 
+public interface IMessagePublishMiddleware<TMessage>
+{
+    PublishDelegate OnPublishAsync(PublishContext<TMessage> context, PublishDelegate next, CancellationToken cancellationToken);
+}
+
 public delegate Task<ConsumeOutcome> DeliveryDelegate();
 
 public interface IMessageDeliveryMiddleware
@@ -26,4 +31,9 @@ public interface IMessageDeliveryMiddleware
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The outcome of the consume operation</returns>
     Task<ConsumeOutcome> OnDeliveryAsync<TMessage>(DeliveryContext<TMessage> context, DeliveryDelegate next, CancellationToken cancellationToken);
+}
+
+public interface IMessageDeliveryMiddleware<TMessage>
+{
+    Task<ConsumeOutcome> OnDeliveryAsync(DeliveryContext<TMessage> context, DeliveryDelegate next, CancellationToken cancellationToken);
 }

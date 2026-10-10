@@ -12,7 +12,17 @@ internal static class MessagingPipeline
         var middlewares = services
             .GetKeyedServices<IMessageDeliveryMiddleware>("MessagingDeliveryMiddleware").ToList();
 
+        var typed = services
+            .GetKeyedServices<IMessageDeliveryMiddleware<TMessage>>("MessagingDeliveryMiddleware").ToList();
+
         var next = terminal;
+        for (var i = typed.Count - 1; i >= 0; i--)
+        {
+            var middleware = typed[i];
+            var inner = next;
+            next = () => middleware.OnDeliveryAsync(ctx, inner, ct);
+        }
+
         for (var i = middlewares.Count - 1; i >= 0; i--)
         {
             var middleware = middlewares[i];
@@ -33,9 +43,19 @@ internal static class MessagingPublishPipeline
         var middlewares = services
             .GetKeyedServices<IMessagePublishMiddleware>("MessagingPublishMiddleware").ToList();
 
+        var typed = services
+            .GetKeyedServices<IMessagePublishMiddleware<TMessage>>("MessagingPublishMiddleware").ToList();
+
         PublishDelegate next = (headers, token) =>
             terminal.SendAsync(ctx.Topic, ctx.KeyId, ctx.MessageId, ctx.Message, headers, token);
-        
+
+        for (var i = typed.Count - 1; i >= 0; i--)
+        {
+            var middleware = typed[i];
+            var inner = next;
+            next = middleware.OnPublishAsync(ctx, inner, ct);
+        }
+
         for (var i = middlewares.Count - 1; i >= 0; i--)
         {
             var middleware = middlewares[i];

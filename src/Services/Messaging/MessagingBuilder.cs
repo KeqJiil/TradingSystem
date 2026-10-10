@@ -18,7 +18,7 @@ public static class MessagingBuilderExtension
         var registry = new MessagingRegistry();
 
         builder.AddSingleton<IExceptionToOutcome, BasicExceptionToOutcome>();
-        builder.AddSingleton<IMessageSerializer, JsonDefaultSerializer>();
+        builder.AddSingleton<IMessageSerializerResolver, RegistrySerializerResolver>();
 
         builder.AddSingleton<IAdminClient>(sp =>
             new AdminClientBuilder(new AdminClientConfig
@@ -137,15 +137,23 @@ public class MessagingBuilder(IServiceCollection sc) : IMessagingBuilder
         return this;
     }
 
+    public IMessagingBuilder AddDeliveryMiddleware<TMessage, TMiddleware>()
+        where TMiddleware : class, IMessageDeliveryMiddleware<TMessage>
+    {
+        sc.AddKeyedScoped<IMessageDeliveryMiddleware<TMessage>, TMiddleware>("MessagingDeliveryMiddleware");
+        return this;
+    }
+
     public IMessagingBuilder AddPublishMiddleware<TMiddleware>() where TMiddleware : class, IMessagePublishMiddleware
     {
         sc.AddKeyedScoped<IMessagePublishMiddleware, TMiddleware>("MessagingPublishMiddleware");
         return this;
     }
-    
-    public IMessagingBuilder AddSerializer<TSerializer>() where TSerializer : class, IMessageSerializer
+
+    public IMessagingBuilder AddPublishMiddleware<TMessage, TMiddleware>()
+        where TMiddleware : class, IMessagePublishMiddleware<TMessage>
     {
-        sc.AddScoped<IMessageSerializer, TSerializer>();
+        sc.AddKeyedScoped<IMessagePublishMiddleware<TMessage>, TMiddleware>("MessagingPublishMiddleware");
         return this;
     }
 }
