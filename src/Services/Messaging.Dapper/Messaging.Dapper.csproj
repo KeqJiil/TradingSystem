@@ -13,11 +13,11 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Messaging\Messaging.csproj"/>
+        <EmbeddedResource Include="Migrations\*.sql"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Inbox\"/>
+        <ProjectReference Include="..\Messaging\Messaging.csproj"/>
     </ItemGroup>
 
 </Project>
