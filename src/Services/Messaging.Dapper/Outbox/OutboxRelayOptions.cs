@@ -22,8 +22,15 @@ public class OutboxRelayOptions
     /// </summary>
     public int LeaseMinutes { get; set; } = 10;
 
+    /// <summary>
+    /// Gets or sets how many publish attempts a message gets before it is moved to the &lt;topic&gt;.dlq topic.
+    /// </summary>
+    public int MaxAttempts { get; set; } = 3;
+
     internal void Validate()
     {
+        if (MaxAttempts < 1)
+            throw new InvalidOperationException($"{nameof(MaxAttempts)} must be at least 1.");
         if (PollInterval <= TimeSpan.Zero)
             throw new InvalidOperationException($"{nameof(PollInterval)} must be greater than zero.");
         if (BatchSize < 1)

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Messaging.Dapper;
 
@@ -17,6 +18,7 @@ public static class CleanupRegistration
             o.InboxBatchSize = options.InboxBatchSize;
             o.InboxRetentionMinutes = options.InboxRetentionMinutes;
             o.OutboxRetentionMinutes = options.OutboxRetentionMinutes;
+            o.CleanupIntervalMinutes = options.CleanupIntervalMinutes;
         });
 
         return services;
@@ -24,6 +26,7 @@ public static class CleanupRegistration
 
     internal static void AddCleanup(this IServiceCollection services)
     {
+        services.TryAddSingleton(TimeProvider.System);
         services.AddOptions<CleansionOptions>();
         services.AddHostedService<DbCleanUp>();
     }

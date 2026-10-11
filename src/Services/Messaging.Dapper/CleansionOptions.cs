@@ -6,6 +6,7 @@ public class CleansionOptions
     public int InboxBatchSize { get; set; } = 200;
     public int InboxRetentionMinutes { get; set; } = 30 * 24 * 60;
     public int OutboxRetentionMinutes { get; set; } = 7 * 24 * 60;
+    public int CleanupIntervalMinutes { get; set; } = 40;
 
     internal void Validate()
     {
@@ -17,5 +18,7 @@ public class CleansionOptions
             throw new InvalidOperationException($"{nameof(InboxRetentionMinutes)} must be at least 1.");
         if (OutboxRetentionMinutes < 1)
             throw new InvalidOperationException($"{nameof(OutboxRetentionMinutes)} must be at least 1.");
+        if (CleanupIntervalMinutes < 1)
+            throw new InvalidOperationException($"{nameof(CleanupIntervalMinutes)} must be at least 1.");
     }
 }
