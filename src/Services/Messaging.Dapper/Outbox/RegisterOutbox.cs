@@ -19,7 +19,6 @@ public static class RegisterOutbox
             o.BatchSize = options.BatchSize;
             o.MaxParallelKeys = options.MaxParallelKeys;
             o.LeaseMinutes = options.LeaseMinutes;
-            o.MaxAttempts = options.MaxAttempts;
         });
 
         services.AddScoped<OutboxWriter>();

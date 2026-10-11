@@ -19,7 +19,8 @@ IF NOT EXISTS (SELECT 1
                FROM sys.indexes
                WHERE object_id = OBJECT_ID('dbo.outbox')
                  AND name = 'idx_outbox_pending')
-    CREATE INDEX "idx_outbox_pending" ON "outbox" ("id") WHERE "status" <> 'COMPLETED';
+    CREATE INDEX "idx_outbox_pending" ON "outbox" ("id") INCLUDE ("processed_at")
+        WHERE "status" IN ('PENDING', 'PROCESSING');
 GO
 
 IF NOT EXISTS (SELECT 1

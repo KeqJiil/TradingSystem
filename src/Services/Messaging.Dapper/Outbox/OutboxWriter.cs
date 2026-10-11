@@ -62,19 +62,21 @@ internal class OutboxWriter(ITransactionContext dbContext)
             cancellationToken: cancellationToken));
     }
 
-    public async ValueTask MarkCompletedAsync(IReadOnlyList<long> ids, CancellationToken cancellationToken)
+    public async ValueTask MarkCompletedAsync(IReadOnlyList<long> completedIds, IReadOnlyList<long> deadIds,
+        CancellationToken cancellationToken)
     {
-        if (ids.Count == 0) return;
+        if (completedIds.Count == 0 && deadIds.Count == 0) return;
 
         var sql = """
                     UPDATE outbox
-                    SET status = 'COMPLETED'
-                    WHERE id IN @Ids
+                    SET status = CASE WHEN id IN @DeadIds THEN 'DEAD' ELSE 'COMPLETED' END
+                    WHERE id IN @CompletedIds OR id IN @DeadIds
                   """;
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
-        await dbContext.Connection.ExecuteAsync(new CommandDefinition(sql, new { Ids = ids }, dbContext.Transaction,
+        await dbContext.Connection.ExecuteAsync(new CommandDefinition(sql,
+            new { CompletedIds = completedIds, DeadIds = deadIds }, dbContext.Transaction,
             cancellationToken: cancellationToken));
     }
 }
