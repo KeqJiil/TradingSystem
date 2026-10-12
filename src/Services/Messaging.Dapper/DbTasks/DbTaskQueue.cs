@@ -38,6 +38,8 @@ internal sealed class DbTaskQueue : IDbTaskQueue, ITransactionHook
         _entries.Add(new Entry(key, task));
     }
 
+    public bool IsCommitted(string key) => _entries.Exists(e => e.Key == key && e.State == State.Committed);
+
     public async Task<bool> RunPendingAsync(DbConnection connection, DbTransaction? transaction,
         CancellationToken cancellationToken)
     {
