@@ -21,4 +21,8 @@
         <ProjectReference Include="..\Messaging\Messaging.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="Messaging.Dapper.Tests"/>
+    </ItemGroup>
+
 </Project>

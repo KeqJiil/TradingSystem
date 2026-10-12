@@ -55,7 +55,7 @@ public static class MessagingBuilderExtension
             o.MessageTimeoutMs = options.MessageTimeoutMs;
         });
 
-        builder.AddSingleton<IPublishTerminal, DefaultPublishTerminal>();
+        builder.TryAddSingleton<IPublishTerminal, DefaultPublishTerminal>();
         builder.TryAddScoped<IMessagePublisher, MessagingPublisher>();
 
         builder.AddSingleton<BasicKafkaProducer>();

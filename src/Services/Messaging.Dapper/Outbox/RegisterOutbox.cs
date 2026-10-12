@@ -1,14 +1,14 @@
 using Messaging.Abstractions;
 using Messaging.Dapper.Migrations;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Messaging.Dapper.Outbox;
 
 public static class RegisterOutbox
 {
-    public static void AddOutbox(this IServiceCollection services, Action<OutboxRelayOptions>? configureOptions = null)
+    public static void AddOutbox(this IMessagingBuilder builder, Action<OutboxRelayOptions>? configureOptions = null)
     {
+        var services = builder.Services;
         var options = new OutboxRelayOptions();
         configureOptions?.Invoke(options);
         options.Validate();
@@ -26,7 +26,6 @@ public static class RegisterOutbox
         services.AddScoped<OutboxCleaner>();
         services.AddCleanup();
         services.AddHostedService<OutboxDispatchService>();
-        services.RemoveAll<IPublishTerminal>();
         services.AddScoped<IPublishTerminal, OutboxPublishTerminal>();
         services.AddSingleton(EmbeddedMigration.Read("002_Outbox.sql"));
     }
