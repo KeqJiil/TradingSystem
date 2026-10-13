@@ -1,6 +1,6 @@
 namespace Messaging.Dapper;
 
-public class CleansionOptions
+public class CleanupOptions 
 {
     public int OutboxBatchSize { get; set; } = 200;
     public int InboxBatchSize { get; set; } = 200;

@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Polly;
@@ -38,7 +39,15 @@ internal sealed class UnitOfWorkDecorator(
         try
         {
             await action();
-            await unitOfWork.CommitAsync(ct);
+
+            try
+            {
+                await unitOfWork.CommitAsync(ct);
+            }
+            catch (SqlException ex) when (!SqlTransientRetry.IsKnownRolledBack(ex))
+            {
+                throw new CommitOutcomeUnknownException(ex);
+            }
         }
         catch
         {

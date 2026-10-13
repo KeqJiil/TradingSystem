@@ -1,4 +1,5 @@
 using Dapper;
+using Messaging.Dapper.DbTasks;
 using Messaging.Dapper.Tests.Integration.Infrastructure;
 using Messaging.Dapper.Transactions;
 using Microsoft.Data.SqlClient;
@@ -117,6 +118,38 @@ public class UnitOfWorkDecoratorTests(MssqlFixture db) : IClassFixture<MssqlFixt
         }, CancellationToken.None));
 
         Assert.Equal(-2, ex.Number);
+        Assert.Equal(1, attempts);
+    }
+
+    [Fact]
+    public async Task Execute_ConnectionLostDuringCommit_ThrowsCommitOutcomeUnknownWithoutRetry()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddScoped<DbTaskQueue>();
+        services.AddScoped<ITransactionHook>(sp => sp.GetRequiredService<DbTaskQueue>());
+        services.AddUnitOfWork(_ => new SqlConnection(
+            new SqlConnectionStringBuilder(db.ConnectionString) { Pooling = false }.ConnectionString));
+        await using var provider = services.BuildServiceProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var decorator = scope.ServiceProvider.GetRequiredService<IUnitOfWorkDecorator>();
+        var queue = scope.ServiceProvider.GetRequiredService<DbTaskQueue>();
+        var attempts = 0;
+
+        var ex = await Assert.ThrowsAsync<CommitOutcomeUnknownException>(() => decorator.ExecuteAsync(() =>
+        {
+            attempts++;
+            queue.Register("kill-session", async (connection, transaction, _) =>
+            {
+                var sessionId = await connection.ExecuteScalarAsync<short>("SELECT @@SPID", transaction: transaction);
+                await using var admin = await db.OpenConnectionAsync();
+                await admin.ExecuteAsync($"KILL {sessionId}");
+                return true;
+            });
+            return Task.CompletedTask;
+        }, CancellationToken.None));
+
+        Assert.IsType<SqlException>(ex.InnerException);
         Assert.Equal(1, attempts);
     }
 

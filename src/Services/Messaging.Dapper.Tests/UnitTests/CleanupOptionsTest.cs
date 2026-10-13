@@ -2,13 +2,13 @@ namespace Messaging.Dapper.Tests.UnitTests;
 
 public class CleanupOptionsTest
 {
-    public static TheoryData<string, Action<CleansionOptions>> InvalidOptions => new()
+    public static TheoryData<string, Action<CleanupOptions>> InvalidOptions => new()
     {
-        { nameof(CleansionOptions.OutboxBatchSize), o => o.OutboxBatchSize = 0 },
-        { nameof(CleansionOptions.InboxBatchSize), o => o.InboxBatchSize = 0 },
-        { nameof(CleansionOptions.InboxRetentionMinutes), o => o.InboxRetentionMinutes = 0 },
-        { nameof(CleansionOptions.OutboxRetentionMinutes), o => o.OutboxRetentionMinutes = 0 },
-        { nameof(CleansionOptions.CleanupIntervalMinutes), o => o.CleanupIntervalMinutes = 0 }
+        { nameof(CleanupOptions.OutboxBatchSize), o => o.OutboxBatchSize = 0 },
+        { nameof(CleanupOptions.InboxBatchSize), o => o.InboxBatchSize = 0 },
+        { nameof(CleanupOptions.InboxRetentionMinutes), o => o.InboxRetentionMinutes = 0 },
+        { nameof(CleanupOptions.OutboxRetentionMinutes), o => o.OutboxRetentionMinutes = 0 },
+        { nameof(CleanupOptions.CleanupIntervalMinutes), o => o.CleanupIntervalMinutes = 0 }
     };
 
     [Fact]
@@ -32,7 +32,7 @@ public class CleanupOptionsTest
 
     [Theory]
     [MemberData(nameof(InvalidOptions))]
-    public void ConfigureCleanup_InvalidValue_Throws(string property, Action<CleansionOptions> configure)
+    public void ConfigureCleanup_InvalidValue_Throws(string property, Action<CleanupOptions> configure)
     {
         var ex = Assert.Throws<InvalidOperationException>(() => new ServiceCollection().ConfigureCleanup(configure));
 

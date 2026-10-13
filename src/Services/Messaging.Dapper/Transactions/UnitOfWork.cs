@@ -15,6 +15,7 @@ internal sealed class UnitOfWork(DbConnection connection, IEnumerable<ITransacti
 
     public async Task EnsureConnectionOpenAsync(CancellationToken cancellationToken)
     {
+        if (Connection.State == ConnectionState.Broken) await Connection.CloseAsync();
         if (Connection.State == ConnectionState.Closed) await Connection.OpenAsync(cancellationToken);
     }
 

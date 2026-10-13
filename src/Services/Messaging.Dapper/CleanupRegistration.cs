@@ -6,13 +6,13 @@ namespace Messaging.Dapper;
 public static class CleanupRegistration
 {
     public static IServiceCollection ConfigureCleanup(this IServiceCollection services,
-        Action<CleansionOptions> configureOptions)
+        Action<CleanupOptions > configureOptions)
     {
-        var options = new CleansionOptions();
+        var options = new CleanupOptions ();
         configureOptions(options);
         options.Validate();
 
-        services.AddOptions<CleansionOptions>().Configure(configureOptions);
+        services.AddOptions<CleanupOptions >().Configure(configureOptions);
 
         return services;
     }
@@ -20,7 +20,7 @@ public static class CleanupRegistration
     internal static void AddCleanup(this IServiceCollection services)
     {
         services.TryAddSingleton(TimeProvider.System);
-        services.AddOptions<CleansionOptions>()
+        services.AddOptions<CleanupOptions >()
             .Validate<IServiceProviderIsService>(
                 (_, registered) => registered.IsService(typeof(ITransactionContext)),
                 "Inbox and outbox require a unit of work. Call services.AddUnitOfWork(...).")
