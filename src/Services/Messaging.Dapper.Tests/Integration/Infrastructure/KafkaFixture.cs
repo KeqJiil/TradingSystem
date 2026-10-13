@@ -4,14 +4,13 @@ namespace Messaging.Dapper.Tests.Integration.Infrastructure;
 
 public class KafkaFixture : IAsyncLifetime
 {
-    private readonly KafkaContainer _kafkaContainer = new KafkaBuilder("confluentinc/cp-kafka:latest").Build();
+    private readonly KafkaContainer _kafkaContainer = new KafkaBuilder("confluentinc/cp-kafka:7.6.0").Build();
 
-    public string? ConnectionString = null;
+    public string BootstrapAddress => _kafkaContainer.GetBootstrapAddress();
 
     public async Task InitializeAsync()
     {
         await _kafkaContainer.StartAsync();
-        ConnectionString = _kafkaContainer.GetConnectionString();
     }
 
     public async Task DisposeAsync()
