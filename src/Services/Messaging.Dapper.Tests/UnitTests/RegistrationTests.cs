@@ -1,10 +1,13 @@
 using Messaging.Abstractions;
+using Messaging.Dapper.Inbox;
 using Messaging.Dapper.Outbox;
 using Messaging.Dapper.Transactions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Polly;
 
 namespace Messaging.Dapper.Tests.UnitTests;
 
@@ -67,6 +70,62 @@ public class RegistrationTests
         Assert.Contains(provider.GetServices<IHostedService>(), s => s is OutboxDispatchService);
     }
     
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task InboxOrOutbox_WithoutUnitOfWork_FailsStartupValidation(bool outbox)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddMessaging(b =>
+        {
+            if (outbox) b.AddOutbox();
+            else b.AddInbox();
+        }, o => o.BootstrapServers = "localhost:9092");
+        await using var provider = services.BuildServiceProvider();
+
+        var ex = Assert.Throws<OptionsValidationException>(() =>
+            provider.GetRequiredService<IStartupValidator>().Validate());
+
+        Assert.Contains("AddUnitOfWork", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AddOutbox_WithUnitOfWorkInAnyOrder_PassesStartupValidation(bool unitOfWorkFirst)
+    {
+        await using var provider = Build(b => b.AddOutbox(), unitOfWorkFirst);
+
+        provider.GetRequiredService<IStartupValidator>().Validate();
+    }
+
+    [Fact]
+    public async Task AddUnitOfWork_AppRegistersOwnResiliencePipeline_PipelinesStaySeparate()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(ResiliencePipeline.Empty);
+        services.AddUnitOfWork(_ => new SqlConnection());
+        await using var provider = services.BuildServiceProvider();
+
+        Assert.Same(ResiliencePipeline.Empty, provider.GetRequiredService<ResiliencePipeline>());
+        Assert.NotSame(ResiliencePipeline.Empty,
+            provider.GetRequiredKeyedService<ResiliencePipeline>(UnitOfWorkDecorator.PipelineKey));
+    }
+
+    [Fact]
+    public void AddUnitOfWork_SyncScopeDisposal_DoesNotThrow()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddUnitOfWork(_ => new SqlConnection());
+        using var provider = services.BuildServiceProvider();
+
+        using (var scope = provider.CreateScope())
+            scope.ServiceProvider.GetRequiredService<IUnitOfWorkDecorator>();
+    }
+
     private static ServiceProvider Build(Action<IMessagingBuilder> configure, bool unitOfWorkFirst = true,
         Action<MessagingOptions>? configureOptions = null)
     {

@@ -17,7 +17,7 @@ public static class RegisterUnitOfWork
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<UnitOfWork>());
         services.AddScoped<ITransactionContext>(sp => sp.GetRequiredService<UnitOfWork>());
         services.AddScoped<IUnitOfWorkDecorator, UnitOfWorkDecorator>();
-        services.TryAddSingleton(sp => SqlTransientRetry.CreateDefault(
+        services.TryAddKeyedSingleton(UnitOfWorkDecorator.PipelineKey, (sp, _) => SqlTransientRetry.CreateDefault(
             (sp.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance).CreateLogger(nameof(ResiliencePipeline))));
 
         return services;

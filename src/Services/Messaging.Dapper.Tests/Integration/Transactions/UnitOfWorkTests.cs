@@ -136,6 +136,23 @@ public class UnitOfWorkTests(MssqlFixture db) : IClassFixture<MssqlFixture>, IAs
     }
 
     [Fact]
+    public async Task DisposeSync_OpenTransaction_RollsBackClosesConnectionAndCallsRollbackHooks()
+    {
+        var id = NewId();
+        _queue.Register("a", (_, _, _) => Task.FromResult(true));
+
+        await _sut.StartTransactionAsync(CancellationToken.None);
+        await InsertAsync(id);
+        await _queue.RunPendingAsync(_sut.Connection, _sut.Transaction, CancellationToken.None);
+        _sut.Dispose();
+
+        Assert.Null(_sut.Transaction);
+        Assert.Equal(ConnectionState.Closed, _connection.State);
+        Assert.True(_queue.HasPending);
+        Assert.Equal(0, await CountAsync(id));
+    }
+
+    [Fact]
     public async Task CommitAndRollback_WithoutTransaction_DoNothing()
     {
         await _sut.CommitAsync(CancellationToken.None);

@@ -13,13 +13,7 @@ public static class RegisterOutbox
         configureOptions?.Invoke(options);
         options.Validate();
 
-        services.AddOptions<OutboxRelayOptions>().Configure(o =>
-        {
-            o.PollInterval = options.PollInterval;
-            o.BatchSize = options.BatchSize;
-            o.MaxParallelKeys = options.MaxParallelKeys;
-            o.LeaseMinutes = options.LeaseMinutes;
-        });
+        services.AddOptions<OutboxRelayOptions>().Configure(o => configureOptions?.Invoke(o));
 
         services.AddScoped<OutboxWriter>();
         services.AddScoped<OutboxReader>();

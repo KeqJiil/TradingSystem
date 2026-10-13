@@ -104,6 +104,23 @@ public class UnitOfWorkDecoratorTests(MssqlFixture db) : IClassFixture<MssqlFixt
     }
 
     [Fact]
+    public async Task Execute_TransactionStartedOutside_TransientFailureIsNotRetried()
+    {
+        var attempts = 0;
+        await _scope.ServiceProvider.GetRequiredService<IUnitOfWork>().StartTransactionAsync(CancellationToken.None);
+
+        var ex = await Assert.ThrowsAsync<SqlException>(() => Decorator.ExecuteAsync(async () =>
+        {
+            attempts++;
+            await Context.Connection.ExecuteAsync("WAITFOR DELAY '00:00:05'", transaction: Context.Transaction,
+                commandTimeout: 1);
+        }, CancellationToken.None));
+
+        Assert.Equal(-2, ex.Number);
+        Assert.Equal(1, attempts);
+    }
+
+    [Fact]
     public async Task Execute_NonTransientFailure_RollsBackAndRethrowsWithoutRetry()
     {
         var id = NewId();

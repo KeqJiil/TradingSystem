@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 
 namespace Messaging;
 
-public class BasicKafkaProducer : IDisposable
+internal class BasicKafkaProducer : IDisposable
 {
     private IProducer<string, byte[]> _producer;
 
@@ -95,4 +95,4 @@ public class BasicKafkaProducer : IDisposable
     }
 }
 
-public readonly record struct ProduceResult(bool Success, Error? Error = null);
+internal readonly record struct ProduceResult(bool Success, Error? Error = null);

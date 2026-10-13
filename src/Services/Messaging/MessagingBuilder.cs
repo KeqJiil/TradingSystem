@@ -17,8 +17,6 @@ public static class MessagingBuilderExtension
     {
         var registry = new MessagingRegistry();
 
-        builder.AddSingleton(TimeProvider.System);
-
         builder.AddSingleton<IExceptionToOutcome, BasicExceptionToOutcome>();
         builder.AddSingleton<IMessageSerializerResolver, RegistrySerializerResolver>();
 
@@ -38,22 +36,7 @@ public static class MessagingBuilderExtension
         configureOptions(options);
         options.Validate();
 
-        builder.AddOptions<MessagingOptions>().Configure(o =>
-        {
-            o.UseAutoCommit = options.UseAutoCommit;
-            o.AutoCommitIntervalMs = options.AutoCommitIntervalMs;
-            o.ConnectionString = options.ConnectionString;
-            o.ProducerIdempotency = options.ProducerIdempotency;
-            o.Topics = options.Topics;
-            o.BootstrapServers = options.BootstrapServers;
-            o.ProducerClientId = options.ProducerClientId;
-            o.EnableTopicRegistration = options.EnableTopicRegistration;
-            o.MaxAttempts = options.MaxAttempts;
-            o.RetryDelay = options.RetryDelay;
-            o.DefaultNumPartitions = options.DefaultNumPartitions;
-            o.DefaultReplicationFactor = options.DefaultReplicationFactor;
-            o.MessageTimeoutMs = options.MessageTimeoutMs;
-        });
+        builder.AddOptions<MessagingOptions>().Configure(configureOptions);
 
         builder.TryAddSingleton<IPublishTerminal, DefaultPublishTerminal>();
         builder.TryAddScoped<IMessagePublisher, MessagingPublisher>();

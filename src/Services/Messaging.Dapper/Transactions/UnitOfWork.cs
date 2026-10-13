@@ -5,7 +5,7 @@ using Messaging.Dapper.DbTasks;
 namespace Messaging.Dapper.Transactions;
 
 internal sealed class UnitOfWork(DbConnection connection, IEnumerable<ITransactionHook> hooks)
-    : IUnitOfWork, ITransactionContext
+    : IUnitOfWork, ITransactionContext, IDisposable
 {
     private readonly ITransactionHook[] _hooks = hooks.ToArray();
     private bool _disposed;
@@ -80,6 +80,22 @@ internal sealed class UnitOfWork(DbConnection connection, IEnumerable<ITransacti
 
         await Connection.CloseAsync();
         await Connection.DisposeAsync();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        if (Transaction is not null)
+        {
+            Transaction.Dispose();
+            Transaction = null;
+            Notify(false);
+        }
+
+        Connection.Close();
+        Connection.Dispose();
     }
 
     private void Notify(bool committed)

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Polly;
 
@@ -5,12 +6,15 @@ namespace Messaging.Dapper.Transactions;
 
 internal sealed class UnitOfWorkDecorator(
     IUnitOfWork unitOfWork,
-    ResiliencePipeline pipeline,
+    ITransactionContext transactionContext,
+    [FromKeyedServices(UnitOfWorkDecorator.PipelineKey)] ResiliencePipeline pipeline,
     ILogger<UnitOfWorkDecorator> logger) : IUnitOfWorkDecorator
 {
+    public const string PipelineKey = "Messaging.Dapper.SqlTransientRetry";
+
     public async Task ExecuteAsync(Func<Task> action, CancellationToken ct)
     {
-        if (ResilienceScope.IsActive)
+        if (ResilienceScope.IsActive || transactionContext.Transaction is not null)
         {
             await RunInTransactionAsync(action, ct);
             return;

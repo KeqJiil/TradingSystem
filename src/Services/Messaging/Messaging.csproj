@@ -20,6 +20,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Messaging.Tests"/>
+        <InternalsVisibleTo Include="Messaging.Dapper"/>
     </ItemGroup>
 
 </Project>

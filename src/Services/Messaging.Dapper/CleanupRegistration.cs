@@ -12,14 +12,7 @@ public static class CleanupRegistration
         configureOptions(options);
         options.Validate();
 
-        services.AddOptions<CleansionOptions>().Configure(o =>
-        {
-            o.OutboxBatchSize = options.OutboxBatchSize;
-            o.InboxBatchSize = options.InboxBatchSize;
-            o.InboxRetentionMinutes = options.InboxRetentionMinutes;
-            o.OutboxRetentionMinutes = options.OutboxRetentionMinutes;
-            o.CleanupIntervalMinutes = options.CleanupIntervalMinutes;
-        });
+        services.AddOptions<CleansionOptions>().Configure(configureOptions);
 
         return services;
     }
@@ -27,7 +20,11 @@ public static class CleanupRegistration
     internal static void AddCleanup(this IServiceCollection services)
     {
         services.TryAddSingleton(TimeProvider.System);
-        services.AddOptions<CleansionOptions>();
+        services.AddOptions<CleansionOptions>()
+            .Validate<IServiceProviderIsService>(
+                (_, registered) => registered.IsService(typeof(ITransactionContext)),
+                "Inbox and outbox require a unit of work. Call services.AddUnitOfWork(...).")
+            .ValidateOnStart();
         services.AddHostedService<DbCleanUp>();
     }
 }

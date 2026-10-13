@@ -21,8 +21,4 @@
         <PackageReference Include="coverlet.collector"/>
     </ItemGroup>
 
-    <ItemGroup>
-        <Folder Include="Integration\"/>
-    </ItemGroup>
-
 </Project>
