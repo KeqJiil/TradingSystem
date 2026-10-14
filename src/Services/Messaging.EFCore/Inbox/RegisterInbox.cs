@@ -9,6 +9,8 @@ public static class RegisterInbox
     {
         services.Services.AddScoped<InboxState>();
         services.Services.AddScoped<InboxHook>();
+        services.Services.AddScoped<InboxCleanser<TContext>>();
+        services.Services.AddCleanup<TContext>();
         services.Services.ConfigureDbContext<TContext>((sp, x) =>
             x.AddInterceptors(sp.GetRequiredService<InboxHook>()));
         services.AddDeliveryMiddleware<InboxMiddleware<TContext>>();

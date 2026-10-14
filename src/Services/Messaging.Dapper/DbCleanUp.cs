@@ -10,7 +10,7 @@ namespace Messaging.Dapper;
 internal class DbCleanUp(
     IServiceScopeFactory scopeFactory,
     ILogger<DbCleanUp> logger,
-    IOptions<CleanupOptions > options,
+    IOptions<CleanupOptions> options,
     TimeProvider clock) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
