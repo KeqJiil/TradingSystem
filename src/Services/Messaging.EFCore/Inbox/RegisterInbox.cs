@@ -1,9 +1,17 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Messaging.EFCore.Inbox;
 
 public static class RegisterInbox
 {
-    public static IMessagingBuilder AddInbox(this IMessagingBuilder services)
+    public static IMessagingBuilder AddInbox<TContext>(this IMessagingBuilder services) where TContext : DbContext
     {
+        services.Services.AddScoped<InboxState>();
+        services.Services.AddScoped<InboxHook>();
+        services.Services.ConfigureDbContext<TContext>((sp, x) =>
+            x.AddInterceptors(sp.GetRequiredService<InboxHook>()));
+        services.AddDeliveryMiddleware<InboxMiddleware<TContext>>();
         return services;
     }
 }
