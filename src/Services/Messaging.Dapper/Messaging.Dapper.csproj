@@ -10,6 +10,11 @@
         <PackageReference Include="Dapper"/>
         <PackageReference Include="dbup-sqlserver"/>
         <PackageReference Include="Microsoft.Data.SqlClient"/>
+        <PackageReference Include="Polly"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="Migrations\*.sql"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -17,7 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Inbox\"/>
+        <InternalsVisibleTo Include="Messaging.Dapper.Tests"/>
     </ItemGroup>
 
 </Project>

@@ -76,7 +76,22 @@ public class DlqMessageBuilderTests
         Assert.Equal("group.orders.dlq", topic);
         Assert.Equal("orders", Header(message, MessagingHeaders.OriginalTopic));
     }
-    
+
+    [Fact]
+    public void Build_InboundFirstFailureAtHeader_IsKept()
+    {
+        var headers = new Dictionary<string, string>
+        {
+            [MessagingHeaders.FirstFailureAt] = "earlier"
+        };
+
+        var (_, message) = DlqMessageBuilder.Build(Raw(headers: headers),
+            DlqReasons.Exhausted, null, 5, Now);
+
+        Assert.Equal("earlier", Header(message, MessagingHeaders.FirstFailureAt));
+    }
+
+
     private static RawMessage Raw(string topic = "orders", string? key = "key-1",
         Dictionary<string, string>? headers = null)
     {

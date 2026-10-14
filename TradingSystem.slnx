@@ -17,6 +17,7 @@
         <Project Path="src/Services/Messaging/Messaging.csproj" />
         <Project Path="src/Services/Messaging.Tests/Messaging.Tests.csproj" />
         <Project Path="src/Services/Messaging.IntegrationTests/Messaging.IntegrationTests.csproj" />
+        <Project Path="src/Services/Messaging.Dapper.Tests/Messaging.Dapper.Tests.csproj" />
     </Folder>
     <Project Path="src\Services\Stock.Tests\Stock.Tests.csproj" />
 </Solution>

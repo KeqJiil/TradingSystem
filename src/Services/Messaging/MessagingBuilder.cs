@@ -1,6 +1,7 @@
 using Confluent.Kafka;
 using Messaging.Abstractions;
 using Messaging.Dlq;
+using Messaging.Serializers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -17,6 +18,7 @@ public static class MessagingBuilderExtension
         var registry = new MessagingRegistry();
 
         builder.AddSingleton<IExceptionToOutcome, BasicExceptionToOutcome>();
+        builder.AddSingleton<IMessageSerializerResolver, RegistrySerializerResolver>();
 
         builder.AddSingleton<IAdminClient>(sp =>
             new AdminClientBuilder(new AdminClientConfig
@@ -34,24 +36,9 @@ public static class MessagingBuilderExtension
         configureOptions(options);
         options.Validate();
 
-        builder.AddOptions<MessagingOptions>().Configure(o =>
-        {
-            o.UseAutoCommit = options.UseAutoCommit;
-            o.AutoCommitIntervalMs = options.AutoCommitIntervalMs;
-            o.ConnectionString = options.ConnectionString;
-            o.ProducerIdempotency = options.ProducerIdempotency;
-            o.Topics = options.Topics;
-            o.BootstrapServers = options.BootstrapServers;
-            o.ProducerClientId = options.ProducerClientId;
-            o.EnableTopicRegistration = options.EnableTopicRegistration;
-            o.MaxAttempts = options.MaxAttempts;
-            o.RetryDelay = options.RetryDelay;
-            o.DefaultNumPartitions = options.DefaultNumPartitions;
-            o.DefaultReplicationFactor = options.DefaultReplicationFactor;
-            o.MessageTimeoutMs = options.MessageTimeoutMs;
-        });
+        builder.AddOptions<MessagingOptions>().Configure(configureOptions);
 
-        builder.AddSingleton<IPublishTerminal, DefaultPublishTerminal>();
+        builder.TryAddSingleton<IPublishTerminal, DefaultPublishTerminal>();
         builder.TryAddScoped<IMessagePublisher, MessagingPublisher>();
 
         builder.AddSingleton<BasicKafkaProducer>();
@@ -135,9 +122,23 @@ public class MessagingBuilder(IServiceCollection sc) : IMessagingBuilder
         return this;
     }
 
+    public IMessagingBuilder AddDeliveryMiddleware<TMessage, TMiddleware>()
+        where TMiddleware : class, IMessageDeliveryMiddleware<TMessage>
+    {
+        sc.AddKeyedScoped<IMessageDeliveryMiddleware<TMessage>, TMiddleware>("MessagingDeliveryMiddleware");
+        return this;
+    }
+
     public IMessagingBuilder AddPublishMiddleware<TMiddleware>() where TMiddleware : class, IMessagePublishMiddleware
     {
         sc.AddKeyedScoped<IMessagePublishMiddleware, TMiddleware>("MessagingPublishMiddleware");
+        return this;
+    }
+
+    public IMessagingBuilder AddPublishMiddleware<TMessage, TMiddleware>()
+        where TMiddleware : class, IMessagePublishMiddleware<TMessage>
+    {
+        sc.AddKeyedScoped<IMessagePublishMiddleware<TMessage>, TMiddleware>("MessagingPublishMiddleware");
         return this;
     }
 }

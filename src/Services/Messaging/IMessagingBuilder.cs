@@ -14,5 +14,11 @@ public interface IMessagingBuilder
 
     IMessagingBuilder AddDeliveryMiddleware<TMiddleware>() where TMiddleware : class, IMessageDeliveryMiddleware;
 
+    IMessagingBuilder AddDeliveryMiddleware<TMessage, TMiddleware>()
+        where TMiddleware : class, IMessageDeliveryMiddleware<TMessage>;
+
     IMessagingBuilder AddPublishMiddleware<TMiddleware>() where TMiddleware : class, IMessagePublishMiddleware;
+
+    IMessagingBuilder AddPublishMiddleware<TMessage, TMiddleware>()
+        where TMiddleware : class, IMessagePublishMiddleware<TMessage>;
 }
