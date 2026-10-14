@@ -12,7 +12,7 @@ internal class OutboxConfiguration : IEntityTypeConfiguration<OutboxEntity>
 
         builder.HasKey(x => x.Id).HasName("pk_outbox");
 
-        builder.Property<long>(x => x.Id).HasColumnName("id").IsRequired();
+        builder.Property<long>(x => x.Id).HasColumnName("id").UseOrderedSequence("outbox_id_seq").IsRequired();
         builder.Property<string>(x => x.MessageId).HasColumnName("message_id").HasColumnType("VARCHAR(100)")
             .IsRequired();
         builder.Property<string>(x => x.MessageType).HasColumnName("message_type").HasColumnType("VARCHAR(200)")

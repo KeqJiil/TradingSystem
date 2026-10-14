@@ -1,4 +1,4 @@
-namespace Messaging.Dapper.Outbox;
+namespace Messaging.Outbox;
 
 public class OutboxRelayOptions
 {
@@ -23,6 +23,11 @@ public class OutboxRelayOptions
     /// </summary>
     public int LeaseMinutes { get; set; } = 2;
 
+    /// <summary>
+    /// Gets or sets how many times a row is published before a failure marks it as dead.
+    /// </summary>
+    public int MaxAttempts { get; set; } = 3;
+
     internal void Validate()
     {
         if (PollInterval <= TimeSpan.Zero)
@@ -33,5 +38,7 @@ public class OutboxRelayOptions
             throw new InvalidOperationException($"{nameof(MaxParallelKeys)} must be at least 1.");
         if (LeaseMinutes < 1)
             throw new InvalidOperationException($"{nameof(LeaseMinutes)} must be at least 1.");
+        if (MaxAttempts < 1)
+            throw new InvalidOperationException($"{nameof(MaxAttempts)} must be at least 1.");
     }
 }

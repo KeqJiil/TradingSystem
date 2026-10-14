@@ -21,6 +21,8 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Messaging.Tests"/>
         <InternalsVisibleTo Include="Messaging.Dapper"/>
+        <InternalsVisibleTo Include="Messaging.Dapper.Tests"/>
+        <InternalsVisibleTo Include="Messaging.EFCore"/>
     </ItemGroup>
 
 </Project>

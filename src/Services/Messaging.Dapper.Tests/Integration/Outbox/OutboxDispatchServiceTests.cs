@@ -4,6 +4,7 @@ using Messaging.Dapper.Migrations;
 using Messaging.Dapper.Outbox;
 using Messaging.Dapper.Tests.Integration.Infrastructure;
 using Messaging.Dapper.Transactions;
+using Messaging.Outbox;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -103,6 +104,21 @@ public class OutboxDispatchServiceTests(MssqlFixture db, KafkaFixture kafka)
     }
 
     [Fact]
+    public async Task Relay_AttemptsExhausted_MarksRowDeadAndPublishesNextMessageOfSameKey()
+    {
+        var topic = await _kafka.CreateTopicAsync();
+        var failing = await _table.SeedAsync(new OutboxSeed { Topic = "invalid topic!", Key = "a" });
+        var next = await _table.SeedAsync(new OutboxSeed { Topic = topic, Key = "a", Payload = Bytes("next") });
+
+        await StartRelayAsync(kafka.BootstrapAddress, messageTimeoutMs: 5_000, maxAttempts: 1);
+
+        await Wait.UntilAsync(async () => (await _table.GetAsync(next))!.Status == "COMPLETED", "next completed");
+        Assert.Equal("DEAD", (await _table.GetAsync(failing))!.Status);
+        Assert.True(HasLog(LogLevel.Critical, "exhausted 1 attempts"));
+        Assert.Equal("next", Encoding.UTF8.GetString(Assert.Single(await _kafka.ReadAsync(topic, 1)).Value));
+    }
+
+    [Fact]
     public async Task Relay_KeyFails_HoldsRestOfThatKeyAndCompletesOtherKeys()
     {
         var topic = await _kafka.CreateTopicAsync();
@@ -141,7 +157,7 @@ public class OutboxDispatchServiceTests(MssqlFixture db, KafkaFixture kafka)
     }
 
     private async Task StartRelayAsync(string bootstrapServers, string? connectionString = null,
-        int messageTimeoutMs = 10_000)
+        int messageTimeoutMs = 10_000, int maxAttempts = 3)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -151,6 +167,7 @@ public class OutboxDispatchServiceTests(MssqlFixture db, KafkaFixture kafka)
         {
             o.PollInterval = TimeSpan.FromMilliseconds(200);
             o.LeaseMinutes = 1;
+            o.MaxAttempts = maxAttempts;
         }), o =>
         {
             o.BootstrapServers = bootstrapServers;

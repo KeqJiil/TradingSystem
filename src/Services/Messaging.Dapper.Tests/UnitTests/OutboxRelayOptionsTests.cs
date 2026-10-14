@@ -1,4 +1,4 @@
-using Messaging.Dapper.Outbox;
+using Messaging.Outbox;
 
 namespace Messaging.Dapper.Tests.UnitTests;
 
@@ -10,7 +10,8 @@ public class OutboxRelayOptionsTests
         { nameof(OutboxRelayOptions.PollInterval), o => o.PollInterval = TimeSpan.FromSeconds(-1) },
         { nameof(OutboxRelayOptions.BatchSize), o => o.BatchSize = 0 },
         { nameof(OutboxRelayOptions.MaxParallelKeys), o => o.MaxParallelKeys = 0 },
-        { nameof(OutboxRelayOptions.LeaseMinutes), o => o.LeaseMinutes = 0 }
+        { nameof(OutboxRelayOptions.LeaseMinutes), o => o.LeaseMinutes = 0 },
+        { nameof(OutboxRelayOptions.MaxAttempts), o => o.MaxAttempts = 0 }
     };
 
     [Fact]
@@ -27,7 +28,8 @@ public class OutboxRelayOptionsTests
             PollInterval = TimeSpan.FromMilliseconds(1),
             BatchSize = 1,
             MaxParallelKeys = 1,
-            LeaseMinutes = 1
+            LeaseMinutes = 1,
+            MaxAttempts = 1
         }.Validate();
     }
 
