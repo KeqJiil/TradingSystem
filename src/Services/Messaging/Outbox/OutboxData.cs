@@ -1,6 +1,6 @@
 namespace Messaging.Outbox;
 
-internal record OutboxData(
+internal record struct OutboxData(
     long Id,
     string MessageId,
     string MessageType,
