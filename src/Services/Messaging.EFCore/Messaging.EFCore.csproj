@@ -14,4 +14,8 @@
         <ProjectReference Include="..\Messaging\Messaging.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="Messaging.EFCore.Tests"/>
+    </ItemGroup>
+
 </Project>

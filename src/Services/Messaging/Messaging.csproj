@@ -23,6 +23,8 @@
         <InternalsVisibleTo Include="Messaging.Dapper"/>
         <InternalsVisibleTo Include="Messaging.Dapper.Tests"/>
         <InternalsVisibleTo Include="Messaging.EFCore"/>
+        <InternalsVisibleTo Include="Messaging.EFCore.Tests"/>
+        <InternalsVisibleTo Include="Messaging.Testing"/>
     </ItemGroup>
 
 </Project>

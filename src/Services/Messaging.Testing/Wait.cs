@@ -1,4 +1,4 @@
-namespace Messaging.Dapper.Tests.Integration.Infrastructure;
+namespace Messaging.Testing;
 
 public static class Wait
 {

@@ -2,7 +2,6 @@ using Messaging.Abstractions;
 using Messaging.Outbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Messaging.EFCore.Outbox;
 

@@ -1,6 +1,6 @@
 using Messaging.Outbox;
 
-namespace Messaging.Dapper.Tests.UnitTests;
+namespace Messaging.Tests.Outbox;
 
 public class OutboxRelayOptionsTests
 {

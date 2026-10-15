@@ -1,6 +1,6 @@
 using Testcontainers.Kafka;
 
-namespace Messaging.Dapper.Tests.Integration.Infrastructure;
+namespace Messaging.Testing;
 
 public class KafkaFixture : IAsyncLifetime
 {

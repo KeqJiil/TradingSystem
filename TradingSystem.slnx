@@ -14,8 +14,10 @@
         <Project Path="src/Services/Messaging.Abstractions/Messaging.Abstractions.csproj" />
         <Project Path="src/Services/Messaging.Dapper/Messaging.Dapper.csproj" />
         <Project Path="src/Services/Messaging.EFCore/Messaging.EFCore.csproj" />
+        <Project Path="src/Services/Messaging.EFCore.Tests/Messaging.EFCore.Tests.csproj" />
         <Project Path="src/Services/Messaging/Messaging.csproj" />
         <Project Path="src/Services/Messaging.Tests/Messaging.Tests.csproj" />
+        <Project Path="src/Services/Messaging.Testing/Messaging.Testing.csproj" />
         <Project Path="src/Services/Messaging.IntegrationTests/Messaging.IntegrationTests.csproj" />
         <Project Path="src/Services/Messaging.Dapper.Tests/Messaging.Dapper.Tests.csproj" />
     </Folder>
