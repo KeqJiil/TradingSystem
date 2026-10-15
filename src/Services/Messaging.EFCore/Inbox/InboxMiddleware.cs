@@ -46,6 +46,11 @@ internal class InboxMiddleware<TContext>(
 
         if (inboxState.Committed) return result;
 
+        if (dbContext.ChangeTracker.HasChanges())
+            logger.LogWarning(
+                "Consumer of {MessageType} returned Success with unsaved changes for message {MessageId}; they are discarded",
+                context.MessageType, context.MessageId);
+
         try
         {
             dbContext.ChangeTracker.Clear();
