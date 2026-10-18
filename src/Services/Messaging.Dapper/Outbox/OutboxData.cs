@@ -1,3 +1,5 @@
+using Messaging.Outbox;
+
 namespace Messaging.Dapper.Outbox;
 
 internal record OutboxEntry(
@@ -7,17 +9,6 @@ internal record OutboxEntry(
     string Key,
     byte[] Payload,
     IReadOnlyDictionary<string, string> Headers);
-
-internal record OutboxData(
-    long Id,
-    string MessageId,
-    string MessageType,
-    string Topic,
-    string Key,
-    byte[] Payload,
-    IReadOnlyDictionary<string, string> Headers,
-    int Attempts,
-    DateTimeOffset CreatedAt);
 
 internal class OutboxRow
 {

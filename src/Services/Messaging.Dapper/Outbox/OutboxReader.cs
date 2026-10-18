@@ -1,4 +1,5 @@
 using Dapper;
+using Messaging.Outbox;
 
 namespace Messaging.Dapper.Outbox;
 

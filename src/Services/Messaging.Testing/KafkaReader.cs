@@ -2,7 +2,7 @@ using System.Text;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 
-namespace Messaging.Dapper.Tests.Integration.Infrastructure;
+namespace Messaging.Testing;
 
 public sealed record ReadMessage(string? Key, byte[] Value, IReadOnlyDictionary<string, string> Headers);
 

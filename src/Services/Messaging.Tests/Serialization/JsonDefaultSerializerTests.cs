@@ -51,7 +51,7 @@ public class JsonDefaultSerializerTests
     {
         var serializer = new JsonDefaultSerializer();
 
-        var serialized = serializer.Serialize<TestRecord>(null);
+        var serialized = serializer.Serialize<TestRecord>(null!);
         var deserialized = serializer.Deserialize<TestRecord>(serialized.Message);
         Assert.True(deserialized.Success);
         Assert.Null(deserialized.Message);

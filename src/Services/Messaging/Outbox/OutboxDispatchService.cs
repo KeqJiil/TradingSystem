@@ -5,7 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Messaging.Dapper.Outbox;
+namespace Messaging.Outbox;
 
 internal class OutboxDispatchService : BackgroundService
 {
@@ -60,10 +60,9 @@ internal class OutboxDispatchService : BackgroundService
     private async Task<bool> DispatchBatchAsync(CancellationToken ct)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var reader = scope.ServiceProvider.GetRequiredService<OutboxReader>();
-        var writer = scope.ServiceProvider.GetRequiredService<OutboxWriter>();
+        var store = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
 
-        var batch = await reader.GetPendingAsync(_options.BatchSize, _options.LeaseMinutes, ct);
+        var batch = await store.GetPendingAsync(_options.BatchSize, _options.LeaseMinutes, ct);
         if (batch.Count == 0) return false;
 
         using var gate = new SemaphoreSlim(_options.MaxParallelKeys);
@@ -81,7 +80,7 @@ internal class OutboxDispatchService : BackgroundService
             }
         }));
 
-        await writer.MarkCompletedAsync(results.SelectMany(r => r.Completed).ToList(),
+        await store.MarkCompletedAsync(results.SelectMany(r => r.Completed).ToList(),
             results.SelectMany(r => r.Dead).ToList(), ct);
 
         return batch.Count == _options.BatchSize;
@@ -96,6 +95,14 @@ internal class OutboxDispatchService : BackgroundService
         foreach (var message in messages)
         {
             var outcome = await DispatchAsync(message, ct);
+            if (outcome == DispatchOutcome.Failed && message.Attempts >= _options.MaxAttempts)
+            {
+                _logger.LogCritical(
+                    "Outbox message {MessageId} for {Topic} exhausted {Attempts} attempts and is marked as dead",
+                    message.MessageId, message.Topic, message.Attempts);
+                outcome = DispatchOutcome.Exhausted;
+            }
+
             if (outcome == DispatchOutcome.Failed) break;
 
             (outcome == DispatchOutcome.Published ? completed : dead).Add(message.Id);
@@ -141,6 +148,7 @@ internal class OutboxDispatchService : BackgroundService
     {
         Published,
         Failed,
-        Poison
+        Poison,
+        Exhausted
     }
 }

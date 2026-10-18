@@ -16,6 +16,7 @@ using Xunit;
 
 namespace Stock.Tests.Infrastructure.Handlers;
 
+[Collection(HangfireCollection.Name)]
 public class JobEventHangfireHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifetime
 {
     private static readonly DateOnly Date = new(2026, 3, 5);

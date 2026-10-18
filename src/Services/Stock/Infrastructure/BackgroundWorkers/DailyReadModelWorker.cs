@@ -20,10 +20,9 @@ public class DailyReadModelWorker(
         var dayEnd = from.AddDays(1);
 
         decimal? open = null;
-        decimal? close = null;
+        var close = 0m;
         var high = decimal.MinValue;
         var low = decimal.MaxValue;
-        var count = 0;
 
         foreach (var priceEvent in await hourlyReader.GetHourlyPriceHistoryAsync(aggregateId, from, dayEnd, ct))
         {
@@ -31,10 +30,9 @@ public class DailyReadModelWorker(
             close = priceEvent.ClosePrice;
             if (priceEvent.HighPrice > high) high = priceEvent.HighPrice;
             if (priceEvent.LowPrice < low) low = priceEvent.LowPrice;
-            count++;
         }
 
-        if (count == 0)
+        if (open is null)
         {
             logger.LogDebug("No events for {AggregateId} on {Date}, skipping", aggregateId, date);
             return;
@@ -43,8 +41,8 @@ public class DailyReadModelWorker(
         var lastVersion = await eventStoreReader.GetLastVersionAsync(aggregateId, dayEnd, ct) ?? 0;
 
         await writer.CreateDailyReadModelAsync(
-            new DailyReadModelAggregate(aggregateId, date, open.Value, low, high, close.Value,
-                close.Value - open.Value, lastVersion),
+            new DailyReadModelAggregate(aggregateId, date, open.Value, low, high, close,
+                close - open.Value, lastVersion),
             ct);
 
         logger.LogDebug("DailyReadModelWorker finished for {AggregateId} on {Date}", aggregateId, date);

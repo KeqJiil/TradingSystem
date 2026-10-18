@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Messaging.Dapper\Messaging.Dapper.csproj"/>
+        <ProjectReference Include="..\Messaging.Testing\Messaging.Testing.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

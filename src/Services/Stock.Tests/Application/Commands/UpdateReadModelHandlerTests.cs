@@ -110,9 +110,9 @@ public class UpdateReadModelHandlerTests : IClassFixture<MssqlFixture>, IAsyncLi
     private record StockReadModel
     {
         public Guid AggregateId { get; init; }
-        public string Name { get; init; }
+        public string Name { get; init; } = "";
         public decimal Price { get; init; }
-        public string Currency { get; init; }
+        public string Currency { get; init; } = "";
         public long Version { get; init; }
     }
 

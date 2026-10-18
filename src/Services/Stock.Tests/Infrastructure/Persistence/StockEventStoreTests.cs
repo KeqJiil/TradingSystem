@@ -46,8 +46,8 @@ public class StockEventStoreTests : IClassFixture<MssqlFixture>, IAsyncLifetime
         var first = await store.AppendAsync(NewRequest(aggregateId, 1m), CancellationToken.None);
         var second = await store.AppendAsync(NewRequest(aggregateId, 2m), CancellationToken.None);
 
-        Assert.Equal(1, first.Version);
-        Assert.Equal(2, second.Version);
+        Assert.Equal(1, first!.Version);
+        Assert.Equal(2, second!.Version);
     }
 
     [Fact]

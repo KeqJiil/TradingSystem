@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace Messaging.Dapper.Tests.Integration.Infrastructure;
+namespace Messaging.Testing;
 
 public sealed class CapturingLogger<T> : ILogger<T>
 {

@@ -2,6 +2,7 @@ using Messaging.Abstractions;
 using Messaging.Dapper.Inbox;
 using Messaging.Dapper.Outbox;
 using Messaging.Dapper.Transactions;
+using Messaging.Outbox;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
