@@ -42,7 +42,7 @@ public class RegistrationTests
         await using var scope = provider.CreateAsyncScope();
 
         var context = scope.ServiceProvider.GetRequiredService<TestDbContext>();
-        var interceptors = context.GetService<IDbContextOptions>().FindExtension<CoreOptionsExtension>()!.Interceptors;
+        var interceptors = context.GetService<IDbContextOptions>().FindExtension<CoreOptionsExtension>()!.Interceptors!;
 
         Assert.Contains(scope.ServiceProvider.GetRequiredService<InboxHook>(), interceptors);
     }

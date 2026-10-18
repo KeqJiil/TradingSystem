@@ -10,6 +10,7 @@ using Xunit;
 
 namespace Stock.Tests.Infrastructure.Cron;
 
+[Collection(HangfireCollection.Name)]
 public class CronBuilderTests : IClassFixture<MssqlFixture>
 {
     private readonly MssqlFixture _fixture;

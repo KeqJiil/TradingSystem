@@ -25,7 +25,6 @@ public class HourlyReadModelWorker(
         decimal? open = null;
         var high = decimal.MinValue;
         var low = decimal.MaxValue;
-        var count = 0;
 
         await foreach (var priceEvent in eventStoreReader.ListEventsAsync(aggregateId, hourStart,
                            hourEnd, ct))
@@ -34,10 +33,9 @@ public class HourlyReadModelWorker(
             open ??= cumulativePrice;
             if (cumulativePrice > high) high = cumulativePrice;
             if (cumulativePrice < low) low = cumulativePrice;
-            count++;
         }
 
-        if (count == 0)
+        if (open is null)
         {
             logger.LogDebug("No events for {AggregateId} on {Date}, skipping", aggregateId, hourStart);
             return;

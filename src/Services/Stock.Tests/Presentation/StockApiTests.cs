@@ -8,6 +8,7 @@ using Xunit;
 
 namespace Stock.Tests.Presentation;
 
+[Collection(HangfireCollection.Name)]
 public class StockApiTests : IClassFixture<StockApiFixture>, IAsyncLifetime
 {
     private const string Stocks = "/api/v1/stocks";

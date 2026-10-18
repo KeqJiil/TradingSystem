@@ -4,6 +4,7 @@ using Xunit;
 
 namespace Stock.Tests.Presentation;
 
+[Collection(HangfireCollection.Name)]
 public class HealthApiTests : IClassFixture<MssqlFixture>, IClassFixture<KafkaFixture>
 {
     private readonly MssqlFixture _mssql;
