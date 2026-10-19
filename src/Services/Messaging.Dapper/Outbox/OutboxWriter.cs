@@ -9,7 +9,7 @@ internal class OutboxWriter(ITransactionContext dbContext)
     public async Task WriteAsync(OutboxEntry entry, CancellationToken cancellationToken)
     {
         var sql = """
-                    INSERT INTO outbox (message_id, message_type, topic, message_key, payload, headers)
+                    INSERT INTO messaging.outbox (message_id, message_type, topic, message_key, payload, headers)
                     VALUES (@MessageId, @MessageType, @Topic, @MessageKey, @Payload, @Headers)
                   """;
 
@@ -32,7 +32,7 @@ internal class OutboxWriter(ITransactionContext dbContext)
         if (entries.Count == 0) return;
 
         var sql = """
-                    INSERT INTO outbox (message_id, message_type, topic, message_key, payload, headers, attempts)
+                    INSERT INTO messaging.outbox (message_id, message_type, topic, message_key, payload, headers, attempts)
                     SELECT message_id, message_type, topic, message_key, payload, headers, attempts
                     FROM @Events
                     ORDER BY ordinal;
@@ -56,7 +56,7 @@ internal class OutboxWriter(ITransactionContext dbContext)
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
         var parameters = new DynamicParameters();
-        parameters.Add("Events", table.AsTableValuedParameter("dbo.outbox_event_tvp"));
+        parameters.Add("Events", table.AsTableValuedParameter("messaging.outbox_event_tvp"));
 
         await dbContext.Connection.ExecuteAsync(new CommandDefinition(sql, parameters, dbContext.Transaction,
             cancellationToken: cancellationToken));
@@ -68,7 +68,7 @@ internal class OutboxWriter(ITransactionContext dbContext)
         if (completedIds.Count == 0 && deadIds.Count == 0) return;
 
         var sql = """
-                    UPDATE outbox
+                    UPDATE messaging.outbox
                     SET status = CASE WHEN id IN @DeadIds THEN 'DEAD' ELSE 'COMPLETED' END
                     WHERE id IN @CompletedIds OR id IN @DeadIds
                   """;

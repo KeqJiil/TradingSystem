@@ -7,7 +7,7 @@ internal class InboxCleaner(ITransactionContext dbContext)
     public async Task<int> CleanupAsync(int batchSize, DateTimeOffset olderThan, CancellationToken cancellationToken)
     {
         var sql = """
-                    DELETE TOP (@BatchSize) FROM inbox
+                    DELETE TOP (@BatchSize) FROM messaging.inbox
                     WHERE created_at < @OlderThan
                   """;
 

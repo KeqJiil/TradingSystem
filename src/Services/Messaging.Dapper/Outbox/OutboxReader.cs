@@ -10,7 +10,7 @@ internal class OutboxReader(ITransactionContext context)
         var sql = """
                     ;WITH cte AS (
                         SELECT TOP(@Amount) *
-                        FROM outbox WITH (ROWLOCK, UPDLOCK, READPAST)
+                        FROM messaging.outbox WITH (ROWLOCK, UPDLOCK, READPAST)
                         WHERE status IN ('PENDING', 'PROCESSING')
                             AND (processed_at IS NULL OR processed_at <= DATEADD(MINUTE, -@LeaseMinutes, SYSDATETIMEOFFSET()))
                         ORDER BY id

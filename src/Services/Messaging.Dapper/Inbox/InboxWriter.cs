@@ -9,7 +9,7 @@ internal class InboxWriter
         string consumerGroup, string messageId, CancellationToken cancellationToken)
     {
         var sql = """
-                    INSERT INTO inbox (consumer_group, message_id)
+                    INSERT INTO messaging.inbox (consumer_group, message_id)
                     VALUES (@ConsumerGroup, @MessageId)
                   """;
 

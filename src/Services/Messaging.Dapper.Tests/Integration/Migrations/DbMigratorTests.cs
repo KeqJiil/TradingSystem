@@ -14,9 +14,9 @@ public class DbMigratorTests(MssqlFixture db) : IClassFixture<MssqlFixture>
         DbMigrator.ApplyMigrations(connectionString, typeof(DbMigratorTests).Assembly, MssqlFixture.LibraryScripts);
 
         await using var connection = await db.OpenConnectionAsync(connectionString);
-        Assert.NotNull(await connection.ExecuteScalarAsync<int?>("SELECT OBJECT_ID('dbo.inbox', 'U')"));
-        Assert.NotNull(await connection.ExecuteScalarAsync<int?>("SELECT OBJECT_ID('dbo.outbox', 'U')"));
-        Assert.NotNull(await connection.ExecuteScalarAsync<int?>("SELECT TYPE_ID('dbo.outbox_event_tvp')"));
+        Assert.NotNull(await connection.ExecuteScalarAsync<int?>("SELECT OBJECT_ID('messaging.inbox', 'U')"));
+        Assert.NotNull(await connection.ExecuteScalarAsync<int?>("SELECT OBJECT_ID('messaging.outbox', 'U')"));
+        Assert.NotNull(await connection.ExecuteScalarAsync<int?>("SELECT TYPE_ID('messaging.outbox_event_tvp')"));
     }
 
     [Fact]
