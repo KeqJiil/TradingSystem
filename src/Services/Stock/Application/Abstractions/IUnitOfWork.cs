@@ -7,7 +7,7 @@ public interface IUnitOfWork : IAsyncDisposable
     public ValueTask RollbackAsync(CancellationToken ct);
 }
 
-public interface IUnitOfWorkDecorator
-{
-    public Task ExecuteAsync(Func<Task> action, CancellationToken ct);
-}
+// public interface IUnitOfWorkDecorator
+// {
+//     public Task ExecuteAsync(Func<Task> action, CancellationToken ct);
+// }

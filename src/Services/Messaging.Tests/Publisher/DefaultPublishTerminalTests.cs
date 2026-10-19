@@ -24,7 +24,7 @@ public class DefaultPublishTerminalTests
         var stopwatch = Stopwatch.StartNew();
 
         var outcome = await publisher.PublishAsync(new SampleMessage("name", 1),
-            new PublishOptions("key", "topic", new Dictionary<string, string>()), CancellationToken.None);
+            new PublishOptions("key"), CancellationToken.None);
 
         Assert.False(outcome.IsSuccessful);
         Assert.Contains("serialize", outcome.ErrorMessage);

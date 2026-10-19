@@ -13,7 +13,7 @@ public static class PersistenceBuilder
 
         builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
         builder.Services.AddScoped<IDbContext>(sp => (IDbContext)sp.GetRequiredService<IUnitOfWork>());
-        builder.Services.AddScoped<IUnitOfWorkDecorator, UnitOfWorkDecorator>();
+        //builder.Services.AddScoped<IUnitOfWorkDecorator, UnitOfWorkDecorator>();
 
         builder.Services.AddScoped<IOutboxReader, OutboxReader>();
         builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();

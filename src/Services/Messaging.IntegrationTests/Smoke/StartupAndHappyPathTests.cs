@@ -29,7 +29,7 @@ public class StartupAndHappyPathTests(KafkaFixture kafka, ITestOutputHelper outp
         var capture = new DeliveryCaptureLog();
         await using var host = await StartHost(topic, group, recorder, capture);
 
-        var outcome = await host.PublishAsync(new OrderPlaced("o-1"), topic, "key-1");
+        var outcome = await host.PublishAsync(new OrderPlaced("o-1"), "key-1");
 
         Assert.True(outcome.IsSuccessful, outcome.ErrorMessage);
         await recorder.WaitForCallsAsync(1);

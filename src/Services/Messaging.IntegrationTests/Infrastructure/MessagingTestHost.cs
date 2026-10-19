@@ -42,13 +42,13 @@ public sealed class MessagingTestHost : IAsyncDisposable
         return new MessagingTestHost(host, new KafkaTestClient(kafka.BootstrapAddress));
     }
 
-    public async Task<PublishOutcome> PublishAsync<TMessage>(TMessage message, string topic, string key,
+    public async Task<PublishOutcome> PublishAsync<TMessage>(TMessage message, string key,
         Dictionary<string, string>? headers = null)
     {
         await using var scope = Services.CreateAsyncScope();
         var publisher = scope.ServiceProvider.GetRequiredService<IMessagePublisher>();
 
-        return await publisher.PublishAsync(message, new PublishOptions(key, topic, headers ?? new()),
+        return await publisher.PublishAsync(message, new PublishOptions(key, headers),
             CancellationToken.None);
     }
 

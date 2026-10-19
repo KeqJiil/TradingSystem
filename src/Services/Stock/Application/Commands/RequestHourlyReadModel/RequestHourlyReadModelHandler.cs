@@ -1,10 +1,11 @@
 using MediatR;
+using Messaging.Abstractions;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
 
 namespace Stock.Application.Commands.RequestHourlyReadModel;
 
-public class RequestHourlyReadModelHandler(IOutboxWriter outboxWriter, IStockDataReader stockDataReader)
+public class RequestHourlyReadModelHandler(IMessagePublisher publisher, IStockDataReader stockDataReader)
     : IRequestHandler<RequestHourlyReadModelCommand>
 {
     public async Task Handle(RequestHourlyReadModelCommand request, CancellationToken cancellationToken)
@@ -17,12 +18,12 @@ public class RequestHourlyReadModelHandler(IOutboxWriter outboxWriter, IStockDat
             batch.Add((stockId, new HourlyReadModelRequested(stockId, request.Date, request.Hour)));
             if (batch.Count == batchSize)
             {
-                await outboxWriter.WriteManyAsync(batch, cancellationToken);
+                // publisher.WriteManyAsync(batch, cancellationToken);
                 batch.Clear();
             }
         }
 
-        if (batch.Count > 0)
-            await outboxWriter.WriteManyAsync(batch, cancellationToken);
+        //if (batch.Count > 0)
+            //await publisher.WriteManyAsync(batch, cancellationToken);
     }
 }

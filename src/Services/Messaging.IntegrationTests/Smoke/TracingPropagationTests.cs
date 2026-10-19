@@ -36,7 +36,7 @@ public class TracingPropagationTests(KafkaFixture kafka, ITestOutputHelper outpu
         using var ambient = ambientSource.StartActivity("ambient")!;
         MessagingCorrelation.CorrelationId = "corr-1";
 
-        await host.PublishAsync(new OrderPlaced("o-1"), topic, "key-1");
+        await host.PublishAsync(new OrderPlaced("o-1"), "key-1");
 
         var (traceId, correlationId) = await seen.Task.WaitAsync(Wait.Default);
         Assert.Equal(ambient.TraceId, traceId);
@@ -55,7 +55,7 @@ public class TracingPropagationTests(KafkaFixture kafka, ITestOutputHelper outpu
             new ConsumerRecorder<OrderPlaced>());
         MessagingCorrelation.CorrelationId = "corr-1";
 
-        await host.PublishAsync(new OrderPlaced("o-1"), topic, "key-1");
+        await host.PublishAsync(new OrderPlaced("o-1"), "key-1");
 
         var onWire = Assert.Single(await host.Kafka.ReadAsync(topic, 1));
         Assert.DoesNotContain(MessagingHeaders.TraceParent, onWire.Headers.Keys);
