@@ -1,9 +1,10 @@
 using Dapper;
+using Messaging.Dapper;
 using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class StockReader(IDbContext dbContext) : IStockReader
+public class StockReader(ITransactionContext context) : IStockReader
 {
     public async Task<StockReadModel?> GetByIdAsync(Guid stockId, CancellationToken cancellationToken)
     {
@@ -21,9 +22,10 @@ public class StockReader(IDbContext dbContext) : IStockReader
                   WHERE s.aggregate_id = @StockId
                   """;
 
-        await dbContext.EnsureConnectionOpenAsync(cancellationToken);
+        await context.EnsureConnectionOpenAsync(cancellationToken);
 
-        var rows = await dbContext.Connection.QueryAsync<StockReadModel>(new CommandDefinition(sql, new { StockId = stockId }, dbContext.Transaction, cancellationToken: cancellationToken));
+        var rows = await context.Connection.QueryAsync<StockReadModel>(new CommandDefinition(sql,
+            new { StockId = stockId }, context.Transaction, cancellationToken: cancellationToken));
 
         return rows.Select(row => (StockReadModel?)row).SingleOrDefault();
     }
@@ -36,8 +38,9 @@ public class StockReader(IDbContext dbContext) : IStockReader
                   WHERE s.aggregate_id = @AggregateId
                   """;
 
-        await dbContext.EnsureConnectionOpenAsync(cancellationToken);
+        await context.EnsureConnectionOpenAsync(cancellationToken);
 
-        return await dbContext.Connection.ExecuteScalarAsync<long?>(new CommandDefinition(sql, new { AggregateId = aggregateId }, dbContext.Transaction, cancellationToken: cancellationToken));
+        return await context.Connection.ExecuteScalarAsync<long?>(new CommandDefinition(sql,
+            new { AggregateId = aggregateId }, context.Transaction, cancellationToken: cancellationToken));
     }
 }

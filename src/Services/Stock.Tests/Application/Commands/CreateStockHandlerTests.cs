@@ -1,106 +1,87 @@
 using Dapper;
-using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Logging.Abstractions;
-using Polly;
-using Stock.Application.Abstractions;
+using MediatR;
+using Messaging;
+using Messaging.Serializers;
+using Messaging.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Stock.Application.Commands.CreateStock;
-using Stock.Infrastructure.Persistence.Implementations;
+using Stock.Application.Events;
+using Stock.Infrastructure.Topics;
 using Stock.Tests.Infrastructure;
 using Xunit;
 
 namespace Stock.Tests.Application.Commands;
 
-public class CreateStockHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifetime
+public class CreateStockHandlerTests(MssqlFixture fixture) : IClassFixture<MssqlFixture>, IAsyncLifetime
 {
-    private IStockWriter Writer { get; init; }
-    private IOutboxWriter OutboxWriter { get; init; }
-    private IUnitOfWork UnitOfWork { get; init; }
-    private IUnitOfWorkDecorator UnitOfWorkDecorator { get; init; }
-    private ResiliencePipeline ResiliencePipeline { get; init; }
-    private CreateStockHandler Handler { get; init; }
-    private MssqlFixture MssqlFixture { get; init; }
-    private TestDbContext DbContext { get; init; }
+    private readonly TestDbContext _db = new(fixture.ConnectionString);
+    private ServiceProvider _provider = null!;
 
-    public CreateStockHandlerTests(MssqlFixture mssqlFixture)
-    {
-        MssqlFixture = mssqlFixture;
-        var dbContext = new TestDbContext(MssqlFixture.ConnectionString);
-        DbContext = dbContext;
-        var unitOfWork = new UnitOfWork(new TestDbConnectionFactory(MssqlFixture.ConnectionString));
-        UnitOfWork = unitOfWork;
-        Writer = new StockDataWriter(unitOfWork);
-        OutboxWriter = new OutboxWriter(unitOfWork);
-        ResiliencePipeline = new ResiliencePipelineBuilder().Build();
-        UnitOfWorkDecorator = new UnitOfWorkDecorator(UnitOfWork, ResiliencePipeline,
-            NullLogger<UnitOfWorkDecorator>.Instance);
-        Handler = new CreateStockHandler(Writer, new StockDataReader(unitOfWork), OutboxWriter, UnitOfWorkDecorator);
-    }
+    private PublishedMessages Published => _provider.GetRequiredService<PublishedMessages>();
 
     public async Task InitializeAsync()
     {
-        await DbContext.EnsureConnectionOpenAsync(CancellationToken.None);
-        await TestDatabase.ResetAsync(DbContext);
+        _provider = BuildProvider();
+        await _db.EnsureConnectionOpenAsync(CancellationToken.None);
+        await TestDatabase.ResetAsync(_db);
     }
 
     public async Task DisposeAsync()
     {
-        await UnitOfWork.DisposeAsync();
-        await DbContext.Connection.CloseAsync();
+        await _provider.DisposeAsync();
+        await _db.DisposeAsync();
     }
 
     [Fact]
-    public async Task Handle_ShouldCreateStockAndWriteOutboxEvent()
+    public async Task Handle_NewStock_CreatesStockAndPublishesStockCreated()
     {
         var command = NewCommand(Guid.NewGuid());
 
-        var result = await Handler.Handle(command, CancellationToken.None);
+        Assert.Equal(CreateStockResult.Created, await SendAsync(_provider, command));
 
-        Assert.Equal(CreateStockResult.Created, result);
-
-        var stock = await DbContext.Connection.QuerySingleAsync(
-            "SELECT * FROM stock_data WHERE id = @Id",
-            new { command.Id }
-        );
+        var stock = await _db.Connection.QuerySingleAsync(
+            "SELECT name, currency FROM stock_data WHERE id = @Id", new { command.Id });
         Assert.Equal(command.Name, stock.name);
         Assert.Equal(command.Currency, stock.currency);
-        Assert.Equal(1, await OutboxCount(command.Id));
+        var published = Assert.Single(await Published.OfTypeAsync<StockCreatedEvent>(command.Id.ToString()));
+        Assert.Equal(StockTopic.StockCreated.Name(), published.Topic);
+        Assert.Equal(new StockCreatedEvent(command.Id, command.Name, command.IsOpenToTrade, command.Currency,
+            command.TradingStartTime, command.TradingEndTime), published.Message);
     }
 
     [Fact]
-    public async Task Handle_RepeatedWithSameBody_ShouldReturnAlreadyExistsWithoutSecondEvent()
+    public async Task Handle_RepeatedWithSameBody_ReturnsAlreadyExistsAndPublishesOnce()
     {
         var command = NewCommand(Guid.NewGuid());
 
-        await Handler.Handle(command, CancellationToken.None);
-        var result = await Handler.Handle(command, CancellationToken.None);
+        await SendAsync(_provider, command);
 
-        Assert.Equal(CreateStockResult.AlreadyExists, result);
-        Assert.Equal(1, await OutboxCount(command.Id));
+        Assert.Equal(CreateStockResult.AlreadyExists, await SendAsync(_provider, command));
+        Assert.Single(await Published.OfTypeAsync<StockCreatedEvent>(command.Id.ToString()));
     }
 
     [Fact]
-    public async Task Handle_RepeatedWithDifferentBody_ShouldReturnConflictAndKeepOriginal()
+    public async Task Handle_RepeatedWithDifferentBody_ReturnsConflictAndKeepsOriginal()
     {
         var command = NewCommand(Guid.NewGuid());
 
-        await Handler.Handle(command, CancellationToken.None);
-        var result = await Handler.Handle(command with { Currency = "EUR" }, CancellationToken.None);
+        await SendAsync(_provider, command);
 
-        Assert.Equal(CreateStockResult.Conflict, result);
-        Assert.Equal("USD", await DbContext.Connection.ExecuteScalarAsync<string>(
+        Assert.Equal(CreateStockResult.Conflict, await SendAsync(_provider, command with { Currency = "EUR" }));
+        Assert.Equal("USD", await _db.Connection.ExecuteScalarAsync<string>(
             "SELECT currency FROM stock_data WHERE id = @Id", new { command.Id }));
-        Assert.Equal(1, await OutboxCount(command.Id));
+        Assert.Single(await Published.OfTypeAsync<StockCreatedEvent>(command.Id.ToString()));
     }
 
     [Fact]
-    public async Task Handle_ShouldNotCreateStock_WhenOutboxWriteFails()
+    public async Task Handle_PublishFails_DoesNotCreateStock()
     {
         var command = NewCommand(Guid.NewGuid());
+        await using var failing = BuildProvider(b => b.AddPublishMiddleware<FailingPublishMiddleware>());
 
-        await TestDatabase.WithTableOfflineAsync(DbContext, "outbox", async () =>
-            await Assert.ThrowsAsync<SqlException>(() => Handler.Handle(command, CancellationToken.None)));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => SendAsync(failing, command));
 
-        Assert.Equal(0, await DbContext.Connection.ExecuteScalarAsync<int>(
+        Assert.Equal(0, await _db.Connection.ExecuteScalarAsync<int>(
             "SELECT COUNT(*) FROM stock_data WHERE id = @Id", new { command.Id }));
     }
 
@@ -109,9 +90,18 @@ public class CreateStockHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifeti
         return new CreateStockCommand(id, "StockName", true, "USD", new TimeOnly(9, 0), new TimeOnly(17, 0));
     }
 
-    private Task<int> OutboxCount(Guid id)
+    private ServiceProvider BuildProvider(Action<MessagingBuilder>? configure = null)
     {
-        return DbContext.Connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id", new { Id = id });
+        return StockServices.Build(fixture.ConnectionString, b =>
+        {
+            b.AddMessage<StockCreatedEvent>(StockTopic.StockCreated.Name(), new JsonDefaultSerializer());
+            configure?.Invoke(b);
+        });
+    }
+
+    private static async Task<CreateStockResult> SendAsync(IServiceProvider provider, CreateStockCommand command)
+    {
+        await using var scope = provider.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IMediator>().Send(command);
     }
 }

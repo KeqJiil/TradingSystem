@@ -1,3 +1,4 @@
+using Messaging.Dapper.Transactions;
 using Stock.Application.Abstractions;
 using Stock.Infrastructure.Persistence.Implementations;
 
@@ -10,15 +11,7 @@ public static class PersistenceBuilder
         DapperTypeHandlers.Register();
 
         builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
-
-        builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-        builder.Services.AddScoped<IDbContext>(sp => (IDbContext)sp.GetRequiredService<IUnitOfWork>());
-        //builder.Services.AddScoped<IUnitOfWorkDecorator, UnitOfWorkDecorator>();
-
-        builder.Services.AddScoped<IOutboxReader, OutboxReader>();
-        builder.Services.AddScoped<IOutboxWriter, OutboxWriter>();
-        builder.Services.AddScoped<IOutboxMarker, OutboxWriter>();
-        builder.Services.AddScoped<IOutboxCleaner, OutboxWriter>();
+        builder.Services.AddUnitOfWork(sp => sp.GetRequiredService<IDbConnectionFactory>().CreateConnection());
 
         builder.Services.AddScoped<IStockReader, StockReader>();
         builder.Services.AddScoped<IStockWriter, StockDataWriter>();

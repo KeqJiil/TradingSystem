@@ -1,141 +1,110 @@
-using System.Text.Json;
 using Dapper;
-using Microsoft.Extensions.Logging.Abstractions;
-using Polly;
-using Stock.Application.Abstractions;
+using MediatR;
+using Messaging;
+using Messaging.Serializers;
+using Messaging.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Stock.Application.Commands.SetStockOpenToTrade;
 using Stock.Application.Events;
-using Stock.Infrastructure.Persistence.Implementations;
+using Stock.Infrastructure.Topics;
 using Stock.Tests.Infrastructure;
 using Xunit;
 
 namespace Stock.Tests.Application.Commands;
 
-public class SetStockOpenToTradeHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifetime
+public class SetStockOpenToTradeHandlerTests(MssqlFixture fixture) : IClassFixture<MssqlFixture>, IAsyncLifetime
 {
-    private readonly IStockWriter _writer;
-    private readonly SetStockOpenToTradeHandler _handler;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly MssqlFixture _fixture;
-    private readonly TestDbContext DbContext;
+    private readonly TestDbContext _db = new(fixture.ConnectionString);
+    private ServiceProvider _provider = null!;
 
-    public SetStockOpenToTradeHandlerTests(MssqlFixture fixture)
-    {
-        _fixture = fixture;
-        DbContext = new TestDbContext(fixture.ConnectionString);
-        var unitOfWork = new UnitOfWork(new TestDbConnectionFactory(_fixture.ConnectionString));
-        _unitOfWork = unitOfWork;
-        _writer = new StockDataWriter(unitOfWork);
-        var outboxWriter = new OutboxWriter(unitOfWork);
-        var resilence = new ResiliencePipelineBuilder().Build();
-        var decorator = new UnitOfWorkDecorator(_unitOfWork, resilence, NullLogger<UnitOfWorkDecorator>.Instance);
-        _handler = new SetStockOpenToTradeHandler(_writer, outboxWriter, decorator);
-    }
+    private PublishedMessages Published => _provider.GetRequiredService<PublishedMessages>();
 
     public async Task InitializeAsync()
     {
-        await DbContext.EnsureConnectionOpenAsync(CancellationToken.None);
-        await TestDatabase.ResetAsync(DbContext);
+        _provider = BuildProvider();
+        await _db.EnsureConnectionOpenAsync(CancellationToken.None);
+        await TestDatabase.ResetAsync(_db);
     }
 
     public async Task DisposeAsync()
     {
-        await _unitOfWork.DisposeAsync();
-        await DbContext.Connection.CloseAsync();
+        await _provider.DisposeAsync();
+        await _db.DisposeAsync();
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Handle_ExistingStock_SetsIsOpenToTrade(bool initial, bool requested)
+    {
+        var stockId = await SeedAsync(initial);
+
+        Assert.True(await SendAsync(_provider, new SetStockOpenToTradeCommand(stockId, requested)));
+
+        Assert.Equal(requested, await _db.Connection.ExecuteScalarAsync<bool>(
+            "SELECT is_open_to_trade FROM stock_data WHERE id = @Id", new { Id = stockId }));
     }
 
     [Fact]
-    public async Task Handle_ShouldSetIsOpenToTradeToFalse()
+    public async Task Handle_TwoToggles_PublishesStatusToggledWithNewStateAndIncrementedVersions()
     {
-        var stockId = Guid.NewGuid();
-        await Seed(stockId, isOpenToTrade: true);
+        var stockId = await SeedAsync(true);
 
-        var found = await _handler.Handle(new SetStockOpenToTradeCommand(stockId, false), CancellationToken.None);
+        await SendAsync(_provider, new SetStockOpenToTradeCommand(stockId, false));
+        await SendAsync(_provider, new SetStockOpenToTradeCommand(stockId, true));
 
-        var isOpenToTrade = await DbContext.Connection.ExecuteScalarAsync<bool>(
-            "SELECT is_open_to_trade FROM stock_data WHERE id = @Id",
-            new { Id = stockId }
-        );
-        Assert.True(found);
-        Assert.False(isOpenToTrade);
+        var published = await Published.OfTypeAsync<StockToggledStatusEvent>(stockId.ToString());
+        Assert.All(published, p => Assert.Equal(StockTopic.StockStatusToggled.Name(), p.Topic));
+        Assert.Equal([1L, 2L], published.Select(p => p.Message.StatusVersion));
+        Assert.Equal([false, true], published.Select(p => p.Message.IsOpenToTrade));
     }
 
     [Fact]
-    public async Task Handle_ShouldSetIsOpenToTradeToTrue()
+    public async Task Handle_UnknownStock_ReturnsFalseAndPublishesNothing()
     {
         var stockId = Guid.NewGuid();
-        await Seed(stockId, isOpenToTrade: false);
 
-        await _handler.Handle(new SetStockOpenToTradeCommand(stockId, true), CancellationToken.None);
+        Assert.False(await SendAsync(_provider, new SetStockOpenToTradeCommand(stockId, true)));
 
-        var isOpenToTrade = await DbContext.Connection.ExecuteScalarAsync<bool>(
-            "SELECT is_open_to_trade FROM stock_data WHERE id = @Id",
-            new { Id = stockId }
-        );
-        Assert.True(isOpenToTrade);
+        Assert.Empty(await Published.OfTypeAsync<StockToggledStatusEvent>(stockId.ToString()));
     }
 
     [Fact]
-    public async Task Handle_ShouldWriteOutboxEvent()
+    public async Task Handle_PublishFails_KeepsOldStateAndVersion()
     {
-        var stockId = Guid.NewGuid();
-        await Seed(stockId, isOpenToTrade: true);
+        var stockId = await SeedAsync(true);
+        await using var failing = BuildProvider(b => b.AddPublishMiddleware<FailingPublishMiddleware>());
 
-        await _handler.Handle(new SetStockOpenToTradeCommand(stockId, false), CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SendAsync(failing, new SetStockOpenToTradeCommand(stockId, false)));
 
-        var outboxCount = await DbContext.Connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id",
-            new { Id = stockId }
-        );
-        Assert.Equal(1, outboxCount);
+        var stock = await _db.Connection.QuerySingleAsync(
+            "SELECT is_open_to_trade, metadata_version FROM stock_data WHERE id = @Id", new { Id = stockId });
+        Assert.True((bool)stock.is_open_to_trade);
+        Assert.Equal(0L, (long)stock.metadata_version);
     }
 
-    [Fact]
-    public async Task Handle_ShouldWriteEventWithNewStateAndIncrementedVersion()
+    private ServiceProvider BuildProvider(Action<MessagingBuilder>? configure = null)
     {
-        var stockId = Guid.NewGuid();
-        await Seed(stockId, isOpenToTrade: true);
-
-        await _handler.Handle(new SetStockOpenToTradeCommand(stockId, false), CancellationToken.None);
-        await _handler.Handle(new SetStockOpenToTradeCommand(stockId, true), CancellationToken.None);
-
-        var events = (await DbContext.Connection.QueryAsync<string>(
-                "SELECT payload FROM outbox WHERE aggregate_id = @Id", new { Id = stockId }))
-            .Select(p => JsonSerializer.Deserialize<StockToggledStatusEvent>(p)!)
-            .OrderBy(e => e.StatusVersion)
-            .ToList();
-
-        Assert.Equal([1L, 2L], events.Select(e => e.StatusVersion));
-        Assert.Equal([false, true], events.Select(e => e.IsOpenToTrade));
+        return StockServices.Build(fixture.ConnectionString, b =>
+        {
+            b.AddMessage<StockToggledStatusEvent>(StockTopic.StockStatusToggled.Name(), new JsonDefaultSerializer());
+            configure?.Invoke(b);
+        });
     }
 
-    [Fact]
-    public async Task Handle_ShouldReturnFalseAndNotWriteOutboxEvent_WhenStockDoesNotExist()
+    private static async Task<bool> SendAsync(IServiceProvider provider, SetStockOpenToTradeCommand command)
     {
-        var stockId = Guid.NewGuid();
-
-        var found = await _handler.Handle(new SetStockOpenToTradeCommand(stockId, true), CancellationToken.None);
-
-        var outboxCount = await DbContext.Connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id",
-            new { Id = stockId }
-        );
-        Assert.False(found);
-        Assert.Equal(0, outboxCount);
+        await using var scope = provider.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IMediator>().Send(command);
     }
 
-    private async Task Seed(Guid id, bool isOpenToTrade)
+    private async Task<Guid> SeedAsync(bool isOpenToTrade)
     {
-        await DbContext.Connection.ExecuteAsync(
-            "INSERT INTO stock_data (id, name, is_open_to_trade, trading_start_time, trading_end_time, currency) VALUES (@Id, @Name, @IsOpenToTrade, @OpenTime, @CloseTime, @Currency)",
-            new
-            {
-                Id = id,
-                Name = "StockName",
-                IsOpenToTrade = isOpenToTrade,
-                OpenTime = TimeSpan.FromHours(9),
-                CloseTime = TimeSpan.FromHours(17),
-                Currency = "USD"
-            });
+        var id = Guid.NewGuid();
+        await _db.Connection.ExecuteAsync(
+            "INSERT INTO stock_data (id, name, is_open_to_trade, trading_start_time, trading_end_time, currency) VALUES (@Id, 'StockName', @IsOpenToTrade, @OpenTime, @CloseTime, 'USD')",
+            new { Id = id, IsOpenToTrade = isOpenToTrade, OpenTime = TimeSpan.FromHours(9), CloseTime = TimeSpan.FromHours(17) });
+        return id;
     }
 }

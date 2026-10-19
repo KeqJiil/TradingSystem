@@ -1,9 +1,10 @@
 using Dapper;
+using Messaging.Dapper;
 using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
+public class StockReadModelWriter(ITransactionContext context) : IStockReadModelWriter
 {
     public async Task<ReadModelUpdateOutcome> UpdateAsync(Guid aggregateId, long newVersion, decimal priceChange,
         CancellationToken ct)
@@ -24,7 +25,8 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
                   """;
 
         var result = await context.Connection.ExecuteAsync(new CommandDefinition(sql,
-            new { OldVersion = newVersion - 1, PriceChange = priceChange, AggregateId = aggregateId }, context.Transaction, cancellationToken: ct));
+            new { OldVersion = newVersion - 1, PriceChange = priceChange, AggregateId = aggregateId },
+            context.Transaction, cancellationToken: ct));
 
         return result > 0 ? ReadModelUpdateOutcome.Applied : ReadModelUpdateOutcome.Gap;
     }
@@ -94,7 +96,8 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
         await context.EnsureConnectionOpenAsync(ct);
 
         return await context.Connection.ExecuteScalarAsync<bool>(new CommandDefinition(sql,
-            new { AggregateId = aggregateId, IsOpenToTrade = isOpenToTrade, StatusVersion = statusVersion }, context.Transaction, cancellationToken: ct));
+            new { AggregateId = aggregateId, IsOpenToTrade = isOpenToTrade, StatusVersion = statusVersion },
+            context.Transaction, cancellationToken: ct));
     }
 
     public async Task<bool> SetNewTimeAsync(Guid aggregateId, TimeOnly tradingStartTime, TimeOnly tradingCloseTime,
@@ -136,6 +139,7 @@ public class StockReadModelWriter(IDbContext context) : IStockReadModelWriter
         await context.EnsureConnectionOpenAsync(ct);
 
         return await context.Connection.ExecuteScalarAsync<bool>(new CommandDefinition(sql,
-            new { AggregateId = aggregateId, NewName = newName, NameVersion = nameVersion }, context.Transaction, cancellationToken: ct));
+            new { AggregateId = aggregateId, NewName = newName, NameVersion = nameVersion }, context.Transaction,
+            cancellationToken: ct));
     }
 }

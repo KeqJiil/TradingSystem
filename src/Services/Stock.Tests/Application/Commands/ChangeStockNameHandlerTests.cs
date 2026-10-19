@@ -1,125 +1,108 @@
-using System.Text.Json;
 using Dapper;
-using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Logging.Abstractions;
-using Polly;
-using Stock.Application.Abstractions;
+using MediatR;
+using Messaging;
+using Messaging.Serializers;
+using Messaging.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Stock.Application.Commands.ChangeStockName;
 using Stock.Application.Events;
-using Stock.Infrastructure.Persistence.Implementations;
+using Stock.Infrastructure.Topics;
 using Stock.Tests.Infrastructure;
 using Xunit;
 
 namespace Stock.Tests.Application.Commands;
 
-public class ChangeStockNameHandlerTests : IClassFixture<MssqlFixture>, IAsyncLifetime
+public class ChangeStockNameHandlerTests(MssqlFixture fixture) : IClassFixture<MssqlFixture>, IAsyncLifetime
 {
-    private IStockWriter Writer { get; init; }
-    private ChangeStockNameHandler Handler { get; init; }
-    private MssqlFixture MssqlFixture { get; init; }
-    private TestDbContext DbContext { get; init; }
-    private IUnitOfWork UnitOfWork { get; init; }
+    private readonly TestDbContext _db = new(fixture.ConnectionString);
+    private ServiceProvider _provider = null!;
 
-    public ChangeStockNameHandlerTests(MssqlFixture mssqlFixture)
-    {
-        MssqlFixture = mssqlFixture;
-        var dbContext = new TestDbContext(MssqlFixture.ConnectionString);
-        DbContext = dbContext;
-        var unitOfWork = new UnitOfWork(new TestDbConnectionFactory(MssqlFixture.ConnectionString));
-        UnitOfWork = unitOfWork;
-        Writer = new StockDataWriter(unitOfWork);
-        var decorator = new UnitOfWorkDecorator(unitOfWork, new ResiliencePipelineBuilder().Build(),
-            NullLogger<UnitOfWorkDecorator>.Instance);
-        Handler = new ChangeStockNameHandler(Writer, new OutboxWriter(unitOfWork), decorator);
-    }
+    private PublishedMessages Published => _provider.GetRequiredService<PublishedMessages>();
 
     public async Task InitializeAsync()
     {
-        await DbContext.EnsureConnectionOpenAsync(CancellationToken.None);
-        await TestDatabase.ResetAsync(DbContext);
+        _provider = BuildProvider();
+        await _db.EnsureConnectionOpenAsync(CancellationToken.None);
+        await TestDatabase.ResetAsync(_db);
     }
 
     public async Task DisposeAsync()
     {
-        await UnitOfWork.DisposeAsync();
-        await DbContext.Connection.CloseAsync();
+        await _provider.DisposeAsync();
+        await _db.DisposeAsync();
     }
 
     [Fact]
-    public async Task Handle_ShouldChangeStockName()
+    public async Task Handle_ExistingStock_ChangesName()
     {
-        var stockId = Guid.NewGuid();
-        await Seed(stockId);
-        var command = new ChangeStockNameCommand(stockId, "NewName");
+        var stockId = await SeedAsync();
 
-        await Handler.Handle(command, CancellationToken.None);
+        Assert.True(await SendAsync(_provider, new ChangeStockNameCommand(stockId, "NewName")));
 
-        var updatedStock = await DbContext.Connection.QuerySingleAsync(
-            "SELECT * FROM stock_data WHERE id = @Id",
-            new { Id = stockId }
-        );
-
-        Assert.Equal("NewName", updatedStock.name);
+        Assert.Equal("NewName", await _db.Connection.ExecuteScalarAsync<string>(
+            "SELECT name FROM stock_data WHERE id = @Id", new { Id = stockId }));
     }
 
     [Fact]
-    public async Task Handle_ShouldWriteNameChangedEventWithIncrementedVersion()
+    public async Task Handle_TwoChanges_PublishesNameChangedWithIncrementedVersions()
     {
-        var stockId = Guid.NewGuid();
-        await Seed(stockId);
+        var stockId = await SeedAsync();
 
-        await Handler.Handle(new ChangeStockNameCommand(stockId, "First"), CancellationToken.None);
-        await Handler.Handle(new ChangeStockNameCommand(stockId, "Second"), CancellationToken.None);
+        await SendAsync(_provider, new ChangeStockNameCommand(stockId, "First"));
+        await SendAsync(_provider, new ChangeStockNameCommand(stockId, "Second"));
 
-        var events = (await DbContext.Connection.QueryAsync<string>(
-                "SELECT payload FROM outbox WHERE aggregate_id = @Id", new { Id = stockId }))
-            .Select(p => JsonSerializer.Deserialize<NameChangedEvent>(p)!)
-            .OrderBy(e => e.Version)
-            .ToList();
-
-        Assert.Equal([1L, 2L], events.Select(e => e.Version));
-        Assert.Equal(["First", "Second"], events.Select(e => e.Name));
+        var published = await Published.OfTypeAsync<NameChangedEvent>(stockId.ToString());
+        Assert.All(published, p => Assert.Equal(StockTopic.StockNameChanged.Name(), p.Topic));
+        Assert.Equal([1L, 2L], published.Select(p => p.Message.Version));
+        Assert.Equal(["First", "Second"], published.Select(p => p.Message.Name));
     }
 
     [Fact]
-    public async Task Handle_ShouldReturnFalseAndWriteNoEvent_WhenStockDoesNotExist()
+    public async Task Handle_UnknownStock_ReturnsFalseAndPublishesNothing()
     {
         var stockId = Guid.NewGuid();
 
-        var found = await Handler.Handle(new ChangeStockNameCommand(stockId, "NewName"), CancellationToken.None);
+        Assert.False(await SendAsync(_provider, new ChangeStockNameCommand(stockId, "NewName")));
 
-        Assert.False(found);
-        Assert.Equal(0, await DbContext.Connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id", new { Id = stockId }));
+        Assert.Empty(await Published.OfTypeAsync<NameChangedEvent>(stockId.ToString()));
     }
 
     [Fact]
-    public async Task Handle_ShouldKeepOldNameAndVersion_WhenOutboxWriteFails()
+    public async Task Handle_PublishFails_KeepsOldNameAndVersion()
     {
-        var stockId = Guid.NewGuid();
-        await Seed(stockId);
+        var stockId = await SeedAsync();
+        await using var failing = BuildProvider(b => b.AddPublishMiddleware<FailingPublishMiddleware>());
 
-        await TestDatabase.WithTableOfflineAsync(DbContext, "outbox", async () =>
-            await Assert.ThrowsAsync<SqlException>(() =>
-                Handler.Handle(new ChangeStockNameCommand(stockId, "NewName"), CancellationToken.None)));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SendAsync(failing, new ChangeStockNameCommand(stockId, "NewName")));
 
-        var stock = await DbContext.Connection.QuerySingleAsync(
+        var stock = await _db.Connection.QuerySingleAsync(
             "SELECT name, metadata_version FROM stock_data WHERE id = @Id", new { Id = stockId });
         Assert.Equal("OldName", stock.name);
         Assert.Equal(0L, (long)stock.metadata_version);
     }
 
-    private async Task Seed(Guid id)
+    private ServiceProvider BuildProvider(Action<MessagingBuilder>? configure = null)
     {
-        await DbContext.Connection.ExecuteAsync(
-            "INSERT INTO stock_data (id, name, is_open_to_trade, trading_start_time, trading_end_time, currency) VALUES (@Id, @Name, 1, @OpenTime, @CloseTime, @Currency)",
-            new
-            {
-                Id = id,
-                Name = "OldName",
-                OpenTime = TimeSpan.FromHours(9),
-                CloseTime = TimeSpan.FromHours(17),
-                Currency = "USD"
-            });
+        return StockServices.Build(fixture.ConnectionString, b =>
+        {
+            b.AddMessage<NameChangedEvent>(StockTopic.StockNameChanged.Name(), new JsonDefaultSerializer());
+            configure?.Invoke(b);
+        });
+    }
+
+    private static async Task<bool> SendAsync(IServiceProvider provider, ChangeStockNameCommand command)
+    {
+        await using var scope = provider.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IMediator>().Send(command);
+    }
+
+    private async Task<Guid> SeedAsync()
+    {
+        var id = Guid.NewGuid();
+        await _db.Connection.ExecuteAsync(
+            "INSERT INTO stock_data (id, name, is_open_to_trade, trading_start_time, trading_end_time, currency) VALUES (@Id, 'OldName', 1, @OpenTime, @CloseTime, 'USD')",
+            new { Id = id, OpenTime = TimeSpan.FromHours(9), CloseTime = TimeSpan.FromHours(17) });
+        return id;
     }
 }

@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Stock\Stock.csproj" />
+    <ProjectReference Include="..\Messaging.Testing\Messaging.Testing.csproj" />
   </ItemGroup>
 
   <ItemGroup>

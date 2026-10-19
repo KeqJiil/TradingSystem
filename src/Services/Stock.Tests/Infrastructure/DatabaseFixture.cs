@@ -1,5 +1,7 @@
+using Messaging.Dapper.Migrations;
 using Microsoft.Data.SqlClient;
 using Stock.Infrastructure.Persistence;
+using DbMigrator = Messaging.Dapper.Migrations.DbMigrator;
 using Testcontainers.MsSql;
 using Xunit;
 
@@ -25,7 +27,8 @@ public class MssqlFixture : IAsyncLifetime
 
         ConnectionString = await CreateDatabaseAsync(_databaseName);
 
-        await Task.Run(() => DbMigrator.ApplyMigrations(ConnectionString));
+        await Task.Run(() => DbMigrator.ApplyMigrations(ConnectionString,
+            typeof(PersistenceBuilder).Assembly, MessagingMigrations.All));
     }
 
     public async Task<string> CreateEmptyDatabaseAsync()

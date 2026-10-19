@@ -1,11 +1,12 @@
 using System.Runtime.CompilerServices;
 using Dapper;
+using Messaging.Dapper;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class StockEventStoreReader(IDbContext dbContext) : IStockEventStoreReader
+public class StockEventStoreReader(ITransactionContext dbContext) : IStockEventStoreReader
 {
     private const int PageSize = 200;
 
@@ -104,7 +105,8 @@ public class StockEventStoreReader(IDbContext dbContext) : IStockEventStoreReade
         await dbContext.EnsureConnectionOpenAsync(ct);
 
         return await dbContext.Connection.ExecuteScalarAsync<decimal>(new CommandDefinition(
-            sql, new { AggregateId = aggregateId, From = from, To = to }, dbContext.Transaction, cancellationToken: ct));
+            sql, new { AggregateId = aggregateId, From = from, To = to }, dbContext.Transaction,
+            cancellationToken: ct));
     }
 
     private readonly record struct EventRow(Guid StockId, decimal PriceChange, DateTimeOffset Timestamp, long Version);

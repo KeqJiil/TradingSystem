@@ -1,9 +1,10 @@
 using Dapper;
+using Messaging.Dapper;
 using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class StockPriceHourlyReader(IDbContext dbContext) : IStockPriceHourlyReader
+public class StockPriceHourlyReader(ITransactionContext dbContext) : IStockPriceHourlyReader
 {
     public async Task<PriceHourReadModel?> GetHourPriceHistoryAsync(Guid stockId, DateTimeOffset dateTime,
         CancellationToken ct)

@@ -1,11 +1,12 @@
 using System.Data;
 using System.Data.Common;
+using Messaging.Dapper;
 using Microsoft.Data.SqlClient;
 using Stock.Infrastructure.Persistence;
 
 namespace Stock.Tests.Infrastructure;
 
-public sealed class TestDbContext : IDbContext, IAsyncDisposable
+public sealed class TestDbContext : ITransactionContext, IAsyncDisposable
 {
     private readonly SqlConnection _connection;
 
@@ -23,5 +24,8 @@ public sealed class TestDbContext : IDbContext, IAsyncDisposable
             await _connection.OpenAsync(ct);
     }
 
-    public async ValueTask DisposeAsync() => await _connection.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await _connection.DisposeAsync();
+    }
 }
