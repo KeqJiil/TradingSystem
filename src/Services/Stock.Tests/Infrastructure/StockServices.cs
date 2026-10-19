@@ -1,10 +1,10 @@
 using Messaging;
 using Messaging.Abstractions;
-using Messaging.Dapper.Outbox;
 using Messaging.Testing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Persistence;
 using Stock.Presentation.Builder;
 
@@ -12,22 +12,20 @@ namespace Stock.Tests.Infrastructure;
 
 public static class StockServices
 {
-    public static ServiceProvider Build(string connectionString, Action<MessagingBuilder>? configureMessaging = null)
+    public static ServiceProvider Build(string connectionString, Action<IMessagingBuilder>? configureMessaging = null)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["ConnectionStrings:DefaultConnection"] = connectionString
+            ["ConnectionStrings:DefaultConnection"] = connectionString,
+            ["KafkaOptions:BootstrapServers"] = "localhost:9092",
+            ["KafkaOptions:ProducerClientId"] = "stock-tests-producer"
         });
 
         builder.AddResilence();
         builder.AddPersistence();
         builder.AddApplication();
-        builder.Services.AddMessaging(b =>
-        {
-            b.AddOutbox();
-            configureMessaging?.Invoke(b);
-        }, o => o.BootstrapServers = "localhost:9092");
+        builder.AddStockMessaging(configureMessaging);
         builder.Services.AddSingleton(sp =>
             new PublishedMessages(connectionString, sp.GetRequiredService<IMessageSerializerResolver>()));
 

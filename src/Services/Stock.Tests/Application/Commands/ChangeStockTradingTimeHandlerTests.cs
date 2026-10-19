@@ -1,7 +1,6 @@
 using Dapper;
 using MediatR;
 using Messaging;
-using Messaging.Serializers;
 using Messaging.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Stock.Application.Commands.ChangeStockTradingTime;
@@ -89,13 +88,9 @@ public class ChangeStockTradingTimeHandlerTests(MssqlFixture fixture) : IClassFi
         return new ChangeStockTradingTimeCommand(stockId, new TimeOnly(9, 0), new TimeOnly(17, 0));
     }
 
-    private ServiceProvider BuildProvider(Action<MessagingBuilder>? configure = null)
+    private ServiceProvider BuildProvider(Action<IMessagingBuilder>? configure = null)
     {
-        return StockServices.Build(fixture.ConnectionString, b =>
-        {
-            b.AddMessage<TimeChangedEvent>(StockTopic.StockTradingTimeChanged.Name(), new JsonDefaultSerializer());
-            configure?.Invoke(b);
-        });
+        return StockServices.Build(fixture.ConnectionString, configure);
     }
 
     private static async Task<bool> SendAsync(IServiceProvider provider, ChangeStockTradingTimeCommand command)

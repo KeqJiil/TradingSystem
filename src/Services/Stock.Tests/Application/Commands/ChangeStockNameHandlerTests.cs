@@ -1,7 +1,6 @@
 using Dapper;
 using MediatR;
 using Messaging;
-using Messaging.Serializers;
 using Messaging.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Stock.Application.Commands.ChangeStockName;
@@ -82,13 +81,9 @@ public class ChangeStockNameHandlerTests(MssqlFixture fixture) : IClassFixture<M
         Assert.Equal(0L, (long)stock.metadata_version);
     }
 
-    private ServiceProvider BuildProvider(Action<MessagingBuilder>? configure = null)
+    private ServiceProvider BuildProvider(Action<IMessagingBuilder>? configure = null)
     {
-        return StockServices.Build(fixture.ConnectionString, b =>
-        {
-            b.AddMessage<NameChangedEvent>(StockTopic.StockNameChanged.Name(), new JsonDefaultSerializer());
-            configure?.Invoke(b);
-        });
+        return StockServices.Build(fixture.ConnectionString, configure);
     }
 
     private static async Task<bool> SendAsync(IServiceProvider provider, ChangeStockNameCommand command)

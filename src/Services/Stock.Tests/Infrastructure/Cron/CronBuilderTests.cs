@@ -23,8 +23,7 @@ public class CronBuilderTests : IClassFixture<MssqlFixture>
     public static TheoryData<string, string, Type> ExpectedJobs => new()
     {
         { "daily-read-model", "0 1 * * *", typeof(DailyCronWorker) },
-        { "hourly-read-model", "5 * * * *", typeof(HourlyCronWorker) },
-        { "outbox-cleanup", "0 3 * * *", typeof(OutboxCleanupCronWorker) }
+        { "hourly-read-model", "5 * * * *", typeof(HourlyCronWorker) }
     };
 
     [Theory]
@@ -59,6 +58,18 @@ public class CronBuilderTests : IClassFixture<MssqlFixture>
 
         var job = Assert.Single(GetRecurringJobs(app), j => j.Id == "daily-read-model");
         Assert.Equal("0 1 * * *", job.Cron);
+    }
+
+    [Fact]
+    public async Task UseCronJobs_RemovesLegacyOutboxCleanupJob()
+    {
+        await using var app = BuildApp();
+        app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<DailyCronWorker>("outbox-cleanup",
+            w => w.ExecuteAsync(CancellationToken.None), "0 3 * * *");
+
+        app.UseCronJobs();
+
+        Assert.DoesNotContain(GetRecurringJobs(app), j => j.Id == "outbox-cleanup");
     }
 
     private WebApplication BuildApp()

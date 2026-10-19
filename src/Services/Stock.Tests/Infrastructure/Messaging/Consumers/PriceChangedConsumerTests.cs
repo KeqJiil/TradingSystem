@@ -44,7 +44,7 @@ public class PriceChangedConsumerTests
 
         var fatalMessage = KafkaTestConsumer.WaitForMessage<PriceChangedEvent>(
             _fixture.BootstrapAddress,
-            TopicNames.Price + new DeadLetterOptions().TopicSuffix + ".fatal",
+            StockServiceHostFixture.DeadLetterTopic("price-change-events-group", TopicNames.Price),
             m => m.AggregateId == aggregateId,
             TimeSpan.FromSeconds(45));
         Assert.Null(fatalMessage.Message.Value.Version);

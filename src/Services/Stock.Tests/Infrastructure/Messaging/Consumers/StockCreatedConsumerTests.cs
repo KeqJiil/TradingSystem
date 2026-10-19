@@ -46,7 +46,7 @@ public class StockCreatedConsumerTests
 
         var fatalMessage = KafkaTestConsumer.WaitForMessage<StockCreatedEvent>(
             _fixture.BootstrapAddress,
-            TopicNames.StockCreated + new DeadLetterOptions().TopicSuffix + ".fatal",
+            StockServiceHostFixture.DeadLetterTopic("stock-created-events-group", TopicNames.StockCreated),
             m => m.AggregateId == aggregateId,
             TimeSpan.FromSeconds(45));
 

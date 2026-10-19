@@ -1,5 +1,4 @@
 using Confluent.Kafka;
-using Stock.Infrastructure.Serialization;
 
 namespace Stock.Tests.Infrastructure;
 
@@ -15,7 +14,7 @@ public static class KafkaTestConsumer
                 AutoOffsetReset = AutoOffsetReset.Earliest,
                 PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky
             })
-            .SetValueDeserializer(new ProtobufNetDeserializer<TValue>())
+            .SetValueDeserializer(new ProtobufDeserializer<TValue>())
             .Build();
 
         consumer.Subscribe(topic);
@@ -44,4 +43,13 @@ public static class KafkaTestConsumer
         consumer.Close();
         throw new TimeoutException($"No matching message observed on topic '{topic}' within {timeout}.");
     }
-}
+
+    private sealed class ProtobufDeserializer<T> : IDeserializer<T>
+    {
+        public T Deserialize(ReadOnlySpan<byte> data, bool isNull, SerializationContext context)
+        {
+            using var stream = new MemoryStream(data.ToArray());
+            return ProtoBuf.Serializer.Deserialize<T>(stream);
+        }
+    }
+}

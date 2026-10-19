@@ -1,7 +1,6 @@
 using Dapper;
 using MediatR;
 using Messaging;
-using Messaging.Serializers;
 using Messaging.Testing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Data.SqlClient;
@@ -171,12 +170,8 @@ public class StockEventStoreTests(MssqlFixture fixture) : IClassFixture<MssqlFix
             "SELECT COUNT(*) FROM events_store WHERE aggregate_id = @AggregateId", new { AggregateId = aggregateId });
     }
 
-    private ServiceProvider BuildProvider(Action<MessagingBuilder>? configure = null)
+    private ServiceProvider BuildProvider(Action<IMessagingBuilder>? configure = null)
     {
-        return StockServices.Build(fixture.ConnectionString, b =>
-        {
-            b.AddMessage<PriceChangedEvent>(StockTopic.Price.Name(), new JsonDefaultSerializer());
-            configure?.Invoke(b);
-        });
+        return StockServices.Build(fixture.ConnectionString, configure);
     }
 }
