@@ -6,6 +6,7 @@ using Stock.Application.Events;
 using Stock.Infrastructure.Persistence;
 using Stock.Infrastructure.Persistence.Implementations;
 using Xunit;
+using MessagingMigrations = Messaging.Dapper.Migrations.MessagingMigrations;
 
 namespace Stock.Tests.Infrastructure.Persistence;
 
@@ -44,11 +45,12 @@ public class DbMigratorTests : IClassFixture<MssqlFixture>, IAsyncLifetime
         foreach (var table in new[]
                  {
                      "events_store", "stock_data", "stock_data_projection", "daily_stock_data_projection",
-                     "hourly_stock_data_projection", "outbox"
+                     "hourly_stock_data_projection"
                  })
             Assert.True(await ObjectExists($"SELECT 1 FROM sys.tables WHERE name = '{table}'"), table);
 
-        Assert.True(await ObjectExists("SELECT 1 FROM sys.types WHERE is_table_type = 1 AND name = 'OutboxEventTvp'"));
+        Assert.False(await ObjectExists("SELECT 1 FROM sys.tables WHERE name = 'outbox' AND schema_id = SCHEMA_ID('dbo')"));
+        Assert.False(await ObjectExists("SELECT 1 FROM sys.types WHERE is_table_type = 1 AND name = 'OutboxEventTvp'"));
         foreach (var index in new[]
                  {
                      "idx_event_store_version", "idx_daily_stock_projection_aggregate_id_date",
@@ -70,7 +72,8 @@ public class DbMigratorTests : IClassFixture<MssqlFixture>, IAsyncLifetime
         await _dbContext.EnsureConnectionOpenAsync(CancellationToken.None);
         var journal = (await _dbContext.Connection.QueryAsync<string>("SELECT ScriptName FROM SchemaVersions"))
             .ToList();
-        var scripts = typeof(DbMigrator).Assembly.GetManifestResourceNames().Where(n => n.EndsWith(".sql")).ToList();
+        var scripts = typeof(DbMigrator).Assembly.GetManifestResourceNames().Where(n => n.EndsWith(".sql"))
+            .Concat(MessagingMigrations.All.Select(s => s.Name)).ToList();
 
         Assert.Equal(scripts.Count, journal.Count);
         Assert.Equal(scripts.Order(), journal.Order());

@@ -1,29 +1,18 @@
 using MediatR;
-using Messaging.Abstractions;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
 
 namespace Stock.Application.Commands.RequestHourlyReadModel;
 
-public class RequestHourlyReadModelHandler(IMessagePublisher publisher, IStockDataReader stockDataReader)
+public class RequestHourlyReadModelHandler(IPublisher publisher, IStockDataReader stockDataReader)
     : IRequestHandler<RequestHourlyReadModelCommand>
 {
     public async Task Handle(RequestHourlyReadModelCommand request, CancellationToken cancellationToken)
     {
-        const int batchSize = 100;
-        var batch = new List<(Guid, HourlyReadModelRequested)>(batchSize);
+        const int pageSize = 100;
 
-        await foreach (var stockId in stockDataReader.GetAllIdsAsync(batchSize, cancellationToken))
-        {
-            batch.Add((stockId, new HourlyReadModelRequested(stockId, request.Date, request.Hour)));
-            if (batch.Count == batchSize)
-            {
-                // publisher.WriteManyAsync(batch, cancellationToken);
-                batch.Clear();
-            }
-        }
-
-        //if (batch.Count > 0)
-            //await publisher.WriteManyAsync(batch, cancellationToken);
+        await foreach (var stockId in stockDataReader.GetAllIdsAsync(pageSize, cancellationToken))
+            await publisher.Publish(new HourlyReadModelRequested(stockId, request.Date, request.Hour),
+                cancellationToken);
     }
 }

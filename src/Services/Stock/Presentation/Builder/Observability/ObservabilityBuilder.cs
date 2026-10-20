@@ -15,7 +15,7 @@ public static class ObservabilityBuilder
             .ConfigureResource(res => res.AddService("Stock"))
             .WithTracing(tracing =>
             {
-                tracing.AddSource(StockTelemetry.SourceName)
+                tracing.AddSource(StockTelemetry.SourceName, global::Messaging.MessagingTelemetry.SourceName)
                     .AddAspNetCoreInstrumentation(options =>
                         options.Filter = ctx => !ctx.Request.Path.StartsWithSegments("/health"))
                     .AddHttpClientInstrumentation()
@@ -38,4 +38,4 @@ public static class ObservabilityBuilder
                 })
             .UseOtlpExporter();
     }
-}
+}

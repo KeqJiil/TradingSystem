@@ -5,7 +5,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Internal;
 using Stock.Infrastructure.Cron;
-using Stock.Infrastructure.Messaging;
 using Xunit;
 
 namespace Stock.Tests.Infrastructure.Cron;
@@ -79,7 +78,7 @@ public class CronBuilderTests : IClassFixture<MssqlFixture>
         {
             ["ConnectionStrings:DefaultConnection"] = _fixture.ConnectionString
         });
-        builder.AddMessaging();
+        builder.AddJobs();
         builder.Services.AddSingleton<ISystemClock, SystemClock>();
         builder.Services.AddHangfire(config => config.UseSqlServerStorage(_fixture.ConnectionString));
         return builder.Build();

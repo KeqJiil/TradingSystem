@@ -1,32 +1,33 @@
 using System.Globalization;
-using System.Text.Json;
-using Dapper;
+using Microsoft.Extensions.DependencyInjection;
 using Stock.Application.Events;
 using Stock.Infrastructure.Cron;
-using Stock.Tests.Infrastructure.Messaging.Consumers;
 using Xunit;
 
 namespace Stock.Tests.Infrastructure.Cron;
 
+[Collection(HangfireCollection.Name)]
 public class HourlyCronWorkerTests : IClassFixture<MssqlFixture>, IAsyncLifetime
 {
-    private readonly MssqlFixture _fixture;
-    private TestDbContext _dbContext = null!;
+    private readonly FakeSystemClock _clock = new(default);
+    private readonly TestDbContext _dbContext;
+    private readonly ServiceProvider _provider;
 
     public HourlyCronWorkerTests(MssqlFixture fixture)
     {
-        _fixture = fixture;
+        _dbContext = new TestDbContext(fixture.ConnectionString);
+        _provider = CronTestHost.Build(fixture.ConnectionString, _clock);
     }
 
     public async Task InitializeAsync()
     {
-        _dbContext = new TestDbContext(_fixture.ConnectionString);
         await _dbContext.EnsureConnectionOpenAsync(CancellationToken.None);
         await TestDatabase.ResetAsync(_dbContext);
     }
 
     public async Task DisposeAsync()
     {
+        await _provider.DisposeAsync();
         await _dbContext.DisposeAsync();
     }
 
@@ -41,18 +42,16 @@ public class HourlyCronWorkerTests : IClassFixture<MssqlFixture>, IAsyncLifetime
     public async Task ExecuteAsync_RequestsPreviousHour_EvenWhenItBelongsToPreviousDay(string now,
         string expectedDate, int expectedHour)
     {
-        var stockId = (await CronTestHost.SeedStocksAsync(_dbContext, 1)).Single();
+        var stockIds = await CronTestHost.SeedStocksAsync(_dbContext, 1);
 
-        await CronTestHost.RunAsync<HourlyCronWorker>(_fixture.ConnectionString,
-            new FakeSystemClock(DateTimeOffset.Parse(now, CultureInfo.InvariantCulture)),
-            worker => worker.ExecuteAsync(CancellationToken.None));
+        _clock.UtcNow = DateTimeOffset.Parse(now, CultureInfo.InvariantCulture);
+        await using (var scope = _provider.CreateAsyncScope())
+            await scope.ServiceProvider.GetRequiredService<HourlyCronWorker>().ExecuteAsync(CancellationToken.None);
 
-        var payload = JsonSerializer.Deserialize<HourlyReadModelRequested>(
-            await _dbContext.Connection.QuerySingleAsync<string>(
-                "SELECT payload FROM outbox WHERE event_type = @EventType",
-                new { EventType = nameof(HourlyReadModelRequested) }))!;
+        var job = Assert.Single(CronTestHost.EnqueuedJobs<HourlyReadModelRequested>(_provider),
+            job => job.Event.AggregateId == stockIds[0]);
         Assert.Equal(
-            new HourlyReadModelRequested(stockId, DateOnly.Parse(expectedDate, CultureInfo.InvariantCulture),
-                (byte)expectedHour), payload);
+            new HourlyReadModelRequested(stockIds[0], DateOnly.Parse(expectedDate, CultureInfo.InvariantCulture),
+                (byte)expectedHour), job.Event);
     }
 }

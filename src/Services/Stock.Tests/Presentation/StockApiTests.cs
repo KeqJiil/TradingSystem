@@ -3,6 +3,8 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Dapper;
+using Messaging.Abstractions;
+using Stock.Application.Events;
 using Stock.Tests.Infrastructure;
 using Xunit;
 
@@ -65,7 +67,7 @@ public class StockApiTests : IClassFixture<StockApiFixture>, IAsyncLifetime
         Assert.True(metadata.GetProperty("isOpenToTrade").GetBoolean());
         Assert.Equal("09:00:00", metadata.GetProperty("tradingStartTime").GetString());
         Assert.Equal("17:00:00", metadata.GetProperty("tradingEndTime").GetString());
-        Assert.Equal(1, await OutboxEvents(id));
+        Assert.Equal(1, await PublishedEvents(id));
     }
 
     [Fact]
@@ -77,7 +79,7 @@ public class StockApiTests : IClassFixture<StockApiFixture>, IAsyncLifetime
         var response = await CreateStock(id);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(1, await OutboxEvents(id));
+        Assert.Equal(1, await PublishedEvents(id));
     }
 
     [Fact]
@@ -91,7 +93,7 @@ public class StockApiTests : IClassFixture<StockApiFixture>, IAsyncLifetime
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         var metadata = await ReadJson(await _client.GetAsync($"{Stocks}/{id}/metadata"));
         Assert.Equal("AAPL", metadata.GetProperty("name").GetString());
-        Assert.Equal(1, await OutboxEvents(id));
+        Assert.Equal(1, await PublishedEvents(id));
     }
 
     [Theory]
@@ -175,7 +177,7 @@ public class StockApiTests : IClassFixture<StockApiFixture>, IAsyncLifetime
         var metadata = await ReadJson(await _client.GetAsync($"{Stocks}/{id}/metadata"));
         var (property, expected) = ExpectedMetadata[route];
         Assert.Equal(expected, metadata.GetProperty(property).ToString());
-        Assert.Equal(2, await OutboxEvents(id));
+        Assert.Equal(2, await PublishedEvents(id));
     }
 
     [Theory]
@@ -187,7 +189,7 @@ public class StockApiTests : IClassFixture<StockApiFixture>, IAsyncLifetime
         var response = await Send(method, $"{Stocks}/{id}/{route}", body);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Equal(0, await OutboxEvents(id));
+        Assert.Equal(0, await PublishedEvents(id));
     }
 
     [Theory]
@@ -355,7 +357,7 @@ public class StockApiTests : IClassFixture<StockApiFixture>, IAsyncLifetime
     }
 
     [Fact]
-    public async Task CorrelationId_OfCreateRequest_IsStoredOnTheOutboxEvent()
+    public async Task CorrelationId_OfCreateRequest_IsSentWithThePublishedEvent()
     {
         var id = Guid.NewGuid();
         var supplied = Guid.NewGuid();
@@ -367,8 +369,8 @@ public class StockApiTests : IClassFixture<StockApiFixture>, IAsyncLifetime
 
         await _client.SendAsync(request);
 
-        Assert.Equal(supplied, await _dbContext.Connection.ExecuteScalarAsync<Guid?>(
-            "SELECT correlation_id FROM outbox WHERE aggregate_id = @Id", new { Id = id }));
+        var published = Assert.Single(await _fixture.Published.OfTypeAsync<StockCreatedEvent>(id.ToString()));
+        Assert.Equal(supplied.ToString(), published.Headers[MessagingHeaders.CorrelationId]);
     }
 
     [Fact]
@@ -419,10 +421,14 @@ public class StockApiTests : IClassFixture<StockApiFixture>, IAsyncLifetime
         return _client.SendAsync(request);
     }
 
-    private Task<int> OutboxEvents(Guid aggregateId)
+    private async Task<int> PublishedEvents(Guid aggregateId)
     {
-        return _dbContext.Connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM outbox WHERE aggregate_id = @Id", new { Id = aggregateId });
+        var key = aggregateId.ToString();
+        var published = _fixture.Published;
+        return (await published.OfTypeAsync<StockCreatedEvent>(key)).Count
+               + (await published.OfTypeAsync<NameChangedEvent>(key)).Count
+               + (await published.OfTypeAsync<TimeChangedEvent>(key)).Count
+               + (await published.OfTypeAsync<StockToggledStatusEvent>(key)).Count;
     }
 
     private Task SeedHour(Guid aggregateId, DateTimeOffset hourStart, decimal open, decimal close)

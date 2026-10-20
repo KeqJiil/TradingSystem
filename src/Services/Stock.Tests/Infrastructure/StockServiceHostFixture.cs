@@ -1,16 +1,19 @@
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
+using Messaging;
+using Messaging.Abstractions;
+using Messaging.Testing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Internal;
 using Microsoft.Extensions.Logging;
+using Stock.Infrastructure.Cron;
 using Stock.Infrastructure.Messaging;
 using Stock.Infrastructure.Options;
 using Stock.Infrastructure.Persistence;
 using Stock.Presentation.Builder;
-using Stock.Presentation.Kafka;
 using Testcontainers.Kafka;
 using Testcontainers.MsSql;
 using Xunit;
@@ -32,6 +35,9 @@ public class StockServiceHostFixture : IAsyncLifetime
     public string ConnectionString => _mssqlContainer.GetConnectionString();
     public IServiceProvider Services => _app.Services;
 
+    public PublishedMessages Published =>
+        new(ConnectionString, Services.GetRequiredService<IMessageSerializerResolver>());
+
     public async Task InitializeAsync()
     {
         await Task.WhenAll(_mssqlContainer.StartAsync(), _kafkaContainer.StartAsync());
@@ -52,8 +58,8 @@ public class StockServiceHostFixture : IAsyncLifetime
         builder.AddResilence();
         builder.AddPersistence();
         builder.AddApplication();
-        builder.AddKafka();
-        builder.AddMessaging();
+        builder.AddJobs();
+        builder.AddStockMessaging();
         builder.Services.AddSingleton<ISystemClock, SystemClock>();
 
         DbMigrator.ApplyMigrations(ConnectionString);
@@ -64,22 +70,24 @@ public class StockServiceHostFixture : IAsyncLifetime
 
     public void Produce<TValue>(string topic, Guid key, TValue value)
     {
-        using var producer = Services.GetRequiredService<IKafkaProducerFactory>().Create<TValue>("stock-tests-producer");
-        producer.Produce(topic, new Message<string, TValue> { Key = key.ToString(), Value = value });
+        using var stream = new MemoryStream();
+        ProtoBuf.Serializer.Serialize(stream, value);
+
+        using var producer = new ProducerBuilder<string, byte[]>(new ProducerConfig { BootstrapServers = BootstrapAddress })
+            .Build();
+        producer.Produce(topic, KafkaMessageFactory.Create(key.ToString(), stream.ToArray(), typeof(TValue).Name,
+            Guid.NewGuid().ToString(), []));
         producer.Flush(TimeSpan.FromSeconds(10));
+    }
+
+    public static string DeadLetterTopic(string consumerGroup, string topic)
+    {
+        return $"{consumerGroup}.{topic}.dlq";
     }
 
     private async Task EnsureTopicsExistAsync()
     {
-        var dlqSuffix = new DeadLetterOptions().TopicSuffix;
-        string[] sourceTopics =
-        [
-            TopicNames.StockCreated, TopicNames.StockStatusToggled, TopicNames.Price, TopicNames.PriceChangeRequested
-        ];
-
-        var topics = sourceTopics
-            .SelectMany(t => new[] { t, t + dlqSuffix + ".retry", t + dlqSuffix + ".fatal" })
-            .ToArray();
+        var topics = TopicNames.All;
 
         using var admin = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = BootstrapAddress })
             .Build();

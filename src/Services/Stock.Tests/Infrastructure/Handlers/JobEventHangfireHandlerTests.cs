@@ -9,7 +9,7 @@ using Stock.Application.Events;
 using Stock.Infrastructure;
 using Stock.Infrastructure.BackgroundWorkers;
 using Stock.Infrastructure.Handlers;
-using Stock.Infrastructure.Messaging;
+using Stock.Infrastructure.Cron;
 using Stock.Infrastructure.Persistence;
 using Stock.Presentation.Builder;
 using Xunit;
@@ -34,7 +34,7 @@ public class JobEventHangfireHandlerTests : IClassFixture<MssqlFixture>, IAsyncL
         builder.AddResilence();
         builder.AddPersistence();
         builder.AddApplication();
-        builder.AddMessaging();
+        builder.AddJobs();
         builder.Services.AddHangfire(config => config.UseSqlServerStorage(fixture.ConnectionString));
 
         _provider = builder.Services.BuildServiceProvider();

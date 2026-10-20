@@ -2,10 +2,10 @@ using System.Net.Sockets;
 using Confluent.Kafka;
 using Microsoft.Data.SqlClient;
 using Stock.Application.Exceptions;
-using Stock.Infrastructure.Messaging.Publishers;
+using Stock.Infrastructure.Messaging;
 using Xunit;
 
-namespace Stock.Tests.Infrastructure.Messaging.Publishers;
+namespace Stock.Tests.Infrastructure.Messaging;
 
 public class RetryableErrorsTests : IClassFixture<MssqlFixture>
 {

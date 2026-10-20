@@ -3,7 +3,7 @@ using Confluent.Kafka;
 using Microsoft.Data.SqlClient;
 using Stock.Application.Exceptions;
 
-namespace Stock.Infrastructure.Messaging.Publishers;
+namespace Stock.Infrastructure.Messaging;
 
 public static class RetryableErrors
 {

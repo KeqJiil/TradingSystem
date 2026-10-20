@@ -1,3 +1,6 @@
+using Messaging.Abstractions;
+using Messaging.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Stock.Tests.Infrastructure;
 using Xunit;
 
@@ -10,6 +13,9 @@ public class StockApiFixture : IAsyncLifetime
 
     public string ConnectionString => _mssql.ConnectionString;
     public HttpClient Client { get; private set; } = null!;
+
+    public PublishedMessages Published =>
+        new(ConnectionString, _factory.Services.GetRequiredService<IMessageSerializerResolver>());
 
     public async Task InitializeAsync()
     {
