@@ -9,14 +9,14 @@ public sealed class OutboxTable(string connectionString) : IOutboxTable
     public async Task ClearAsync()
     {
         await using var connection = new SqlConnection(connectionString);
-        await connection.ExecuteAsync("DELETE FROM outbox");
+        await connection.ExecuteAsync("DELETE FROM messaging.outbox");
     }
 
     public async Task<long> SeedAsync(OutboxSeed seed)
     {
         await using var connection = new SqlConnection(connectionString);
         return await connection.ExecuteScalarAsync<long>("""
-            INSERT INTO outbox (id, message_id, message_type, topic, message_key, payload, headers, status, attempts,
+            INSERT INTO messaging.outbox (id, message_id, message_type, topic, message_key, payload, headers, status, attempts,
                                 processed_at, created_at)
             OUTPUT inserted.id
             VALUES (NEXT VALUE FOR outbox_id_seq, @MessageId, @MessageType, @Topic, @Key, @Payload, @Headers, @Status,
@@ -49,6 +49,6 @@ public sealed class OutboxTable(string connectionString) : IOutboxTable
                                          message_key AS MessageKey, payload AS Payload, headers AS Headers,
                                          UPPER(status) AS Status, attempts AS Attempts, processed_at AS ProcessedAt,
                                          created_at AS CreatedAt
-                                  FROM outbox
+                                  FROM messaging.outbox
                                   """;
 }

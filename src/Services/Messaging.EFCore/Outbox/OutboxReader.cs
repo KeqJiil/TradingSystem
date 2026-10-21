@@ -13,7 +13,7 @@ internal class OutboxReader<TContext>(TContext dbContext) where TContext : DbCon
             .FromSqlRaw("""
                             ;WITH cte AS (
                                 SELECT TOP({0}) *
-                                FROM outbox WITH (ROWLOCK, UPDLOCK, READPAST)
+                                FROM messaging.outbox WITH (ROWLOCK, UPDLOCK, READPAST)
                                 WHERE status IN ('Pending', 'Processing')
                                     AND (processed_at IS NULL OR processed_at <= DATEADD(MINUTE, -{1}, SYSDATETIMEOFFSET()))
                                 ORDER BY id
