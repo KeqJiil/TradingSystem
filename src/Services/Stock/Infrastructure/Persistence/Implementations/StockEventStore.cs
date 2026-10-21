@@ -1,13 +1,14 @@
 using System.Text;
 using System.Text.Json;
 using Dapper;
+using Messaging.Dapper;
 using Microsoft.Data.SqlClient;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class StockEventStore(IDbContext dbContext) : IStockEventStore
+public class StockEventStore(ITransactionContext dbContext) : IStockEventStore
 {
     public async Task<PriceChangedEvent?> AppendAsync(PriceChangeRequested stockEvent, CancellationToken ct)
     {
@@ -32,12 +33,14 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
 
         var aggregateIds = events.Select(e => e.AggregateId).Distinct().ToList();
 
-        var currentVersions = (await dbContext.Connection.QueryAsync<(Guid AggregateId, long Version)>(new CommandDefinition("""
-                    SELECT aggregate_id AS AggregateId, MAX(version) AS Version
-                    FROM events_store
-                    WHERE aggregate_id IN @AggregateIds
-                    GROUP BY aggregate_id
-                """, new { AggregateIds = aggregateIds }, dbContext.Transaction, cancellationToken: ct)))
+        var currentVersions = (await dbContext.Connection.QueryAsync<(Guid AggregateId, long Version)>(
+                new CommandDefinition("""
+                                          SELECT aggregate_id AS AggregateId, MAX(version) AS Version
+                                          FROM events_store
+                                          WHERE aggregate_id IN @AggregateIds
+                                          GROUP BY aggregate_id
+                                      """, new { AggregateIds = aggregateIds }, dbContext.Transaction,
+                    cancellationToken: ct)))
             .ToDictionary(x => x.AggregateId, x => x.Version);
 
         var parameters = new DynamicParameters();
@@ -54,7 +57,8 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
             var version = currentVersions.GetValueOrDefault(stockEvent.AggregateId, 0) + 1;
             currentVersions[stockEvent.AggregateId] = version;
 
-            result[i] = new(stockEvent.AggregateId, stockEvent.PriceChange, version, stockEvent.OccuredAt);
+            result[i] = new PriceChangedEvent(stockEvent.AggregateId, stockEvent.PriceChange, version,
+                stockEvent.OccuredAt);
 
             if (i > 0) sqlBuilder.Append(", ");
             sqlBuilder.Append(
@@ -69,7 +73,8 @@ public class StockEventStore(IDbContext dbContext) : IStockEventStore
             parameters.Add($"OccuredAt{i}", stockEvent.OccuredAt);
         }
 
-        await dbContext.Connection.ExecuteAsync(new CommandDefinition(sqlBuilder.ToString(), parameters, dbContext.Transaction, cancellationToken: ct));
+        await dbContext.Connection.ExecuteAsync(new CommandDefinition(sqlBuilder.ToString(), parameters,
+            dbContext.Transaction, cancellationToken: ct));
 
         return result;
     }

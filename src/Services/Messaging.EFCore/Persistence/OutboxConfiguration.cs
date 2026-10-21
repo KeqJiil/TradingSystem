@@ -8,7 +8,7 @@ internal class OutboxConfiguration : IEntityTypeConfiguration<OutboxEntity>
 {
     public void Configure(EntityTypeBuilder<OutboxEntity> builder)
     {
-        builder.ToTable("outbox");
+        builder.ToTable("outbox", "messaging");
 
         builder.HasKey(x => x.Id).HasName("pk_outbox");
 

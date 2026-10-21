@@ -1,10 +1,13 @@
 using MediatR;
+using Messaging.Abstractions;
+using Messaging.Dapper.Transactions;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
+using Stock.Application.Services;
 
 namespace Stock.Application.Commands.SetStockOpenToTrade;
 
-public class SetStockOpenToTradeHandler(IStockWriter writer, IOutboxWriter outboxWriter, IUnitOfWorkDecorator uow)
+public class SetStockOpenToTradeHandler(IStockWriter writer, IMessagePublisher publisher, IUnitOfWorkDecorator uow)
     : IRequestHandler<SetStockOpenToTradeCommand, bool>
 {
     public async Task<bool> Handle(SetStockOpenToTradeCommand request, CancellationToken cancellationToken)
@@ -19,7 +22,7 @@ public class SetStockOpenToTradeHandler(IStockWriter writer, IOutboxWriter outbo
 
             var @event = new StockToggledStatusEvent(request.Id, DateTimeOffset.UtcNow, request.IsOpenToTrade,
                 version!.Value);
-            await outboxWriter.WriteAsync(@event, request.Id, cancellationToken);
+            await publisher.PublishOrThrowAsync(@event, request.Id, cancellationToken);
         }, cancellationToken);
 
         return found;

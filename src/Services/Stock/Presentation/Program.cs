@@ -12,7 +12,6 @@ using Stock.Presentation.Builder.Observability;
 using Stock.Presentation.Http.Controllers;
 using Stock.Presentation.Http.ExceptionHandlers;
 using Stock.Presentation.Http.Middlewares;
-using Stock.Presentation.Kafka;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,8 +29,8 @@ builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.AddResilence();
 builder.AddPersistence();
 builder.AddApplication();
-builder.AddKafka();
-builder.AddMessaging();
+builder.AddJobs();
+builder.AddStockMessaging();
 builder.AddObservability();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")

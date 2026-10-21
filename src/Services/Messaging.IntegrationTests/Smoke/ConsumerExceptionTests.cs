@@ -21,8 +21,8 @@ public class ConsumerExceptionTests(KafkaFixture kafka, ITestOutputHelper output
         };
         await using var host = await StartHost(topic, group, recorder);
 
-        await host.PublishAsync(Failing, topic, "key-1");
-        await host.PublishAsync(Healthy, topic, "key-2");
+        await host.PublishAsync(Failing, "key-1");
+        await host.PublishAsync(Healthy, "key-2");
 
         var parked = Assert.Single(await host.Kafka.ReadAsync(OrdersHost.DlqTopic(topic, group), 1));
         await Wait.UntilAsync(() => recorder.CallsFor(Healthy) == 1, "the next message to be processed");
@@ -47,7 +47,7 @@ public class ConsumerExceptionTests(KafkaFixture kafka, ITestOutputHelper output
         };
         await using var host = await StartHost(topic, group, recorder);
 
-        await host.PublishAsync(Failing, topic, "key-1");
+        await host.PublishAsync(Failing, "key-1");
         await recorder.WaitForCallsAsync(2);
 
         var parked = await host.Kafka.ReadAsync(OrdersHost.DlqTopic(topic, group), 1, TimeSpan.FromSeconds(3));

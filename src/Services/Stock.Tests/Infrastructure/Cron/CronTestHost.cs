@@ -1,9 +1,14 @@
 using Dapper;
+using Hangfire;
+using Hangfire.Common;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Internal;
-using Stock.Infrastructure.Messaging;
+using Stock.Application.Abstractions;
+using Stock.Application.Events;
+using Stock.Infrastructure.Cron;
+using Stock.Infrastructure.Handlers;
 using Stock.Infrastructure.Persistence;
 using Stock.Presentation.Builder;
 
@@ -11,8 +16,12 @@ namespace Stock.Tests.Infrastructure.Cron;
 
 internal static class CronTestHost
 {
-    public static async Task RunAsync<TWorker>(string connectionString, ISystemClock clock,
-        Func<TWorker, Task> execute) where TWorker : notnull
+    static CronTestHost()
+    {
+        GlobalJobFilters.Filters.Add(new CorrelationJobFilter());
+    }
+
+    public static ServiceProvider Build(string connectionString, ISystemClock clock)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
@@ -22,12 +31,25 @@ internal static class CronTestHost
         builder.AddResilence();
         builder.AddPersistence();
         builder.AddApplication();
-        builder.AddMessaging();
+        builder.AddJobs();
         builder.Services.AddSingleton(clock);
+        builder.Services.AddHangfire(config => config.UseSqlServerStorage(connectionString));
 
-        await using var provider = builder.Services.BuildServiceProvider();
-        await using var scope = provider.CreateAsyncScope();
-        await execute(scope.ServiceProvider.GetRequiredService<TWorker>());
+        return builder.Services.BuildServiceProvider();
+    }
+
+    public static List<EnqueuedJob<TEvent>> EnqueuedJobs<TEvent>(IServiceProvider provider) where TEvent : JobEvent
+    {
+        var storage = provider.GetRequiredService<JobStorage>();
+        using var connection = storage.GetConnection();
+
+        return storage.GetMonitoringApi()
+            .EnqueuedJobs("default", 0, 100_000)
+            .Where(pair => pair.Value.Job?.Type == typeof(IJobEventProcessor<TEvent>)
+                           && pair.Value.Job.Args.FirstOrDefault() is TEvent)
+            .Select(pair => new EnqueuedJob<TEvent>((TEvent)pair.Value.Job.Args[0],
+                SerializationHelper.Deserialize<Guid?>(connection.GetJobParameter(pair.Key, "CorrelationId"))))
+            .ToList();
     }
 
     public static async Task<List<Guid>> SeedStocksAsync(TestDbContext dbContext, int count)
@@ -41,3 +63,5 @@ internal static class CronTestHost
         return ids;
     }
 }
+
+internal sealed record EnqueuedJob<TEvent>(TEvent Event, Guid? CorrelationId) where TEvent : JobEvent;

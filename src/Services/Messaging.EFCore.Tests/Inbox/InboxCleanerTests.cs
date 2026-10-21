@@ -67,7 +67,7 @@ public class InboxCleanerTests(MssqlFixture db) : IClassFixture<MssqlFixture>, I
     public async Task InitializeAsync()
     {
         await using var connection = await db.OpenConnectionAsync();
-        await connection.ExecuteAsync("DELETE FROM inbox");
+        await connection.ExecuteAsync("DELETE FROM messaging.inbox");
 
         _context = db.CreateContext();
         _sut = new InboxCleanser<TestDbContext>(_context);
@@ -83,13 +83,13 @@ public class InboxCleanerTests(MssqlFixture db) : IClassFixture<MssqlFixture>, I
         await using var connection = await db.OpenConnectionAsync();
         for (var i = 0; i < count; i++)
             await connection.ExecuteAsync(
-                "INSERT INTO inbox (consumer_group, message_id, created_at) VALUES (@Group, @Id, @CreatedAt)",
+                "INSERT INTO messaging.inbox (consumer_group, message_id, created_at) VALUES (@Group, @Id, @CreatedAt)",
                 new { Group = "orders", Id = Guid.NewGuid().ToString(), CreatedAt = createdAt });
     }
 
     private async Task<int> CountAsync()
     {
         await using var connection = await db.OpenConnectionAsync();
-        return await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM inbox");
+        return await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM messaging.inbox");
     }
 }

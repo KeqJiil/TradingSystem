@@ -118,7 +118,7 @@ public class InboxHookTests(MssqlFixture db) : IClassFixture<MssqlFixture>
     private async Task SeedInboxAsync(string messageId)
     {
         await using var connection = await db.OpenConnectionAsync();
-        await connection.ExecuteAsync("INSERT INTO inbox (consumer_group, message_id) VALUES (@Group, @Id)",
+        await connection.ExecuteAsync("INSERT INTO messaging.inbox (consumer_group, message_id) VALUES (@Group, @Id)",
             new { Group, Id = messageId });
     }
 
@@ -126,7 +126,7 @@ public class InboxHookTests(MssqlFixture db) : IClassFixture<MssqlFixture>
     {
         await using var connection = await db.OpenConnectionAsync();
         return await connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM inbox WHERE message_id = @Id AND consumer_group = @Group",
+            "SELECT COUNT(*) FROM messaging.inbox WHERE message_id = @Id AND consumer_group = @Group",
             new { Id = messageId, Group });
     }
 }

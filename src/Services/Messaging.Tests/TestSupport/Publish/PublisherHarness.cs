@@ -51,7 +51,7 @@ public sealed class PublisherHarness : IDisposable
         return Provider.CreateScope();
     }
 
-    public async Task<PublishOutcome> PublishAsync<TMessage>(TMessage message, PublishOptions? options)
+    public async Task<PublishOutcome> PublishAsync<TMessage>(TMessage message, PublishOptions options)
     {
         using var scope = CreateScope();
         var publisher = scope.ServiceProvider.GetRequiredService<IMessagePublisher>();
@@ -60,7 +60,7 @@ public sealed class PublisherHarness : IDisposable
 
     public static PublishOptions DefaultOptions(string key = "key", Dictionary<string, string>? headers = null)
     {
-        return new PublishOptions(key, Topic, headers ?? new Dictionary<string, string>());
+        return new PublishOptions(key, headers);
     }
 
     public void Dispose()

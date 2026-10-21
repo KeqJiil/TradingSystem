@@ -10,7 +10,4 @@ public static class StockTelemetry
     public static readonly ActivitySource Source = new(SourceName);
 
     public static readonly Meter Meter = new(SourceName);
-
-    public static readonly Counter<long> DlqPublished = Meter.CreateCounter<long>(
-        "stock.dlq.published", unit: "{message}", description: "Messages published to dead letter topics");
 }

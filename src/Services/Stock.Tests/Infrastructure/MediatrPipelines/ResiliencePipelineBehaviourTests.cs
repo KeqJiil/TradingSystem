@@ -1,14 +1,14 @@
 using MediatR;
-using Microsoft.Extensions.Logging.Abstractions;
+using Messaging.Dapper.Transactions;
+using Microsoft.Extensions.DependencyInjection;
 using Polly;
 using Polly.Retry;
 using Stock.Infrastructure.MediatrPipelines;
-using Stock.Infrastructure.Persistence.Implementations;
 using Xunit;
 
 namespace Stock.Tests.Infrastructure.MediatrPipelines;
 
-public class ResiliencePipelineBehaviourTests : IClassFixture<MssqlFixture>, IAsyncLifetime
+public class ResiliencePipelineBehaviourTests(MssqlFixture fixture) : IClassFixture<MssqlFixture>, IAsyncLifetime
 {
     private const int MaxRetryAttempts = 3;
 
@@ -21,37 +21,33 @@ public class ResiliencePipelineBehaviourTests : IClassFixture<MssqlFixture>, IAs
         })
         .Build();
 
-    private readonly UnitOfWork _unitOfWork;
-    private readonly UnitOfWorkDecorator _decorator;
-
-    public ResiliencePipelineBehaviourTests(MssqlFixture fixture)
-    {
-        _unitOfWork = new UnitOfWork(new TestDbConnectionFactory(fixture.ConnectionString));
-        _decorator = new UnitOfWorkDecorator(_unitOfWork, _pipeline, NullLogger<UnitOfWorkDecorator>.Instance);
-    }
+    private ServiceProvider _provider = null!;
 
     public Task InitializeAsync()
     {
+        _provider = StockServices.Build(fixture.ConnectionString);
         return Task.CompletedTask;
     }
 
     public async Task DisposeAsync()
     {
-        await _unitOfWork.DisposeAsync();
+        await _provider.DisposeAsync();
     }
 
     [Fact]
-    public async Task UnitOfWork_OnItsOwn_RetriesTheTransaction()
+    public async Task Handle_InsideBehaviour_MarksLibraryResilienceScopeActive()
     {
-        var calls = 0;
+        var behaviour = new ResiliencePipelineBehaviour<Ping, Unit>(_pipeline);
+        var active = false;
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => _decorator.ExecuteAsync(() =>
+        await behaviour.Handle(new Ping(), ct =>
         {
-            calls++;
-            throw new InvalidOperationException("transient");
-        }, CancellationToken.None));
+            active = ResilienceScope.IsActive;
+            return Task.FromResult(Unit.Value);
+        }, CancellationToken.None);
 
-        Assert.Equal(MaxRetryAttempts + 1, calls);
+        Assert.True(active);
+        Assert.False(ResilienceScope.IsActive);
     }
 
     [Fact]
@@ -62,7 +58,8 @@ public class ResiliencePipelineBehaviourTests : IClassFixture<MssqlFixture>, IAs
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => behaviour.Handle(new Ping(), async ct =>
         {
-            await _decorator.ExecuteAsync(() =>
+            await using var scope = _provider.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IUnitOfWorkDecorator>().ExecuteAsync(() =>
             {
                 calls++;
                 throw new InvalidOperationException("transient");
@@ -81,7 +78,8 @@ public class ResiliencePipelineBehaviourTests : IClassFixture<MssqlFixture>, IAs
 
         await behaviour.Handle(new Ping(), async ct =>
         {
-            await _decorator.ExecuteAsync(() =>
+            await using var scope = _provider.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IUnitOfWorkDecorator>().ExecuteAsync(() =>
             {
                 if (++calls == 1) throw new InvalidOperationException("transient");
                 return Task.CompletedTask;

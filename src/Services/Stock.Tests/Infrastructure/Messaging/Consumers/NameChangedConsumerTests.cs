@@ -1,7 +1,7 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Stock.Infrastructure.ExternalEvents;
-using Stock.Infrastructure.Options;
+using Stock.Infrastructure.Topics;
 using Xunit;
 
 namespace Stock.Tests.Infrastructure.Messaging.Consumers;
@@ -22,7 +22,7 @@ public class NameChangedConsumerTests
         var aggregateId = Guid.NewGuid();
         await SeedStockAsync(aggregateId);
 
-        _fixture.Produce(TopicNames.StockNameChanged, aggregateId, new NameChangedEvent(aggregateId, "MSFT", 1));
+        _fixture.Produce(StockTopic.StockNameChanged.Name(), aggregateId, new NameChangedEvent(aggregateId, "MSFT", 1));
 
         var row = await Polling.WaitUntilAsync(() => TryGetNameIfVersionAsync(aggregateId, 1),
             TimeSpan.FromSeconds(45));
@@ -33,7 +33,7 @@ public class NameChangedConsumerTests
     public async Task NameChangeArrivesBeforeStockCreated_IsAppliedOnceReadModelExists()
     {
         var aggregateId = Guid.NewGuid();
-        _fixture.Produce(TopicNames.StockNameChanged, aggregateId, new NameChangedEvent(aggregateId, "MSFT", 1));
+        _fixture.Produce(StockTopic.StockNameChanged.Name(), aggregateId, new NameChangedEvent(aggregateId, "MSFT", 1));
 
         await SeedStockAsync(aggregateId);
 
@@ -44,7 +44,7 @@ public class NameChangedConsumerTests
 
     private async Task SeedStockAsync(Guid aggregateId)
     {
-        _fixture.Produce(TopicNames.StockCreated, aggregateId,
+        _fixture.Produce(StockTopic.StockCreated.Name(), aggregateId,
             new StockCreatedEvent(aggregateId, "AAPL", true, "USD", new TimeOnly(9, 30), new TimeOnly(16, 0)));
 
         await Polling.WaitUntilAsync(() => TryGetNameIfVersionAsync(aggregateId, 0), TimeSpan.FromSeconds(45));

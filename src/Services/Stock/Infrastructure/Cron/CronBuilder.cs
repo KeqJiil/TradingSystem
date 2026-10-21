@@ -14,7 +14,6 @@ public static class CronBuilder
         recurringJobManager.AddOrUpdate<HourlyCronWorker>("hourly-read-model",
             w => w.ExecuteAsync(CancellationToken.None), "5 * * * *");
 
-        recurringJobManager.AddOrUpdate<OutboxCleanupCronWorker>("outbox-cleanup",
-            w => w.ExecuteAsync(CancellationToken.None), "0 3 * * *");
+        recurringJobManager.RemoveIfExists("outbox-cleanup");
     }
 }

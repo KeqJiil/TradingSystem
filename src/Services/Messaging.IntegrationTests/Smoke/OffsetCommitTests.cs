@@ -13,13 +13,13 @@ public class OffsetCommitTests(KafkaFixture kafka, ITestOutputHelper output)
 
         await using (var host = await OrdersHost.StartAsync(kafka, output, topic, group, first))
         {
-            await host.PublishAsync(new OrderPlaced("o-1"), topic, "key-1");
+            await host.PublishAsync(new OrderPlaced("o-1"), "key-1");
             await first.WaitForCallsAsync(1);
         }
 
         await using (var host = await OrdersHost.StartAsync(kafka, output, topic, group, second))
         {
-            await host.PublishAsync(new OrderPlaced("o-2"), topic, "key-2");
+            await host.PublishAsync(new OrderPlaced("o-2"), "key-2");
             await second.WaitForCallsAsync(1);
         }
 

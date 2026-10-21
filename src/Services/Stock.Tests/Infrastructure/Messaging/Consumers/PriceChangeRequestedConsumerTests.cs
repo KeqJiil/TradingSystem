@@ -1,11 +1,9 @@
-using Confluent.Kafka;
 using Dapper;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.DependencyInjection;
 using Stock.Infrastructure.ExternalEvents;
-using Stock.Infrastructure.Messaging;
-using Stock.Infrastructure.Options;
+using Stock.Infrastructure.Topics;
 using Xunit;
+using DomainPriceChanged = Stock.Application.Events.PriceChangedEvent;
 
 namespace Stock.Tests.Infrastructure.Messaging.Consumers;
 
@@ -20,7 +18,7 @@ public class PriceChangeRequestedConsumerTests
     }
 
     [Fact]
-    public async Task HappyPath_PriceChangeRequestedEvent_AppendsEventStoreRow_AndOutboxRow()
+    public async Task HappyPath_PriceChangeRequestedEvent_AppendsEventStoreRow_AndPublishesPriceChanged()
     {
         var aggregateId = Guid.NewGuid();
         var evt = new PriceChangeRequestedEvent(Guid.NewGuid(), aggregateId, 12.5m, DateTimeOffset.UtcNow);
@@ -32,8 +30,10 @@ public class PriceChangeRequestedConsumerTests
         Assert.Equal(12.5m, eventRow.PriceChange);
         Assert.Equal(nameof(PriceChangedEvent), eventRow.EventType);
 
-        var outboxRow = await Polling.WaitUntilAsync(() => TryGetOutboxRowAsync(aggregateId), TimeSpan.FromSeconds(45));
-        Assert.Equal("PriceChangedEvent", outboxRow.EventType);
+        var published = await Polling.WaitUntilAsync(async () =>
+            (await _fixture.Published.OfTypeAsync<DomainPriceChanged>(aggregateId.ToString())).SingleOrDefault(),
+            TimeSpan.FromSeconds(45));
+        Assert.Equal(new DomainPriceChanged(aggregateId, 12.5m, 1, evt.OccurredAt), published.Message);
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public class PriceChangeRequestedConsumerTests
 
         var fatalMessage = KafkaTestConsumer.WaitForMessage<PriceChangeRequestedEvent>(
             _fixture.BootstrapAddress,
-            TopicNames.PriceChangeRequested + new DeadLetterOptions().TopicSuffix + ".fatal",
+            StockServiceHostFixture.DeadLetterTopic("price-change-requested-events-group", StockTopic.PriceChangeRequested.Name()),
             m => m.AggregateId == aggregateId,
             TimeSpan.FromSeconds(45));
 
@@ -57,11 +57,7 @@ public class PriceChangeRequestedConsumerTests
 
     private void Produce(PriceChangeRequestedEvent evt)
     {
-        var producerFactory = _fixture.Services.GetRequiredService<IKafkaProducerFactory>();
-        using var producer = producerFactory.Create<PriceChangeRequestedEvent>($"test-seed-{Guid.NewGuid()}");
-        producer.Produce(TopicNames.PriceChangeRequested,
-            new Message<string, PriceChangeRequestedEvent> { Key = evt.AggregateId.ToString(), Value = evt });
-        producer.Flush(TimeSpan.FromSeconds(10));
+        _fixture.Produce(StockTopic.PriceChangeRequested.Name(), evt.AggregateId, evt);
     }
 
     private async Task<EventStoreRow?> TryGetEventStoreRowAsync(Guid aggregateId)
@@ -74,17 +70,5 @@ public class PriceChangeRequestedConsumerTests
             """, new { AggregateId = aggregateId });
     }
 
-    private async Task<OutboxRow?> TryGetOutboxRowAsync(Guid aggregateId)
-    {
-        await using var connection = new SqlConnection(_fixture.ConnectionString);
-        return await connection.QuerySingleOrDefaultAsync<OutboxRow>("""
-            SELECT "event_type" AS EventType
-            FROM "outbox"
-            WHERE "aggregate_id" = @AggregateId
-            """, new { AggregateId = aggregateId });
-    }
-
     private record EventStoreRow(long Version, decimal PriceChange, string EventType);
-
-    private record OutboxRow(string EventType);
 }

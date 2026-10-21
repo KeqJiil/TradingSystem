@@ -28,10 +28,10 @@ public class MultiPartitionRetryTests(KafkaFixture kafka, ITestOutputHelper outp
             options.DefaultNumPartitions = 3;
         }, capture);
 
-        await host.PublishAsync(Poison, topic, "poison-key");
+        await host.PublishAsync(Poison, "poison-key");
         await recorder.WaitForCallsAsync(1);
         for (var i = 0; i < HealthyCount; i++)
-            await host.PublishAsync(new OrderPlaced($"h-{i}"), topic, $"key-{i}");
+            await host.PublishAsync(new OrderPlaced($"h-{i}"), $"key-{i}");
         await Task.Delay(TimeSpan.FromSeconds(2));
         gate.SetResult();
 

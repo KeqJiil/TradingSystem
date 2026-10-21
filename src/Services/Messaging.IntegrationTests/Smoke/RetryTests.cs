@@ -18,7 +18,7 @@ public class RetryTests(KafkaFixture kafka, ITestOutputHelper output)
         };
         await using var host = await OrdersHost.StartAsync(kafka, output, topic, group, recorder);
 
-        await host.PublishAsync(First, topic, "key-1");
+        await host.PublishAsync(First, "key-1");
         await recorder.WaitForCallsAsync(3);
 
         var parked = await host.Kafka.ReadAsync(OrdersHost.DlqTopic(topic, group), 1, TimeSpan.FromSeconds(3));
@@ -40,7 +40,7 @@ public class RetryTests(KafkaFixture kafka, ITestOutputHelper output)
             options => options.MaxAttempts = 5,
             consumerOptions: new ConsumerOptions(topic, group) { MaxAttempts = 2 });
 
-        await host.PublishAsync(First, topic, "key-1");
+        await host.PublishAsync(First, "key-1");
 
         var parked = Assert.Single(await host.Kafka.ReadAsync(OrdersHost.DlqTopic(topic, group), 1));
         Assert.Equal(2, recorder.CallsFor(First));
@@ -62,8 +62,8 @@ public class RetryTests(KafkaFixture kafka, ITestOutputHelper output)
         await using var host = await OrdersHost.StartAsync(kafka, output, topic, group, recorder,
             options => options.MaxAttempts = 3);
 
-        await host.PublishAsync(First, topic, "key-1");
-        await host.PublishAsync(Second, topic, "key-2");
+        await host.PublishAsync(First, "key-1");
+        await host.PublishAsync(Second, "key-2");
 
         var parked = Assert.Single(await host.Kafka.ReadAsync(OrdersHost.DlqTopic(topic, group), 1));
         await Wait.UntilAsync(() => recorder.CallsFor(Second) == 1, "the next message to be processed");

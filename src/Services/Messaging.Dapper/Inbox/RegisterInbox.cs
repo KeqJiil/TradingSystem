@@ -14,7 +14,7 @@ public static class RegisterInbox
         builder.Services.AddScoped<InboxWriter>();
         builder.Services.AddScoped<InboxCleaner>();
         builder.Services.AddCleanup();
-        builder.Services.AddSingleton(EmbeddedMigration.Read("001_Inbox.sql"));
+        builder.Services.AddSingleton(MessagingMigrations.Inbox);
         builder.AddDeliveryMiddleware<InboxMiddleware>();
     }
 }

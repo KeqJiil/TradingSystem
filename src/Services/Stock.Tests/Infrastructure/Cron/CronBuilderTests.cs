@@ -5,7 +5,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Internal;
 using Stock.Infrastructure.Cron;
-using Stock.Infrastructure.Messaging;
 using Xunit;
 
 namespace Stock.Tests.Infrastructure.Cron;
@@ -23,8 +22,7 @@ public class CronBuilderTests : IClassFixture<MssqlFixture>
     public static TheoryData<string, string, Type> ExpectedJobs => new()
     {
         { "daily-read-model", "0 1 * * *", typeof(DailyCronWorker) },
-        { "hourly-read-model", "5 * * * *", typeof(HourlyCronWorker) },
-        { "outbox-cleanup", "0 3 * * *", typeof(OutboxCleanupCronWorker) }
+        { "hourly-read-model", "5 * * * *", typeof(HourlyCronWorker) }
     };
 
     [Theory]
@@ -61,6 +59,18 @@ public class CronBuilderTests : IClassFixture<MssqlFixture>
         Assert.Equal("0 1 * * *", job.Cron);
     }
 
+    [Fact]
+    public async Task UseCronJobs_RemovesLegacyOutboxCleanupJob()
+    {
+        await using var app = BuildApp();
+        app.Services.GetRequiredService<IRecurringJobManager>().AddOrUpdate<DailyCronWorker>("outbox-cleanup",
+            w => w.ExecuteAsync(CancellationToken.None), "0 3 * * *");
+
+        app.UseCronJobs();
+
+        Assert.DoesNotContain(GetRecurringJobs(app), j => j.Id == "outbox-cleanup");
+    }
+
     private WebApplication BuildApp()
     {
         var builder = WebApplication.CreateBuilder();
@@ -68,7 +78,7 @@ public class CronBuilderTests : IClassFixture<MssqlFixture>
         {
             ["ConnectionStrings:DefaultConnection"] = _fixture.ConnectionString
         });
-        builder.AddMessaging();
+        builder.AddJobs();
         builder.Services.AddSingleton<ISystemClock, SystemClock>();
         builder.Services.AddHangfire(config => config.UseSqlServerStorage(_fixture.ConnectionString));
         return builder.Build();

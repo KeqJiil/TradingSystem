@@ -8,7 +8,7 @@ internal class InboxConfiguration : IEntityTypeConfiguration<InboxEntity>
 {
     public void Configure(EntityTypeBuilder<InboxEntity> builder)
     {
-        builder.ToTable("inbox");
+        builder.ToTable("inbox", "messaging");
 
         builder.HasKey(x => new { x.ConsumerGroup, x.MessageId }).HasName("pk_inbox");
 

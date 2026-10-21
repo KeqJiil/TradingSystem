@@ -21,8 +21,8 @@ public class DeadLetterTests(KafkaFixture kafka, ITestOutputHelper output)
         };
         await using var host = await OrdersHost.StartAsync(kafka, output, topic, group, recorder);
 
-        await host.PublishAsync(rejected, topic, "key-1");
-        await host.PublishAsync(Valid, topic, "key-2");
+        await host.PublishAsync(rejected, "key-1");
+        await host.PublishAsync(Valid, "key-2");
 
         var parked = Assert.Single(await host.Kafka.ReadAsync(OrdersHost.DlqTopic(topic, group), 1));
         await Wait.UntilAsync(() => recorder.CallsFor(Valid) == 1, "the next message to be processed");
@@ -45,7 +45,7 @@ public class DeadLetterTests(KafkaFixture kafka, ITestOutputHelper output)
 
         await host.Kafka.ProduceAsync(topic, "key-1", payload,
             new Dictionary<string, string> { [MessagingHeaders.EventType] = nameof(OrderPlaced) });
-        await host.PublishAsync(Valid, topic, "key-2");
+        await host.PublishAsync(Valid, "key-2");
 
         var parked = Assert.Single(await host.Kafka.ReadAsync(OrdersHost.DlqTopic(topic, group), 1));
         await Wait.UntilAsync(() => recorder.CallsFor(Valid) == 1, "the next message to be processed");
@@ -68,7 +68,7 @@ public class DeadLetterTests(KafkaFixture kafka, ITestOutputHelper output)
             [MessagingHeaders.EventType] = nameof(OrderPlaced),
             ["x-custom"] = "kept"
         });
-        await host.PublishAsync(Valid, topic, "key-2");
+        await host.PublishAsync(Valid, "key-2");
 
         var parked = Assert.Single(await host.Kafka.ReadAsync(OrdersHost.DlqTopic(topic, group), 1));
         await Wait.UntilAsync(() => recorder.CallsFor(Valid) == 1, "the next message to be processed");
@@ -95,7 +95,7 @@ public class DeadLetterTests(KafkaFixture kafka, ITestOutputHelper output)
         await using var host = await OrdersHost.StartAsync(kafka, output, topic, group, recorder);
 
         await host.Kafka.ProduceAsync(topic, "key-1", payload, headers);
-        await host.PublishAsync(Valid, topic, "key-2");
+        await host.PublishAsync(Valid, "key-2");
 
         var parked = Assert.Single(await host.Kafka.ReadAsync(OrdersHost.DlqTopic(topic, group), 1));
         await Wait.UntilAsync(() => recorder.CallsFor(Valid) == 1, "the next message to be processed");

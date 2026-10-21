@@ -11,7 +11,7 @@ public class PublisherWireTests(KafkaFixture kafka, ITestOutputHelper output)
         var topic = TestNames.Unique("orders");
         await using var host = await StartHost(topic);
 
-        var outcome = await host.PublishAsync(new OrderPlaced("o-1"), topic, "key-1",
+        var outcome = await host.PublishAsync(new OrderPlaced("o-1"), "key-1",
             new Dictionary<string, string> { ["x-custom"] = "kept" });
 
         Assert.True(outcome.IsSuccessful, outcome.ErrorMessage);
@@ -31,8 +31,8 @@ public class PublisherWireTests(KafkaFixture kafka, ITestOutputHelper output)
         var topic = TestNames.Unique("orders");
         await using var host = await StartHost(topic);
 
-        await host.PublishAsync(new OrderPlaced("o-1"), topic, "key-1");
-        await host.PublishAsync(new OrderPlaced("o-2"), topic, "key-2");
+        await host.PublishAsync(new OrderPlaced("o-1"), "key-1");
+        await host.PublishAsync(new OrderPlaced("o-2"), "key-2");
 
         var messages = await host.Kafka.ReadAsync(topic, 2);
         Assert.Equal(2, messages.Count);

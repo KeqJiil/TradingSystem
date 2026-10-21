@@ -1,13 +1,16 @@
 using MediatR;
+using Messaging.Abstractions;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
+using Stock.Application.Services;
+using Messaging.Dapper.Transactions;
 
 namespace Stock.Application.Commands.CreateStock;
 
 public class CreateStockHandler(
     IStockWriter writer,
     IStockDataReader reader,
-    IOutboxWriter outboxWriter,
+    IMessagePublisher publisher,
     IUnitOfWorkDecorator uow)
     : IRequestHandler<CreateStockCommand, CreateStockResult>
 {
@@ -30,7 +33,7 @@ public class CreateStockHandler(
             if (await writer.CreateAsync(request.Id, dto, cancellationToken))
             {
                 result = CreateStockResult.Created;
-                await outboxWriter.WriteAsync(@event, request.Id, cancellationToken);
+                await publisher.PublishOrThrowAsync(@event, request.Id, cancellationToken);
                 return;
             }
 

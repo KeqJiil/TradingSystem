@@ -10,7 +10,6 @@ public static class TestDatabase
                                     DELETE FROM stock_data_projection;
                                     DELETE FROM daily_stock_data_projection;
                                     DELETE FROM hourly_stock_data_projection;
-                                    DELETE FROM outbox;
                                     """;
 
     public static Task ResetAsync(TestDbContext dbContext)

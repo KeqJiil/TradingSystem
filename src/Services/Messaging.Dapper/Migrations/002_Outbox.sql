@@ -1,5 +1,9 @@
-IF OBJECT_ID('dbo.outbox', 'U') IS NULL
-    CREATE TABLE "outbox"
+IF SCHEMA_ID('messaging') IS NULL
+    EXEC ('CREATE SCHEMA messaging');
+GO
+
+IF OBJECT_ID('messaging.outbox', 'U') IS NULL
+    CREATE TABLE "messaging"."outbox"
     (
         "id"           BIGINT IDENTITY (1, 1) NOT NULL CONSTRAINT "pk_outbox" PRIMARY KEY CLUSTERED,
         "message_id"   VARCHAR(100)     NOT NULL,
@@ -17,21 +21,21 @@ GO
 
 IF NOT EXISTS (SELECT 1
                FROM sys.indexes
-               WHERE object_id = OBJECT_ID('dbo.outbox')
+               WHERE object_id = OBJECT_ID('messaging.outbox')
                  AND name = 'idx_outbox_pending')
-    CREATE INDEX "idx_outbox_pending" ON "outbox" ("id") INCLUDE ("processed_at")
+    CREATE INDEX "idx_outbox_pending" ON "messaging"."outbox" ("id") INCLUDE ("processed_at")
         WHERE "status" IN ('PENDING', 'PROCESSING');
 GO
 
 IF NOT EXISTS (SELECT 1
                FROM sys.indexes
-               WHERE object_id = OBJECT_ID('dbo.outbox')
+               WHERE object_id = OBJECT_ID('messaging.outbox')
                  AND name = 'idx_outbox_completed')
-    CREATE INDEX "idx_outbox_completed" ON "outbox" ("created_at") WHERE "status" = 'COMPLETED';
+    CREATE INDEX "idx_outbox_completed" ON "messaging"."outbox" ("created_at") WHERE "status" = 'COMPLETED';
 GO
 
-IF TYPE_ID('dbo.outbox_event_tvp') IS NULL
-    CREATE TYPE dbo.outbox_event_tvp AS TABLE
+IF TYPE_ID('messaging.outbox_event_tvp') IS NULL
+    CREATE TYPE messaging.outbox_event_tvp AS TABLE
     (
         "ordinal"      INT              NOT NULL,
         "message_id"   VARCHAR(100)     NOT NULL,

@@ -7,7 +7,7 @@ internal class OutboxCleaner(ITransactionContext dbContext)
     public async Task<int> CleanupAsync(int batchSize, DateTimeOffset olderThan, CancellationToken cancellationToken)
     {
         var sql = """
-                    DELETE TOP (@BatchSize) FROM outbox
+                    DELETE TOP (@BatchSize) FROM messaging.outbox
                     WHERE status = 'COMPLETED' AND created_at < @OlderThan
                   """;
 

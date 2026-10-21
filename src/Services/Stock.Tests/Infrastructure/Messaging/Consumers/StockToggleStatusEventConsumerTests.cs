@@ -1,7 +1,7 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Stock.Infrastructure.ExternalEvents;
-using Stock.Infrastructure.Options;
+using Stock.Infrastructure.Topics;
 using Xunit;
 
 namespace Stock.Tests.Infrastructure.Messaging.Consumers;
@@ -76,13 +76,13 @@ public class StockToggleStatusEventConsumerTests
 
     private void ProduceToggle(Guid aggregateId, bool isOpenToTrade, long statusVersion)
     {
-        _fixture.Produce(TopicNames.StockStatusToggled, aggregateId,
+        _fixture.Produce(StockTopic.StockStatusToggled.Name(), aggregateId,
             new StockToggledStatusEvent(aggregateId, DateTimeOffset.UtcNow, isOpenToTrade, statusVersion));
     }
 
     private async Task SeedStockAsync(Guid aggregateId, bool isOpenToTrade)
     {
-        _fixture.Produce(TopicNames.StockCreated, aggregateId,
+        _fixture.Produce(StockTopic.StockCreated.Name(), aggregateId,
             new StockCreatedEvent(aggregateId, "AAPL", isOpenToTrade, "USD", new TimeOnly(9, 30),
                 new TimeOnly(16, 0)));
 

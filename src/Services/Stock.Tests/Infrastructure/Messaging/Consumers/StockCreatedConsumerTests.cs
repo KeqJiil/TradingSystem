@@ -1,7 +1,7 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Stock.Infrastructure.ExternalEvents;
-using Stock.Infrastructure.Options;
+using Stock.Infrastructure.Topics;
 using Xunit;
 
 namespace Stock.Tests.Infrastructure.Messaging.Consumers;
@@ -46,7 +46,7 @@ public class StockCreatedConsumerTests
 
         var fatalMessage = KafkaTestConsumer.WaitForMessage<StockCreatedEvent>(
             _fixture.BootstrapAddress,
-            TopicNames.StockCreated + new DeadLetterOptions().TopicSuffix + ".fatal",
+            StockServiceHostFixture.DeadLetterTopic("stock-created-events-group", StockTopic.StockCreated.Name()),
             m => m.AggregateId == aggregateId,
             TimeSpan.FromSeconds(45));
 
@@ -56,7 +56,7 @@ public class StockCreatedConsumerTests
 
     private void Produce(StockCreatedEvent evt)
     {
-        _fixture.Produce(TopicNames.StockCreated, evt.AggregateId, evt);
+        _fixture.Produce(StockTopic.StockCreated.Name(), evt.AggregateId, evt);
     }
 
     private async Task<ProjectionRow?> TryGetRowAsync(Guid aggregateId)

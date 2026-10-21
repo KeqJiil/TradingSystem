@@ -1,7 +1,7 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Stock.Infrastructure.ExternalEvents;
-using Stock.Infrastructure.Options;
+using Stock.Infrastructure.Topics;
 using Xunit;
 
 namespace Stock.Tests.Infrastructure.Messaging.Consumers;
@@ -45,13 +45,13 @@ public class TimeChangedConsumerTests
 
     private void ProduceTimeChange(Guid aggregateId)
     {
-        _fixture.Produce(TopicNames.StockTradingTimeChanged, aggregateId,
+        _fixture.Produce(StockTopic.StockTradingTimeChanged.Name(), aggregateId,
             new TimeChangedEvent(aggregateId, new TimeOnly(10, 0), new TimeOnly(18, 0), 1));
     }
 
     private async Task SeedStockAsync(Guid aggregateId)
     {
-        _fixture.Produce(TopicNames.StockCreated, aggregateId,
+        _fixture.Produce(StockTopic.StockCreated.Name(), aggregateId,
             new StockCreatedEvent(aggregateId, "AAPL", true, "USD", new TimeOnly(9, 30), new TimeOnly(16, 0)));
 
         await Polling.WaitUntilAsync(() => TryGetTimeIfVersionAsync(aggregateId, 0), TimeSpan.FromSeconds(45));

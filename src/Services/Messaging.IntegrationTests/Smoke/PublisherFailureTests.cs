@@ -21,7 +21,7 @@ public class PublisherFailureTests(KafkaFixture kafka, ITestOutputHelper output)
             });
         var stopwatch = Stopwatch.StartNew();
 
-        var outcome = await host.PublishAsync(new OrderPlaced("o-1"), topic, "key-1");
+        var outcome = await host.PublishAsync(new OrderPlaced("o-1"), "key-1");
 
         Assert.False(outcome.IsSuccessful);
         Assert.False(string.IsNullOrWhiteSpace(outcome.ErrorMessage));

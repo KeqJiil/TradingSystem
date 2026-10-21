@@ -32,6 +32,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Contracts\TradingSystem.Contracts.csproj"/>
+        <ProjectReference Include="..\Messaging.Dapper\Messaging.Dapper.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

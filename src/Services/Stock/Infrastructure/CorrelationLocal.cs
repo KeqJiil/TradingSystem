@@ -1,12 +1,12 @@
+using Messaging.Abstractions;
+
 namespace Stock.Infrastructure;
 
 public static class CorrelationContext
 {
-    private static readonly AsyncLocal<Guid?> _correlationId = new();
-
     public static Guid? CorrelationId
     {
-        get => _correlationId.Value;
-        set => _correlationId.Value = value;
+        get => Guid.TryParse(MessagingCorrelation.CorrelationId, out var id) ? id : null;
+        set => MessagingCorrelation.CorrelationId = value?.ToString();
     }
 }

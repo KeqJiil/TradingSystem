@@ -57,7 +57,7 @@ public class ModelConfigurationTests(MssqlFixture db) : IClassFixture<MssqlFixtu
     [Fact]
     public async Task InboxTable_Created_PrimaryKeyOnConsumerGroupThenMessageId()
     {
-        Assert.Equal(("pk_inbox", "consumer_group,message_id"), await PrimaryKeyAsync("inbox"));
+        Assert.Equal(("pk_inbox", "consumer_group,message_id"), await PrimaryKeyAsync("messaging.inbox"));
     }
 
     [Fact]
@@ -66,16 +66,16 @@ public class ModelConfigurationTests(MssqlFixture db) : IClassFixture<MssqlFixtu
         await using var connection = await db.OpenConnectionAsync();
 
         var isIdentity = await connection.ExecuteScalarAsync<int>(
-            "SELECT COLUMNPROPERTY(OBJECT_ID('dbo.outbox'), 'id', 'IsIdentity')");
+            "SELECT COLUMNPROPERTY(OBJECT_ID('messaging.outbox'), 'id', 'IsIdentity')");
 
-        Assert.Equal(("pk_outbox", "id"), await PrimaryKeyAsync("outbox"));
+        Assert.Equal(("pk_outbox", "id"), await PrimaryKeyAsync("messaging.outbox"));
         Assert.Equal(0, isIdentity);
     }
 
     [Fact]
     public async Task InboxTable_Created_HasCreatedAtIndex()
     {
-        Assert.Equal([new Index("idx_inbox_created_at", "created_at", null, null)], await IndexesAsync("inbox"));
+        Assert.Equal([new Index("idx_inbox_created_at", "created_at", null, null)], await IndexesAsync("messaging.inbox"));
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public class ModelConfigurationTests(MssqlFixture db) : IClassFixture<MssqlFixtu
         [
             new Index("idx_outbox_completed", "created_at", null, "([status]='Completed')"),
             new Index("idx_outbox_pending", "id", "processed_at", "([status] IN ('Pending', 'Processing'))")
-        ], await IndexesAsync("outbox"));
+        ], await IndexesAsync("messaging.outbox"));
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public class ModelConfigurationTests(MssqlFixture db) : IClassFixture<MssqlFixtu
         }
 
         await using var connection = await db.OpenConnectionAsync();
-        var status = await connection.ExecuteScalarAsync<string>("SELECT status FROM outbox WHERE id = @Id",
+        var status = await connection.ExecuteScalarAsync<string>("SELECT status FROM messaging.outbox WHERE id = @Id",
             new { entity.Id });
         await using var readContext = db.CreateContext();
         var stored = await readContext.Set<OutboxEntity>().SingleAsync(x => x.Id == entity.Id);

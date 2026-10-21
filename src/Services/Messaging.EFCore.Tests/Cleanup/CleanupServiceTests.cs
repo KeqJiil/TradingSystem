@@ -19,7 +19,7 @@ public class CleanupServiceTests(MssqlFixture db) : IClassFixture<MssqlFixture>,
     {
         await _table.ClearAsync();
         await using var connection = await db.OpenConnectionAsync();
-        await connection.ExecuteAsync("DELETE FROM inbox");
+        await connection.ExecuteAsync("DELETE FROM messaging.inbox");
     }
 
     public async Task DisposeAsync()
@@ -166,7 +166,7 @@ public class CleanupServiceTests(MssqlFixture db) : IClassFixture<MssqlFixture>,
         var id = Guid.NewGuid().ToString();
         await using var connection = await db.OpenConnectionAsync();
         await connection.ExecuteAsync(
-            "INSERT INTO inbox (consumer_group, message_id, created_at) VALUES ('orders', @Id, @CreatedAt)",
+            "INSERT INTO messaging.inbox (consumer_group, message_id, created_at) VALUES ('orders', @Id, @CreatedAt)",
             new { Id = id, CreatedAt = createdAt });
         return id;
     }
@@ -174,7 +174,7 @@ public class CleanupServiceTests(MssqlFixture db) : IClassFixture<MssqlFixture>,
     private async Task<bool> InboxExistsAsync(string messageId)
     {
         await using var connection = await db.OpenConnectionAsync();
-        return await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM inbox WHERE message_id = @Id",
+        return await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM messaging.inbox WHERE message_id = @Id",
             new { Id = messageId }) == 1;
     }
 

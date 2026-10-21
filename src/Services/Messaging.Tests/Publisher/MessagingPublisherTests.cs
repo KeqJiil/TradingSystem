@@ -5,29 +5,19 @@ namespace Messaging.Tests.Publisher;
 public class MessagingPublisherTests
 {
     private sealed record UnregisteredMessage(string Value);
-
+    
     [Fact]
-    public async Task PublishAsync_NullOptions_ReturnsFailedOutcome()
-    {
-        using var harness = new PublisherHarness(b => { b.AddMessage<TestMessage>("a", new JsonDefaultSerializer()); });
-
-        var res = await harness.PublishAsync(new SampleMessage("a", 1), null!);
-
-        Assert.False(res.IsSuccessful);
-    }
-
-    [Fact]
-    public async Task PublishAsync_UsesTopicAndKeyFromOptions()
+    public async Task PublishAsync_UsesRegisteredTopicAndKeyFromOptions()
     {
         using var harness = new PublisherHarness(b => { b.AddMessage<TestMessage>("a", new JsonDefaultSerializer()); });
 
         var res = await harness.PublishAsync(new SampleMessage("a", 1),
-            new PublishOptions("123", "a", new Dictionary<string, string>()));
+            new PublishOptions("123"));
 
         var call = harness.Terminal.Calls;
 
         Assert.Single(call);
-        Assert.Equal("a", call[0].Topic);
+        Assert.Equal(PublisherHarness.Topic, call[0].Topic);
         Assert.Equal("123", call[0].Key);
         Assert.True(res.IsSuccessful);
         Assert.Null(res.ErrorMessage);
@@ -39,7 +29,7 @@ public class MessagingPublisherTests
         using var harness = new PublisherHarness(b => { b.AddMessage<TestMessage>("a", new JsonDefaultSerializer()); });
 
         var res = await harness.PublishAsync(new SampleMessage("a", 1),
-            new PublishOptions("123", "a", new Dictionary<string, string>()));
+            new PublishOptions("123"));
 
         var call = harness.Terminal.Calls;
 
@@ -52,13 +42,24 @@ public class MessagingPublisherTests
         using var harness = new PublisherHarness(b => { b.AddMessage<TestMessage>("a", new JsonDefaultSerializer()); });
 
         var res1 = await harness.PublishAsync(new SampleMessage("a", 1),
-            new PublishOptions("123", "a", new Dictionary<string, string>()));
+            new PublishOptions("123"));
         var res2 = await harness.PublishAsync(new SampleMessage("a", 1),
-            new PublishOptions("123", "a", new Dictionary<string, string>()));
+            new PublishOptions("123"));
 
         var call = harness.Terminal.Calls;
 
         Assert.NotEqual(call[0].MessageId, call[1].MessageId);
+    }
+
+    [Fact]
+    public async Task PublishAsync_NullHeaders_PublishesWithEmptyHeaders()
+    {
+        using var harness = new PublisherHarness();
+
+        var res = await harness.PublishAsync(new SampleMessage("a", 1), new PublishOptions { KeyId = "123" });
+
+        Assert.True(res.IsSuccessful);
+        Assert.Empty(Assert.Single(harness.Terminal.Calls).Headers);
     }
 
     [Fact]
@@ -69,7 +70,7 @@ public class MessagingPublisherTests
         var headers = new Dictionary<string, string> { ["x"] = "y" };
 
         var res = await harness.PublishAsync(new SampleMessage("a", 1),
-            new PublishOptions("123", "a", headers));
+            new PublishOptions("123", headers));
 
         var calls = harness.Terminal.Calls;
 
@@ -86,7 +87,7 @@ public class MessagingPublisherTests
             .AddPublishMiddleware<PublishProbeB>());
 
         var res = await harness.PublishAsync(new SampleMessage("a", 1),
-            new PublishOptions("123", "a", new Dictionary<string, string>()));
+            new PublishOptions("123"));
 
         Assert.Equal(new[] { "A:before", "B:before", "B:after", "A:after" }, harness.Log.Entries);
     }

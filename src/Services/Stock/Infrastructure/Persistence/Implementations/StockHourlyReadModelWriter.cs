@@ -1,9 +1,10 @@
 using Dapper;
+using Messaging.Dapper;
 using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class StockHourlyReadModelWriter(IDbContext dbContext) : IStockHourlyReadModelWriter
+public class StockHourlyReadModelWriter(ITransactionContext dbContext) : IStockHourlyReadModelWriter
 {
     public async Task CreateHourlyReadModelAsync(HourlyReadModelAggregate aggregate, CancellationToken ct)
     {

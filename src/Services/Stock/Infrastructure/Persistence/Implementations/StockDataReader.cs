@@ -1,10 +1,11 @@
 using System.Runtime.CompilerServices;
 using Dapper;
+using Messaging.Dapper;
 using Stock.Application.Abstractions;
 
 namespace Stock.Infrastructure.Persistence.Implementations;
 
-public class StockDataReader(IDbContext dbContext) : IStockDataReader
+public class StockDataReader(ITransactionContext dbContext) : IStockDataReader
 {
     public async IAsyncEnumerable<Guid> GetAllIdsAsync(int limit,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -24,7 +25,8 @@ public class StockDataReader(IDbContext dbContext) : IStockDataReader
         {
             var page = (await dbContext.Connection.QueryAsync<StockIdRow>(new CommandDefinition(
                 sql,
-                new { Limit = limit, LastAggregateId = lastAggregateId }, dbContext.Transaction, cancellationToken: cancellationToken))).ToList();
+                new { Limit = limit, LastAggregateId = lastAggregateId }, dbContext.Transaction,
+                cancellationToken: cancellationToken))).ToList();
 
             if (page.Count == 0) yield break;
 
@@ -53,7 +55,8 @@ public class StockDataReader(IDbContext dbContext) : IStockDataReader
 
         await dbContext.EnsureConnectionOpenAsync(cancellationToken);
 
-        var rows = await dbContext.Connection.QueryAsync<StockMetadata>(new CommandDefinition(sql, new { Id = id }, dbContext.Transaction, cancellationToken: cancellationToken));
+        var rows = await dbContext.Connection.QueryAsync<StockMetadata>(new CommandDefinition(sql, new { Id = id },
+            dbContext.Transaction, cancellationToken: cancellationToken));
 
         return rows.Select(row => (StockMetadata?)row).SingleOrDefault();
     }

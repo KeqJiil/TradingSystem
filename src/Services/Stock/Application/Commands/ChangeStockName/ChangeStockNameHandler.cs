@@ -1,10 +1,13 @@
 using MediatR;
+using Messaging.Abstractions;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
+using Stock.Application.Services;
+using Messaging.Dapper.Transactions;
 
 namespace Stock.Application.Commands.ChangeStockName;
 
-public class ChangeStockNameHandler(IStockWriter writer, IOutboxWriter outboxWriter, IUnitOfWorkDecorator uow)
+public class ChangeStockNameHandler(IStockWriter writer, IMessagePublisher publisher, IUnitOfWorkDecorator uow)
     : IRequestHandler<ChangeStockNameCommand, bool>
 {
     public async Task<bool> Handle(ChangeStockNameCommand request, CancellationToken cancellationToken)
@@ -17,7 +20,7 @@ public class ChangeStockNameHandler(IStockWriter writer, IOutboxWriter outboxWri
             found = version is not null;
             if (!found) return;
 
-            await outboxWriter.WriteAsync(new NameChangedEvent(request.Id, request.Name, version!.Value), request.Id,
+            await publisher.PublishOrThrowAsync(new NameChangedEvent(request.Id, request.Name, version!.Value), request.Id,
                 cancellationToken);
         }, cancellationToken);
 

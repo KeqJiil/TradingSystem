@@ -9,6 +9,10 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Services/Stock/Stock.csproj", "src/Services/Stock/"]
 COPY ["src/Contracts/TradingSystem.Contracts.csproj", "src/Contracts/"]
+COPY ["src/Services/Messaging.Abstractions/Messaging.Abstractions.csproj", "src/Services/Messaging.Abstractions/"]
+COPY ["src/Services/Messaging/Messaging.csproj", "src/Services/Messaging/"]
+COPY ["src/Services/Messaging.Dapper/Messaging.Dapper.csproj", "src/Services/Messaging.Dapper/"]
+COPY ["Directory.Packages.props", "./"]
 RUN dotnet restore "src/Services/Stock/Stock.csproj"
 COPY . .
 WORKDIR "/src/src/Services/Stock"

@@ -1,10 +1,13 @@
 using MediatR;
+using Messaging.Abstractions;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
+using Stock.Application.Services;
+using IUnitOfWorkDecorator = Messaging.Dapper.Transactions.IUnitOfWorkDecorator;
 
 namespace Stock.Application.Commands.ChangeStockTradingTime;
 
-public class ChangeStockTradingTimeHandler(IStockWriter writer, IOutboxWriter outboxWriter, IUnitOfWorkDecorator uow)
+public class ChangeStockTradingTimeHandler(IStockWriter writer, IMessagePublisher publisher, IUnitOfWorkDecorator uow)
     : IRequestHandler<ChangeStockTradingTimeCommand, bool>
 {
     public async Task<bool> Handle(ChangeStockTradingTimeCommand request, CancellationToken cancellationToken)
@@ -17,7 +20,7 @@ public class ChangeStockTradingTimeHandler(IStockWriter writer, IOutboxWriter ou
             found = version is not null;
             if (!found) return;
 
-            await outboxWriter.WriteAsync(
+            await publisher.PublishOrThrowAsync(
                 new TimeChangedEvent(request.Id, request.OpenTime, request.CloseTime, version!.Value), request.Id,
                 cancellationToken);
         }, cancellationToken);

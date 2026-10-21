@@ -1,5 +1,9 @@
-IF OBJECT_ID('dbo.inbox', 'U') IS NULL
-    CREATE TABLE "inbox"
+IF SCHEMA_ID('messaging') IS NULL
+    EXEC ('CREATE SCHEMA messaging');
+GO
+
+IF OBJECT_ID('messaging.inbox', 'U') IS NULL
+    CREATE TABLE "messaging"."inbox"
     (
         "consumer_group" VARCHAR(200)      NOT NULL,
         "message_id"     VARCHAR(100)      NOT NULL,
@@ -10,6 +14,6 @@ GO
 
 IF NOT EXISTS (SELECT 1
                FROM sys.indexes
-               WHERE object_id = OBJECT_ID('dbo.inbox')
+               WHERE object_id = OBJECT_ID('messaging.inbox')
                  AND name = 'idx_inbox_created_at')
-    CREATE INDEX "idx_inbox_created_at" ON "inbox" ("created_at");
+    CREATE INDEX "idx_inbox_created_at" ON "messaging"."inbox" ("created_at");

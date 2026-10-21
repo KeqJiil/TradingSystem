@@ -18,7 +18,7 @@ public static class RegisterOutbox
         services.AddScoped<OutboxCleaner>();
         services.AddCleanup();
         services.AddScoped<IPublishTerminal, OutboxPublishTerminal>();
-        services.AddSingleton(EmbeddedMigration.Read("002_Outbox.sql"));
+        services.AddSingleton(MessagingMigrations.Outbox);
 
         return builder;
     }

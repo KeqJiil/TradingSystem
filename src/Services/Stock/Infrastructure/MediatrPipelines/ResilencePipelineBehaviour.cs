@@ -1,4 +1,5 @@
 using MediatR;
+using Messaging.Dapper.Transactions;
 using Polly;
 
 namespace Stock.Infrastructure.MediatrPipelines;
