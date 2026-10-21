@@ -1,7 +1,7 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Stock.Infrastructure.ExternalEvents;
-using Stock.Infrastructure.Options;
+using Stock.Infrastructure.Topics;
 using Xunit;
 
 namespace Stock.Tests.Infrastructure.Messaging.Consumers;
@@ -33,7 +33,7 @@ public class PriceChangedConsumerTests
     {
         var aggregateId = await SeedStockAsync();
 
-        _fixture.Produce(TopicNames.Price, aggregateId,
+        _fixture.Produce(StockTopic.Price.Name(), aggregateId,
             new PriceChangedEvent(aggregateId, 100m, null, DateTimeOffset.UtcNow));
 
         ProducePriceChange(aggregateId, priceChange: 5m, version: 1);
@@ -44,7 +44,7 @@ public class PriceChangedConsumerTests
 
         var fatalMessage = KafkaTestConsumer.WaitForMessage<PriceChangedEvent>(
             _fixture.BootstrapAddress,
-            StockServiceHostFixture.DeadLetterTopic("price-change-events-group", TopicNames.Price),
+            StockServiceHostFixture.DeadLetterTopic("price-change-events-group", StockTopic.Price.Name()),
             m => m.AggregateId == aggregateId,
             TimeSpan.FromSeconds(45));
         Assert.Null(fatalMessage.Message.Value.Version);
@@ -85,7 +85,7 @@ public class PriceChangedConsumerTests
     private async Task<Guid> SeedStockAsync()
     {
         var aggregateId = Guid.NewGuid();
-        _fixture.Produce(TopicNames.StockCreated, aggregateId,
+        _fixture.Produce(StockTopic.StockCreated.Name(), aggregateId,
             new StockCreatedEvent(aggregateId, "AAPL", true, "USD", new TimeOnly(9, 30), new TimeOnly(16, 0)));
 
         await Polling.WaitUntilAsync(() => TryGetRowAsync(aggregateId), TimeSpan.FromSeconds(45));
@@ -94,7 +94,7 @@ public class PriceChangedConsumerTests
 
     private void ProducePriceChange(Guid aggregateId, decimal priceChange, long version)
     {
-        _fixture.Produce(TopicNames.Price, aggregateId,
+        _fixture.Produce(StockTopic.Price.Name(), aggregateId,
             new PriceChangedEvent(aggregateId, priceChange, version, DateTimeOffset.UtcNow));
     }
 

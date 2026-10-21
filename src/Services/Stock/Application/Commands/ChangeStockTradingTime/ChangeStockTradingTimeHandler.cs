@@ -2,6 +2,7 @@ using MediatR;
 using Messaging.Abstractions;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
+using Stock.Application.Services;
 using IUnitOfWorkDecorator = Messaging.Dapper.Transactions.IUnitOfWorkDecorator;
 
 namespace Stock.Application.Commands.ChangeStockTradingTime;
@@ -19,8 +20,9 @@ public class ChangeStockTradingTimeHandler(IStockWriter writer, IMessagePublishe
             found = version is not null;
             if (!found) return;
 
-            await publisher.PublishAsync(
-                new TimeChangedEvent(request.Id, request.OpenTime, request.CloseTime, version!.Value), new PublishOptions { KeyId = request.Id.ToString() }, cancellationToken);
+            await publisher.PublishOrThrowAsync(
+                new TimeChangedEvent(request.Id, request.OpenTime, request.CloseTime, version!.Value), request.Id,
+                cancellationToken);
         }, cancellationToken);
 
         return found;

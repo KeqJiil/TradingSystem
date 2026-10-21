@@ -2,6 +2,7 @@ using MediatR;
 using Messaging.Abstractions;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
+using Stock.Application.Services;
 using Messaging.Dapper.Transactions;
 
 namespace Stock.Application.Commands.CreateStock;
@@ -32,7 +33,7 @@ public class CreateStockHandler(
             if (await writer.CreateAsync(request.Id, dto, cancellationToken))
             {
                 result = CreateStockResult.Created;
-                await publisher.PublishAsync(@event, new PublishOptions { KeyId = request.Id.ToString() }, cancellationToken);
+                await publisher.PublishOrThrowAsync(@event, request.Id, cancellationToken);
                 return;
             }
 

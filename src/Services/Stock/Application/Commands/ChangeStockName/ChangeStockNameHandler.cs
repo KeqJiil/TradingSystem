@@ -2,7 +2,8 @@ using MediatR;
 using Messaging.Abstractions;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
-using IUnitOfWorkDecorator = Messaging.Dapper.Transactions.IUnitOfWorkDecorator;
+using Stock.Application.Services;
+using Messaging.Dapper.Transactions;
 
 namespace Stock.Application.Commands.ChangeStockName;
 
@@ -19,7 +20,8 @@ public class ChangeStockNameHandler(IStockWriter writer, IMessagePublisher publi
             found = version is not null;
             if (!found) return;
 
-            await publisher.PublishAsync(new NameChangedEvent(request.Id, request.Name, version!.Value), new PublishOptions { KeyId = request.Id.ToString() }, cancellationToken);
+            await publisher.PublishOrThrowAsync(new NameChangedEvent(request.Id, request.Name, version!.Value), request.Id,
+                cancellationToken);
         }, cancellationToken);
 
         return found;

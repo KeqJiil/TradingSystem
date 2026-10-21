@@ -38,4 +38,4 @@ public static class ObservabilityBuilder
                 })
             .UseOtlpExporter();
     }
-}
+}

@@ -3,6 +3,7 @@ using Messaging.Abstractions;
 using Messaging.Dapper.Transactions;
 using Stock.Application.Abstractions;
 using Stock.Application.Events;
+using Stock.Application.Services;
 
 namespace Stock.Application.Commands.SetStockOpenToTrade;
 
@@ -21,7 +22,7 @@ public class SetStockOpenToTradeHandler(IStockWriter writer, IMessagePublisher p
 
             var @event = new StockToggledStatusEvent(request.Id, DateTimeOffset.UtcNow, request.IsOpenToTrade,
                 version!.Value);
-            await publisher.PublishAsync(@event, new PublishOptions { KeyId = request.Id.ToString() }, cancellationToken);
+            await publisher.PublishOrThrowAsync(@event, request.Id, cancellationToken);
         }, cancellationToken);
 
         return found;

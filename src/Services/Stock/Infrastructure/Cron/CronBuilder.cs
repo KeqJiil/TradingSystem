@@ -16,4 +16,4 @@ public static class CronBuilder
 
         recurringJobManager.RemoveIfExists("outbox-cleanup");
     }
-}
+}

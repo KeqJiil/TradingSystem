@@ -11,8 +11,8 @@ using Microsoft.Extensions.Internal;
 using Microsoft.Extensions.Logging;
 using Stock.Infrastructure.Cron;
 using Stock.Infrastructure.Messaging;
-using Stock.Infrastructure.Options;
 using Stock.Infrastructure.Persistence;
+using Stock.Infrastructure.Topics;
 using Stock.Presentation.Builder;
 using Testcontainers.Kafka;
 using Testcontainers.MsSql;
@@ -87,7 +87,7 @@ public class StockServiceHostFixture : IAsyncLifetime
 
     private async Task EnsureTopicsExistAsync()
     {
-        var topics = TopicNames.All;
+        var topics = Enum.GetValues<StockTopic>().Select(t => t.Name()).ToArray();
 
         using var admin = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = BootstrapAddress })
             .Build();

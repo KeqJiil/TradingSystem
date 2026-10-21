@@ -1,10 +1,7 @@
-using Confluent.Kafka;
 using Dapper;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.DependencyInjection;
 using Stock.Infrastructure.ExternalEvents;
-using Stock.Infrastructure.Messaging;
-using Stock.Infrastructure.Options;
+using Stock.Infrastructure.Topics;
 using Xunit;
 using DomainPriceChanged = Stock.Application.Events.PriceChangedEvent;
 
@@ -50,7 +47,7 @@ public class PriceChangeRequestedConsumerTests
 
         var fatalMessage = KafkaTestConsumer.WaitForMessage<PriceChangeRequestedEvent>(
             _fixture.BootstrapAddress,
-            StockServiceHostFixture.DeadLetterTopic("price-change-requested-events-group", TopicNames.PriceChangeRequested),
+            StockServiceHostFixture.DeadLetterTopic("price-change-requested-events-group", StockTopic.PriceChangeRequested.Name()),
             m => m.AggregateId == aggregateId,
             TimeSpan.FromSeconds(45));
 
@@ -60,7 +57,7 @@ public class PriceChangeRequestedConsumerTests
 
     private void Produce(PriceChangeRequestedEvent evt)
     {
-        _fixture.Produce(TopicNames.PriceChangeRequested, evt.AggregateId, evt);
+        _fixture.Produce(StockTopic.PriceChangeRequested.Name(), evt.AggregateId, evt);
     }
 
     private async Task<EventStoreRow?> TryGetEventStoreRowAsync(Guid aggregateId)

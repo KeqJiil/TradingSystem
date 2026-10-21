@@ -17,7 +17,7 @@ public class EventStoreService(IUnitOfWorkDecorator uow, IStockEventStore stockE
             stored = @event is not null;
             if (!stored) return;
 
-            await publisher.PublishAsync(@event!, new PublishOptions { KeyId = @event!.AggregateId.ToString() }, ct);
+            await publisher.PublishOrThrowAsync(@event!, @event!.AggregateId, ct);
         }, ct);
 
         return stored;
