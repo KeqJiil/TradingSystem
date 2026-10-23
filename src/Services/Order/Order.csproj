@@ -16,6 +16,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Messaging\Messaging.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Application\" />
     <Folder Include="Infrastructure\" />
   </ItemGroup>
