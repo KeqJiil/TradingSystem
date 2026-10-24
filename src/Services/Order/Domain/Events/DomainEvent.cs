@@ -8,7 +8,7 @@ public abstract record DomainEvent
 
     protected DomainEvent()
     {
-        Id = Guid.NewGuid();
+        Id = Guid.CreateVersion7();
         OccurredOn = DateTime.UtcNow;
         EventType = GetType().Name;
     }

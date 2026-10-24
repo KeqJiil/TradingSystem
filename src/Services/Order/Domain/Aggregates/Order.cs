@@ -1,42 +1,49 @@
+using Order.Domain.Entity;
 using Order.Domain.Events;
-using Order.Domain.Specifications;
+using Order.Domain.VO;
 
 namespace Order.Domain.Aggregates;
 
 public class Order : AggregateRoot
 {
+    private readonly List<Fill> _fills = new();
+    
     public override Guid Id { get; protected init; }
     public Guid UserId { get; private init; }
 
     public Symbols Symbol { get; private init; }
-    public int Quantity { get; private init; }
-    public decimal? LimitPrice { get; private init; } = null;
+    public Quantity Quantity { get; private init; }
+    
+    public IReadOnlyList<Fill> Fills => _fills.AsReadOnly();
+    public int FilledQuantity => _fills.Sum(f => f.Quantity.Value);
+    public int Remaining => Quantity.Value - FilledQuantity;
 
-    public TimeInForce TimeInForce { get; private init; }
-    public OrderSide Side { get; private init; }
-    public OrderType Type { get; private init; }
+    public OrderSide OrderSide { get; private init; }
+    public OrderTerms OrderTerms { get; private init; }
     public OrderStatus Status { get; private set; }
+    
+    public string? CancellationReason { get; private set; }
+    public DateTimeOffset? CanceledAt { get; private set; }
 
-    public DateTimeOffset? UpdatedAt { get; private set; }
+    public string? RejectionReason { get; private set; }
+    public DateTimeOffset? RejectedAt { get; private set; }
+    
+    public DateTimeOffset? FilledAt { get; private set; }
+    public DateTimeOffset? ExpiredAt { get; private set; }
     public DateTimeOffset CreatedAt { get; private init; }
 
     private Order()
     {
     }
 
-    public static Result<Order> Create(Guid userId, Symbols symbol, int quantity, decimal? limitPrice,
-        TimeInForce timeInForce, OrderSide side, OrderType type, DateTimeOffset now)
+    public static Result<Order> Create(Guid userId, Symbols symbol, Quantity quantity, OrderTerms orderTerms, OrderSide side,
+        DateTimeOffset now)
     {
-        var validationResult = OrderCreationSpecification.CanCreate(limitPrice, quantity, type);
-        var enumValidationResult = EnumCheckSpecification.ValidateEnums(side, timeInForce, type);
-
-        if (validationResult.IsFailure)
-            return Result<Order>.Failure(validationResult.Error);
-
-        if (enumValidationResult.IsFailure)
-            return Result<Order>.Failure(enumValidationResult.Error);
-
-        var id = Guid.NewGuid();
+        if (!Enum.IsDefined(side))
+            return Result<Order>.Failure(new Error
+                { Message = "Invalid order side.", Type = ErrorType.Validation });
+        
+        var id = Guid.CreateVersion7();
 
         var order = new Order
         {
@@ -44,16 +51,13 @@ public class Order : AggregateRoot
             UserId = userId,
             Symbol = symbol,
             Quantity = quantity,
-            LimitPrice = limitPrice,
-            TimeInForce = timeInForce,
-            Side = side,
-            Type = type,
+            OrderTerms = orderTerms,
+            OrderSide = side,
             Status = OrderStatus.PendingNew,
             CreatedAt = now
         };
 
-        order.AddDomainEvent(new NewOrderPendingEvent(id, symbol, quantity, limitPrice, timeInForce, side, type,
-            now));
+        order.AddDomainEvent(new OrderPlaced(id, userId, symbol, side, quantity, orderTerms, now));
 
         return Result<Order>.Success(order);
     }

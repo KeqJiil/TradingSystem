@@ -53,4 +53,11 @@ public readonly struct Result
 public readonly struct Error
 {
     public string Message { get; init; }
+    public ErrorType Type { get; init; }
+}
+
+public enum ErrorType
+{
+    Conflict,
+    Validation
 }

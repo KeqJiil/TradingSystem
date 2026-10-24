@@ -1,13 +1,13 @@
 using Order.Domain.Aggregates;
+using Order.Domain.VO;
 
 namespace Order.Domain.Events;
 
-public record NewOrderPendingEvent(
+public record OrderPlaced(
     Guid OrderId,
+    Guid UserId,
     Symbols Symbol,
-    int Quantity,
-    decimal? LimitPrice,
-    TimeInForce TimeInForce,
     OrderSide Side,
-    OrderType Type,
+    Quantity Quantity,
+    OrderTerms OrderTerms,
     DateTimeOffset CreatedAt) : DomainEvent;
