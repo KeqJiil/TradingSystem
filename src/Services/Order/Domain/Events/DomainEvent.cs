@@ -1,4 +1,4 @@
-namespace Order.Domain;
+namespace Order.Domain.Events;
 
 public abstract record DomainEvent
 {
