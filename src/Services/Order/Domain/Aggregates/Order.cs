@@ -61,6 +61,50 @@ public class Order : AggregateRoot
 
         return Result<Order>.Success(order);
     }
+
+    public Result Approve()
+    {
+        if (Status != OrderStatus.PendingNew)
+            return Result.Failure(new Error
+                { Message = "Order can only be approved from PendingNew status.", Type = ErrorType.Conflict });
+
+        Status = OrderStatus.New;
+        
+        AddDomainEvent(new OrderApproved(Id));
+        
+        return Result.Success();
+    }
+
+    public Result Reject(string reason, DateTimeOffset now)
+    {
+        if (Status != OrderStatus.PendingNew)
+            return Result.Failure(new Error
+                { Message = "Order can only be rejected from PendingNew status.", Type = ErrorType.Conflict });
+        
+        Status = OrderStatus.Rejected;
+        RejectionReason = reason;
+        RejectedAt = now;
+        
+        AddDomainEvent(new OrderRejected(Id, reason, now));
+        
+        return Result.Success();
+    }
+    
+    public Result ApplyFill(Fill fill, DateTimeOffset now)
+    {}
+    
+    public Result RequestCancel()
+    {}
+    
+    public Result Cancel(string reason, DateTimeOffset now)
+    {}
+    
+    public Result RejectCancel()
+    {}
+
+    public Result Expire(DateTimeOffset now)
+    {
+    }
 }
 
 public enum OrderStatus
