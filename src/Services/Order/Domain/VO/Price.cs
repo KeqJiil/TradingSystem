@@ -1,7 +1,14 @@
 namespace Order.Domain.VO;
 
-public record Price(decimal? Value)
+public record Price
 {
+    public decimal Value { get; }
+
+    private Price(decimal value)
+    {
+        Value = value;
+    }
+
     public static Result<Price> Create(decimal value)
     {
         if (value <= 0)

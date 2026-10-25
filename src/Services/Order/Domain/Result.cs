@@ -59,5 +59,6 @@ public readonly struct Error
 public enum ErrorType
 {
     Conflict,
-    Validation
+    Validation,
+    Violation
 }

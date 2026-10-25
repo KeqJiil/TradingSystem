@@ -10,4 +10,4 @@ public record OrderPlaced(
     OrderSide Side,
     Quantity Quantity,
     OrderTerms OrderTerms,
-    DateTimeOffset CreatedAt) : DomainEvent;
+    DateTimeOffset CreatedAt) : DomainEvent(CreatedAt);

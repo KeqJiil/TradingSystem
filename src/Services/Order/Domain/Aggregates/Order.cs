@@ -7,13 +7,13 @@ namespace Order.Domain.Aggregates;
 public class Order : AggregateRoot
 {
     private readonly List<Fill> _fills = new();
-    
+
     public override Guid Id { get; protected init; }
     public Guid UserId { get; private init; }
 
     public Symbols Symbol { get; private init; }
     public Quantity Quantity { get; private init; }
-    
+
     public IReadOnlyList<Fill> Fills => _fills.AsReadOnly();
     public int FilledQuantity => _fills.Sum(f => f.Quantity.Value);
     public int Remaining => Quantity.Value - FilledQuantity;
@@ -21,13 +21,14 @@ public class Order : AggregateRoot
     public OrderSide OrderSide { get; private init; }
     public OrderTerms OrderTerms { get; private init; }
     public OrderStatus Status { get; private set; }
-    
+
     public string? CancellationReason { get; private set; }
     public DateTimeOffset? CanceledAt { get; private set; }
 
     public string? RejectionReason { get; private set; }
     public DateTimeOffset? RejectedAt { get; private set; }
-    
+
+    public DateTimeOffset? ApprovedAt { get; private set; }
     public DateTimeOffset? FilledAt { get; private set; }
     public DateTimeOffset? ExpiredAt { get; private set; }
     public DateTimeOffset CreatedAt { get; private init; }
@@ -36,13 +37,14 @@ public class Order : AggregateRoot
     {
     }
 
-    public static Result<Order> Create(Guid userId, Symbols symbol, Quantity quantity, OrderTerms orderTerms, OrderSide side,
+    public static Result<Order> Create(Guid userId, Symbols symbol, Quantity quantity, OrderTerms orderTerms,
+        OrderSide side,
         DateTimeOffset now)
     {
         if (!Enum.IsDefined(side))
             return Result<Order>.Failure(new Error
                 { Message = "Invalid order side.", Type = ErrorType.Validation });
-        
+
         var id = Guid.CreateVersion7();
 
         var order = new Order
@@ -62,16 +64,17 @@ public class Order : AggregateRoot
         return Result<Order>.Success(order);
     }
 
-    public Result Approve()
+    public Result Approve(DateTimeOffset now)
     {
         if (Status != OrderStatus.PendingNew)
             return Result.Failure(new Error
                 { Message = "Order can only be approved from PendingNew status.", Type = ErrorType.Conflict });
 
         Status = OrderStatus.New;
-        
-        AddDomainEvent(new OrderApproved(Id));
-        
+        ApprovedAt = now;
+
+        AddDomainEvent(new OrderApproved(Id, now));
+
         return Result.Success();
     }
 
@@ -79,31 +82,80 @@ public class Order : AggregateRoot
     {
         if (Status != OrderStatus.PendingNew)
             return Result.Failure(new Error
-                { Message = "Order can only be rejected from PendingNew status.", Type = ErrorType.Conflict });
-        
+                { Message = "Order can only be rejected from PendingNew status.", Type = ErrorType.Violation });
+
         Status = OrderStatus.Rejected;
         RejectionReason = reason;
         RejectedAt = now;
-        
+
         AddDomainEvent(new OrderRejected(Id, reason, now));
+
+        return Result.Success();
+    }
+
+    public Result ApplyFill(Guid executionId, Quantity quantity, Guid orderId, Price price, DateTimeOffset now)
+    {
+        if (Status != OrderStatus.New && Status != OrderStatus.PartiallyFilled && Status != OrderStatus.PendingCancel)
+            return Result.Failure(new Error
+                { Message = "Order can only be filled from New or PartiallyFilled status.", Type = ErrorType.Violation });
+        
+        if (quantity.Value > Remaining)
+            return Result.Failure(new Error
+                { Message = "Fill quantity exceeds remaining order quantity.", Type = ErrorType.Violation });
+        
+        var result = Fill.Create(executionId, orderId, quantity, price, now);
+        if (result.IsFailure)
+            return Result.Failure(result.Error);
+
+        _fills.Add(result.Value);
+        Status = Remaining == 0 ? OrderStatus.Filled : OrderStatus.PartiallyFilled;
+
+        if (Status == OrderStatus.Filled) AddDomainEvent(new OrderFilled(Id, FilledQuantity, now));
+
+        return Result.Success();
+    }
+
+    public Result RequestCancel(DateTimeOffset now)
+    {
+    }
+
+    public Result Cancel(string reason, DateTimeOffset now)
+    {
+        if (Status == OrderStatus.Canceled)
+            return Result.Success();
+        
+        if (Status != OrderStatus.New && Status != OrderStatus.PartiallyFilled && Status != OrderStatus.PendingCancel)
+            return Result.Failure(new Error
+                { Message = "Order can only be canceled from New or PartiallyFilled status.", Type = ErrorType.Violation });
+        
+        Status = OrderStatus.Canceled;
+        CancellationReason = reason;
+        CanceledAt = now;
+        
+        AddDomainEvent(new OrderCanceled(Id, reason, now));
         
         return Result.Success();
     }
-    
-    public Result ApplyFill(Fill fill, DateTimeOffset now)
-    {}
-    
-    public Result RequestCancel()
-    {}
-    
-    public Result Cancel(string reason, DateTimeOffset now)
-    {}
-    
+
     public Result RejectCancel()
-    {}
+    {
+    }
 
     public Result Expire(DateTimeOffset now)
     {
+        if (Status == OrderStatus.Expired)
+            return Result.Success();
+        
+        if (Status != OrderStatus.New && Status != OrderStatus.PartiallyFilled && Status != OrderStatus.PendingCancel)
+            return Result.Failure(new Error
+                { Message = "Order can only be expired from New or PartiallyFilled status.", Type = ErrorType.Violation });
+        
+        Status = OrderStatus.Expired;
+        ExpiredAt = now;
+        
+        AddDomainEvent(new OrderExpired(Id, now));
+        
+        return Result.Success();
     }
 }
 
