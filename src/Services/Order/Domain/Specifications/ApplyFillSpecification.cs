@@ -5,9 +5,12 @@ namespace Order.Domain.Specifications;
 
 public static class ApplyFillSpecification
 {
-    public static Result Validate(OrderSide orderSide, OrderType orderType, Price price, Price? limitPrice,
-        Quantity quantity, int remaining, OrderStatus status)
+    public static Result Validate(OrderSide orderSide, Price price, Price? limitPrice, Quantity quantity, int remaining, OrderStatus status, bool isApproved)
     {
+        if (!isApproved)
+            return Result.Failure(new Error
+                { Message = "Order must be approved before it can be filled.", Type = ErrorType.Violation });
+
         if (orderSide == OrderSide.Sell && limitPrice != null && price.Value < limitPrice.Value)
             return Result.Failure(new Error
                 { Message = "Fill price is below limit price.", Type = ErrorType.Violation });

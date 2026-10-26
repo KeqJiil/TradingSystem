@@ -82,8 +82,11 @@ public class Order : AggregateRoot
             return Result.Success();
         }
 
-        if (Status == OrderStatus.PendingCancel)
-            ApprovedAt ??= now;
+        if (Status == OrderStatus.PendingCancel && ApprovedAt == null)
+        {
+            ApprovedAt = now;
+            AddDomainEvent(new OrderApproved(Id, now));
+        }
 
         return Result.Success();
     }
@@ -93,10 +96,10 @@ public class Order : AggregateRoot
         if (Status == OrderStatus.Rejected)
             return Result.Success();
 
-        if (Status != OrderStatus.PendingNew && Status != OrderStatus.PendingCancel)
+        if (Status != OrderStatus.PendingNew && !(Status == OrderStatus.PendingCancel && ApprovedAt == null))
             return Result.Failure(new Error
             {
-                Message = "Order can only be rejected from PendingNew or PendingCancel status.",
+                Message = "Order can only be rejected from PendingNew or unapproved PendingCancel status.",
                 Type = ErrorType.Violation
             });
 
@@ -114,8 +117,8 @@ public class Order : AggregateRoot
         if (Fills.Any(f => f.ExecutionId == executionId))
             return Result.Success();
 
-        var specificationResult = ApplyFillSpecification.Validate(OrderSide, OrderTerms.Type, price,
-            OrderTerms.LimitPrice, quantity, Remaining, Status);
+        var specificationResult = ApplyFillSpecification.Validate(OrderSide, price,
+            OrderTerms.LimitPrice, quantity, Remaining, Status, ApprovedAt != null);
 
         if (specificationResult.IsFailure)
             return Result.Failure(specificationResult.Error);
@@ -190,7 +193,10 @@ public class Order : AggregateRoot
             return Result.Failure(new Error
                 { Message = "Order can only reject cancel from PendingCancel status.", Type = ErrorType.Violation });
 
-        Status = FilledQuantity == 0 ? OrderStatus.New : OrderStatus.PartiallyFilled;
+        if (ApprovedAt == null)
+            Status = OrderStatus.PendingNew;
+        else
+            Status = FilledQuantity == 0 ? OrderStatus.New : OrderStatus.PartiallyFilled;
 
         AddDomainEvent(new OrderCancelRejected(Id, reason, now));
 
