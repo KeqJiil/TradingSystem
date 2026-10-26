@@ -1,11 +1,15 @@
 using Order.Domain.Entity;
 using Order.Domain.Events;
+using Order.Domain.Specifications;
 using Order.Domain.VO;
 
 namespace Order.Domain.Aggregates;
 
 public class Order : AggregateRoot
 {
+    private static readonly HashSet<OrderStatus> _terminalStatuses =
+        [OrderStatus.Canceled, OrderStatus.Filled, OrderStatus.Expired, OrderStatus.Rejected];
+
     private readonly List<Fill> _fills = new();
 
     public override Guid Id { get; protected init; }
@@ -66,23 +70,35 @@ public class Order : AggregateRoot
 
     public Result Approve(DateTimeOffset now)
     {
-        if (Status != OrderStatus.PendingNew)
+        if (Status == OrderStatus.Rejected)
             return Result.Failure(new Error
-                { Message = "Order can only be approved from PendingNew status.", Type = ErrorType.Conflict });
+                { Message = "Rejected order cannot be accepted.", Type = ErrorType.Violation });
 
-        Status = OrderStatus.New;
-        ApprovedAt = now;
+        if (Status == OrderStatus.PendingNew)
+        {
+            Status = OrderStatus.New;
+            ApprovedAt = now;
+            AddDomainEvent(new OrderApproved(Id, now));
+            return Result.Success();
+        }
 
-        AddDomainEvent(new OrderApproved(Id, now));
+        if (Status == OrderStatus.PendingCancel)
+            ApprovedAt ??= now;
 
         return Result.Success();
     }
 
     public Result Reject(string reason, DateTimeOffset now)
     {
-        if (Status != OrderStatus.PendingNew)
+        if (Status == OrderStatus.Rejected)
+            return Result.Success();
+
+        if (Status != OrderStatus.PendingNew && Status != OrderStatus.PendingCancel)
             return Result.Failure(new Error
-                { Message = "Order can only be rejected from PendingNew status.", Type = ErrorType.Violation });
+            {
+                Message = "Order can only be rejected from PendingNew or PendingCancel status.",
+                Type = ErrorType.Violation
+            });
 
         Status = OrderStatus.Rejected;
         RejectionReason = reason;
@@ -93,68 +109,110 @@ public class Order : AggregateRoot
         return Result.Success();
     }
 
-    public Result ApplyFill(Guid executionId, Quantity quantity, Guid orderId, Price price, DateTimeOffset now)
+    public Result ApplyFill(Guid executionId, Quantity quantity, Price price, DateTimeOffset filledAt)
     {
-        if (Status != OrderStatus.New && Status != OrderStatus.PartiallyFilled && Status != OrderStatus.PendingCancel)
-            return Result.Failure(new Error
-                { Message = "Order can only be filled from New or PartiallyFilled status.", Type = ErrorType.Violation });
-        
-        if (quantity.Value > Remaining)
-            return Result.Failure(new Error
-                { Message = "Fill quantity exceeds remaining order quantity.", Type = ErrorType.Violation });
-        
-        var result = Fill.Create(executionId, orderId, quantity, price, now);
+        if (Fills.Any(f => f.ExecutionId == executionId))
+            return Result.Success();
+
+        var specificationResult = ApplyFillSpecification.Validate(OrderSide, OrderTerms.Type, price,
+            OrderTerms.LimitPrice, quantity, Remaining, Status);
+
+        if (specificationResult.IsFailure)
+            return Result.Failure(specificationResult.Error);
+
+        var result = Fill.Create(executionId, Id, quantity, price, filledAt);
         if (result.IsFailure)
             return Result.Failure(result.Error);
 
         _fills.Add(result.Value);
-        Status = Remaining == 0 ? OrderStatus.Filled : OrderStatus.PartiallyFilled;
 
-        if (Status == OrderStatus.Filled) AddDomainEvent(new OrderFilled(Id, FilledQuantity, now));
+        if (Remaining == 0)
+            Status = OrderStatus.Filled;
+        else if (Status != OrderStatus.PendingCancel)
+            Status = OrderStatus.PartiallyFilled;
+
+        AddDomainEvent(new FillRecorded(Id, executionId, quantity, price, filledAt));
+
+        if (Status == OrderStatus.Filled)
+        {
+            AddDomainEvent(new OrderFilled(Id, FilledQuantity, filledAt));
+            FilledAt = filledAt;
+        }
 
         return Result.Success();
     }
 
     public Result RequestCancel(DateTimeOffset now)
     {
+        if (Status == OrderStatus.Canceled || Status == OrderStatus.PendingCancel)
+            return Result.Success();
+
+        if (Status != OrderStatus.New && Status != OrderStatus.PartiallyFilled && Status != OrderStatus.PendingNew)
+            return Result.Failure(new Error
+            {
+                Message = "Order can only request cancel from New or PartiallyFilled status.",
+                Type = ErrorType.Conflict
+            });
+
+        Status = OrderStatus.PendingCancel;
+
+        AddDomainEvent(new OrderCancelRequested(Id, now));
+
+        return Result.Success();
     }
 
     public Result Cancel(string reason, DateTimeOffset now)
     {
         if (Status == OrderStatus.Canceled)
             return Result.Success();
-        
+
         if (Status != OrderStatus.New && Status != OrderStatus.PartiallyFilled && Status != OrderStatus.PendingCancel)
             return Result.Failure(new Error
-                { Message = "Order can only be canceled from New or PartiallyFilled status.", Type = ErrorType.Violation });
-        
+            {
+                Message = "Order can only be canceled from New or PartiallyFilled status.", Type = ErrorType.Violation
+            });
+
         Status = OrderStatus.Canceled;
         CancellationReason = reason;
         CanceledAt = now;
-        
+
         AddDomainEvent(new OrderCanceled(Id, reason, now));
-        
+
         return Result.Success();
     }
 
-    public Result RejectCancel()
+    public Result RejectCancel(string reason, DateTimeOffset now)
     {
+        if (_terminalStatuses.Contains(Status))
+            return Result.Success();
+
+        if (Status != OrderStatus.PendingCancel)
+            return Result.Failure(new Error
+                { Message = "Order can only reject cancel from PendingCancel status.", Type = ErrorType.Violation });
+
+        Status = FilledQuantity == 0 ? OrderStatus.New : OrderStatus.PartiallyFilled;
+
+        AddDomainEvent(new OrderCancelRejected(Id, reason, now));
+
+        return Result.Success();
     }
 
     public Result Expire(DateTimeOffset now)
     {
         if (Status == OrderStatus.Expired)
             return Result.Success();
-        
+
         if (Status != OrderStatus.New && Status != OrderStatus.PartiallyFilled && Status != OrderStatus.PendingCancel)
             return Result.Failure(new Error
-                { Message = "Order can only be expired from New or PartiallyFilled status.", Type = ErrorType.Violation });
-        
+            {
+                Message = "Order can only be expired from New or PartiallyFilled status.", Type = ErrorType.Violation
+            });
+
         Status = OrderStatus.Expired;
         ExpiredAt = now;
-        
+
         AddDomainEvent(new OrderExpired(Id, now));
-        
+
         return Result.Success();
     }
 }
