@@ -1,3 +1,4 @@
+using Order.Domain;
 using Order.Domain.Aggregates;
 using Order.Domain.VO;
 using Xunit;
@@ -9,7 +10,9 @@ public static class TestOrders
 {
     public static readonly DateTimeOffset CreatedAt = new(2026, 1, 1, 10, 0, 0, TimeSpan.Zero);
     public static readonly DateTimeOffset ApprovedAt = CreatedAt.AddMinutes(1);
+    public static readonly DateTimeOffset Now = ApprovedAt.AddMinutes(5);
     public const int Quantity = 10;
+    public const string Reason = "test";
 
     public static OrderAggregate PendingNew()
     {
@@ -27,6 +30,14 @@ public static class TestOrders
         return order;
     }
 
+    public static OrderAggregate PartiallyFilledPendingCancel()
+    {
+        var order = InStatus(OrderStatus.PartiallyFilled);
+        Assert.True(order.RequestCancel(ApprovedAt).IsSuccess);
+        order.ClearDomainEvents();
+        return order;
+    }
+
     public static OrderAggregate InStatus(OrderStatus status)
     {
         var order = PendingNew();
@@ -36,12 +47,12 @@ public static class TestOrders
 
         var result = status switch
         {
-            OrderStatus.PendingNew or OrderStatus.New => Order.Domain.Result.Success(),
-            OrderStatus.Rejected => order.Reject("test", ApprovedAt),
-            OrderStatus.PartiallyFilled => Fill(order, 1),
-            OrderStatus.Filled => Fill(order, Quantity),
+            OrderStatus.PendingNew or OrderStatus.New => Result.Success(),
+            OrderStatus.Rejected => order.Reject(Reason, ApprovedAt),
+            OrderStatus.PartiallyFilled => Fill(order, Guid.NewGuid(), 1, ApprovedAt),
+            OrderStatus.Filled => Fill(order, Guid.NewGuid(), Quantity, ApprovedAt),
             OrderStatus.PendingCancel => order.RequestCancel(ApprovedAt),
-            OrderStatus.Canceled => order.Cancel("test", ApprovedAt),
+            OrderStatus.Canceled => order.Cancel(Reason, ApprovedAt),
             OrderStatus.Expired => order.Expire(ApprovedAt),
             _ => throw new ArgumentOutOfRangeException(nameof(status))
         };
@@ -52,9 +63,16 @@ public static class TestOrders
         return order;
     }
 
-    private static Order.Domain.Result Fill(OrderAggregate order, int quantity)
+    public static Result Fill(OrderAggregate order, Guid executionId, int quantity, DateTimeOffset filledAt)
     {
-        return order.ApplyFill(Guid.NewGuid(), Order.Domain.VO.Quantity.Create(quantity).Value,
-            Price.Create(10m).Value, ApprovedAt);
+        return order.ApplyFill(executionId, Order.Domain.VO.Quantity.Create(quantity).Value,
+            Price.Create(10m).Value, filledAt);
+    }
+
+    public static void AssertFailure(Result result, ErrorType type, string message)
+    {
+        Assert.True(result.IsFailure);
+        Assert.Equal(type, result.Error.Type);
+        Assert.Equal(message, result.Error.Message);
     }
 }
