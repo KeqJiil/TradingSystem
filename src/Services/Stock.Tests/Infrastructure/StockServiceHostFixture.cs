@@ -92,13 +92,24 @@ public class StockServiceHostFixture : IAsyncLifetime
         using var admin = new AdminClientBuilder(new AdminClientConfig { BootstrapServers = BootstrapAddress })
             .Build();
 
-        try
+        for (var attempt = 1; ; attempt++)
         {
-            await admin.CreateTopicsAsync(topics.Select(t =>
-                new TopicSpecification { Name = t, NumPartitions = 1, ReplicationFactor = 1 }));
-        }
-        catch (CreateTopicsException ex) when (ex.Results.All(r => r.Error.Code == ErrorCode.TopicAlreadyExists))
-        {
+            try
+            {
+                await admin.CreateTopicsAsync(
+                    topics.Select(t => new TopicSpecification { Name = t, NumPartitions = 1, ReplicationFactor = 1 }),
+                    new CreateTopicsOptions { RequestTimeout = TimeSpan.FromSeconds(15) });
+                return;
+            }
+            catch (CreateTopicsException ex) when (ex.Results.All(r =>
+                       r.Error.Code is ErrorCode.NoError or ErrorCode.TopicAlreadyExists))
+            {
+                return;
+            }
+            catch (KafkaException ex) when (ex.Error.Code == ErrorCode.Local_TimedOut && attempt < 5)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2));
+            }
         }
     }
 
