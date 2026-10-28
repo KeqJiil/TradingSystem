@@ -3,4 +3,4 @@ using Order.Domain;
 
 namespace Order.Application.UseCases.ExpireOrder;
 
-public record ExpireOrderCommand(Guid OrderId) : IRequest<Result>;
+public record ExpireOrderCommand(Guid OrderId, DateTimeOffset ExpiredAt) : IRequest<Result>;

@@ -1,12 +1,36 @@
 using MediatR;
+using Microsoft.Extensions.Internal;
+using Order.Application.Abstractions;
 using Order.Domain;
+using Order.Domain.VO;
+using OrderAggregate = Order.Domain.Aggregates.Order;
 
 namespace Order.Application.UseCases.PlaceOrder;
 
-public class PlaceOrderCommandHandler : IRequestHandler<PlaceOrderCommand, Result<Guid>>
+public class PlaceOrderCommandHandler(IOrderRepository repository, IUnitOfWork unitOfWork, ISystemClock clock) : IRequestHandler<PlaceOrderCommand, Result<Guid>>
 {
-    public Task<Result<Guid>> Handle(PlaceOrderCommand request, CancellationToken cancellationToken)
+    public async Task<Result<Guid>> Handle(PlaceOrderCommand request, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        var limitPrice = Price.CreateOptional(request.LimitPrice);
+        if (limitPrice.IsFailure)
+            return limitPrice.Error;
+
+        var orderTerms = OrderTerms.Create(request.TimeInForce, request.Type, limitPrice.Value);
+        if (orderTerms.IsFailure)
+            return orderTerms.Error;
+
+        var quantity = Quantity.Create(request.Quantity);
+        if (quantity.IsFailure)
+            return quantity.Error;
+
+        var order = OrderAggregate.Create(request.UserId, request.Symbol, quantity.Value, orderTerms.Value, request.Side, clock.UtcNow);
+        if (order.IsFailure)
+            return order.Error;
+
+        repository.Add(order.Value);
+
+        await unitOfWork.CommitAsync(cancellationToken);
+
+        return order.Value.Id;
     }
 }

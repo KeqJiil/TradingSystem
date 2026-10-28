@@ -21,4 +21,13 @@ public record Price
 
         return Result<Price>.Success(new Price(value));
     }
+
+    public static Result<Price?> CreateOptional(decimal? value)
+    {
+        if (value is null)
+            return Result<Price?>.Success(null);
+
+        var price = Create(value.Value);
+        return price.IsFailure ? price.Error : price.Value;
+    }
 }

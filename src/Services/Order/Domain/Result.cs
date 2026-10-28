@@ -26,6 +26,10 @@ public readonly struct Result<T>
     {
         return new Result<T> { IsSuccess = false, Error = error };
     }
+
+    public static implicit operator Result<T>(T value) => Success(value);
+
+    public static implicit operator Result<T>(Error error) => Failure(error);
 }
 
 public readonly struct Result
@@ -48,6 +52,8 @@ public readonly struct Result
     {
         return new Result { IsSuccess = false, Error = error };
     }
+
+    public static implicit operator Result(Error error) => Failure(error);
 }
 
 public readonly struct Error
@@ -58,7 +64,8 @@ public readonly struct Error
 
 public enum ErrorType
 {
-    Conflict,
-    Validation,
-    Violation
+    Conflict = 1,
+    Validation = 2,
+    Violation = 3,
+    NotFound = 4
 }
