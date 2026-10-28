@@ -20,7 +20,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Application\UseCases\" />
+        <Folder Include="Application\UseCases\GetById\" />
+        <Folder Include="Application\UseCases\GetListByUserId\" />
         <Folder Include="Infrastructure\"/>
     </ItemGroup>
 
