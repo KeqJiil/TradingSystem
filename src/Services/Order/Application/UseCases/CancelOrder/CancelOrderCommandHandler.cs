@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.Extensions.Internal;
 using Order.Application.Abstractions;
 using Order.Domain;
 

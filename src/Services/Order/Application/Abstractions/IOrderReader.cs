@@ -5,7 +5,9 @@ namespace Order.Application.Abstractions;
 public interface IOrderReader
 {
     Task<OrderDetailsDto?> GetOrderByIdAsync(Guid orderId, Guid userId, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<OrderDto>> GetOrdersByUserIdAsync(Guid userId, OrderStatus? status = null, int? limit = 20, DateTimeOffset? afterCreatedAt = null, Guid? afterId = null, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<OrderDto>> GetOrdersByUserIdAsync(Guid userId, OrderStatus? status = null, int? limit = 20,
+        DateTimeOffset? afterCreatedAt = null, Guid? afterId = null, CancellationToken cancellationToken = default);
 }
 
 public record OrderDetailsDto(
@@ -22,8 +24,8 @@ public record OrderDto(
     OrderSide Side,
     OrderType Type,
     decimal? LimitPrice,
-    int Quantity,
-    int FilledQuantity,
+    decimal Quantity,
+    decimal FilledQuantity,
     OrderStatus Status,
     DateTimeOffset CreatedAt);
 
