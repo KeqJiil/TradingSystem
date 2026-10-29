@@ -15,7 +15,7 @@ public class GetListByUserIdQueryHandler(IOrderReader reader)
             return Result<IReadOnlyList<OrderDto>>.Failure(new Error
                 { Type = ErrorType.Validation, Message = "Invalid request parameters" });
 
-        var result = await reader.GetOrdersByUserIdAsync(request.UserId, request.Status, request.Limit,
+        var result = await reader.GetOrdersByUserIdAsync(request.UserId, request.Limit, request.Status,
             request.AfterCreatedAt, request.AfterId, cancellationToken);
 
         return Result<IReadOnlyList<OrderDto>>.Success(result);
