@@ -91,6 +91,7 @@ public class OrderApplyFillTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, order.Remaining);
+        Assert.Equal(Quantity - 1, order.FilledQuantity);
         Assert.Equal(OrderStatus.PartiallyFilled, order.Status);
         Assert.Null(order.FilledAt);
         Assert.IsType<FillRecorded>(Assert.Single(order.GetDomainEvents()));

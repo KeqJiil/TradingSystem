@@ -19,7 +19,7 @@ public class Order : AggregateRoot
     public Quantity Quantity { get; private init; }
 
     public IReadOnlyList<Fill> Fills => _fills.AsReadOnly();
-    public int FilledQuantity => _fills.Sum(f => f.Quantity.Value);
+    public int FilledQuantity { get; private set; }
     public int Remaining => Quantity.Value - FilledQuantity;
 
     public OrderSide OrderSide { get; private init; }
@@ -128,6 +128,7 @@ public class Order : AggregateRoot
             return Result.Failure(result.Error);
 
         _fills.Add(result.Value);
+        FilledQuantity += quantity.Value;
 
         if (Remaining == 0)
             Status = OrderStatus.Filled;

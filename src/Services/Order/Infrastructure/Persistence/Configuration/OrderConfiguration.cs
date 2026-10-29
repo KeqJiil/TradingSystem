@@ -37,6 +37,8 @@ public class OrderConfiguration : IEntityTypeConfiguration<AggregateOrder>
 
         builder.Property(x => x.UserId).HasColumnName("user_id");
 
+        builder.Property(x => x.FilledQuantity).HasColumnName("filled_quantity");
+
         builder.Property(x => x.Symbol).HasConversion<string>().HasMaxLength(20).HasColumnName("symbol");
         builder.Property(x => x.Quantity).HasConversion(a => a.Value, b => Quantity.Create(b).Value)
             .HasColumnName("quantity");
