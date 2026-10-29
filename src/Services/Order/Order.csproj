@@ -20,9 +20,10 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Application\UseCases\GetById\" />
-        <Folder Include="Application\UseCases\GetListByUserId\" />
-        <Folder Include="Infrastructure\"/>
+        <Folder Include="Application\UseCases\GetById\"/>
+        <Folder Include="Application\UseCases\GetListByUserId\"/>
+        <Folder Include="Infrastructure\Messaging\Consumers\"/>
+        <Folder Include="Infrastructure\Persistence\Implementations\"/>
     </ItemGroup>
 
 </Project>
