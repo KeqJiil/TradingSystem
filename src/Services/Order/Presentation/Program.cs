@@ -4,17 +4,20 @@ using Order.Application.Abstractions;
 using Order.Infrastructure.Messaging;
 using Order.Infrastructure.Persistence.Configuration;
 using Order.Infrastructure.Persistence.Implementations;
+using Order.Infrastructure.Persistence.Interceptors;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 
-builder.Services.AddDbContext<OrderDbContext>(cfg =>
+builder.Services.AddScoped<MessagePublishingInterceptor>();
+
+builder.Services.AddDbContext<OrderDbContext>((sp, cfg) =>
     cfg.UseSqlServer(builder.Configuration.GetConnectionString("OrderDbConnectionString"), sqlOptions =>
     {
         sqlOptions.MigrationsAssembly(typeof(OrderDbContext).Assembly.FullName);
         sqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
-    }));
+    }).AddInterceptors(sp.GetRequiredService<MessagePublishingInterceptor>()));
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IOrderReader, OrderReader>();

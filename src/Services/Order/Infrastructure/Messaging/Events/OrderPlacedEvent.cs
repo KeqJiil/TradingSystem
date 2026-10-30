@@ -10,4 +10,4 @@ public record OrderPlacedEvent(
     string Type,
     decimal? LimitPrice,
     DateTimeOffset OccurredAt
-) : IExternalEvent;
+) : ExternalEvent<OrderPlacedEvent>, IExternalEvent;
