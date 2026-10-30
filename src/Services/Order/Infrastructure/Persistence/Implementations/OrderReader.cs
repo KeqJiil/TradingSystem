@@ -13,6 +13,7 @@ public class OrderReader(OrderDbContext dbContext) : IOrderReader
     {
         return dbContext.Orders
             .Where(x => x.Id == orderId && x.UserId == userId)
+            .AsNoTracking()
             .Select(x => MapToOrderDetailsDto(x))
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -23,7 +24,8 @@ public class OrderReader(OrderDbContext dbContext) : IOrderReader
         Guid? afterId = null, CancellationToken cancellationToken = default)
     {
         var query = dbContext.Orders
-            .Where(x => x.UserId == userId);
+            .Where(x => x.UserId == userId)
+            .AsNoTracking();
 
         if (status.HasValue) query = query.Where(x => x.Status == status.Value);
 

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Order.Application.Abstractions;
 using Order.Infrastructure.Messaging;
@@ -12,7 +13,7 @@ builder.Services.AddDbContext<OrderDbContext>(cfg =>
     cfg.UseSqlServer(builder.Configuration.GetConnectionString("OrderDbConnectionString"), sqlOptions =>
     {
         sqlOptions.MigrationsAssembly(typeof(OrderDbContext).Assembly.FullName);
-        sqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(30), errorNumbersToAdd: null);
+        sqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
     }));
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -24,8 +25,11 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Progr
 builder.Services.MapMessaging();
 
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<OrderDbContext>("db");
+    .AddDbContextCheck<OrderDbContext>("db", tags: ["ready"]);
 
 var app = builder.Build();
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") });
 
 app.Run();
