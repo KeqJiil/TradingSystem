@@ -7,22 +7,22 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="MediatR"/>
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer"/>
-        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore"/>
-        <PackageReference Include="protobuf-net"/>
+        <PackageReference Include="MediatR" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+        <PackageReference Include="protobuf-net" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Messaging\Messaging.csproj"/>
+        <ProjectReference Include="..\Messaging\Messaging.csproj" />
+        <ProjectReference Include="..\Messaging.EFCore\Messaging.EFCore.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Application\UseCases\GetById\"/>
-        <Folder Include="Application\UseCases\GetListByUserId\"/>
-        <Folder Include="Infrastructure\Messaging\Consumers\"/>
+        <Folder Include="Application\UseCases\GetById\" />
+        <Folder Include="Application\UseCases\GetListByUserId\" />
     </ItemGroup>
 
 </Project>
