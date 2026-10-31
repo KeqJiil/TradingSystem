@@ -25,7 +25,7 @@ builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
-builder.Services.MapMessaging();
+builder.Services.MapMessaging(builder.Configuration);
 
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<OrderDbContext>("db", tags: ["ready"]);
