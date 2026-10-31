@@ -1,5 +1,6 @@
 using Messaging;
 using Messaging.Abstractions;
+using Messaging.EFCore.Inbox;
 using Messaging.EFCore.Outbox;
 using Messaging.Middlewares;
 using Messaging.Serializers;
@@ -26,6 +27,8 @@ public static class MessagingExtension
         services.AddMessaging(cfg =>
         {
             cfg.AddOutbox<OrderDbContext>();
+            cfg.AddInbox<OrderDbContext>();
+            
             cfg.AddExceptionHandling();
             cfg.AddTracing();
 

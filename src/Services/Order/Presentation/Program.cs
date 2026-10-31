@@ -19,6 +19,8 @@ builder.Services.AddDbContext<OrderDbContext>((sp, cfg) =>
         sqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
     }).AddInterceptors(sp.GetRequiredService<MessagePublishingInterceptor>()));
 
+builder.Services.AddSingleton(TimeProvider.System);
+
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IOrderReader, OrderReader>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
@@ -28,7 +30,8 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Progr
 builder.Services.MapMessaging(builder.Configuration);
 
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<OrderDbContext>("db", tags: ["ready"]);
+    .AddDbContextCheck<OrderDbContext>("db", tags: ["ready"])
+    .AddCheck<KafkaHealthCheck>("kafka", tags: ["ready"]);
 
 var app = builder.Build();
 

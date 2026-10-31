@@ -16,10 +16,10 @@ public sealed class OutboxTable(string connectionString) : IOutboxTable
     {
         await using var connection = new SqlConnection(connectionString);
         return await connection.ExecuteScalarAsync<long>("""
-            INSERT INTO messaging.outbox (id, message_id, message_type, topic, message_key, payload, headers, status, attempts,
+            INSERT INTO messaging.outbox (message_id, message_type, topic, message_key, payload, headers, status, attempts,
                                 processed_at, created_at)
             OUTPUT inserted.id
-            VALUES (NEXT VALUE FOR outbox_id_seq, @MessageId, @MessageType, @Topic, @Key, @Payload, @Headers, @Status,
+            VALUES (@MessageId, @MessageType, @Topic, @Key, @Payload, @Headers, @Status,
                     @Attempts, @ProcessedAt, COALESCE(@CreatedAt, SYSDATETIMEOFFSET()))
             """,
             new

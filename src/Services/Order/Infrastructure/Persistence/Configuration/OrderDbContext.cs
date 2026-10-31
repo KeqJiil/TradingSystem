@@ -1,3 +1,4 @@
+using Messaging.EFCore.Persistence;
 using Microsoft.EntityFrameworkCore;
 using AggregateOrder = Order.Domain.Aggregates.Order;
 
@@ -15,5 +16,7 @@ public class OrderDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(OrderDbContext).Assembly);
+        modelBuilder.RegisterOutbox();
+        modelBuilder.RegisterInbox();
     }
 }

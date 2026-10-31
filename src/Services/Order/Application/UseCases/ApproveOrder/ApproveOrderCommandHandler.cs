@@ -1,11 +1,10 @@
 using MediatR;
-using Microsoft.Extensions.Internal;
 using Order.Application.Abstractions;
 using Order.Domain;
 
 namespace Order.Application.UseCases.ApproveOrder;
 
-public class ApproveOrderCommandHandler(IOrderRepository repository, IUnitOfWork uow, ISystemClock systemClock) : IRequestHandler<ApproveOrderCommand, Result>
+public class ApproveOrderCommandHandler(IOrderRepository repository, IUnitOfWork uow, TimeProvider timeProvider) : IRequestHandler<ApproveOrderCommand, Result>
 {
     public async Task<Result> Handle(ApproveOrderCommand request, CancellationToken cancellationToken)
     {
@@ -13,7 +12,7 @@ public class ApproveOrderCommandHandler(IOrderRepository repository, IUnitOfWork
         if (order is null)
             return Result.Failure(new Error { Type = ErrorType.NotFound, Message = $"Order with id {request.OrderId} not found" });
 
-        var result = order.Approve(systemClock.UtcNow);
+        var result = order.Approve(timeProvider.GetUtcNow());
         if (result.IsFailure)
             return result.Error;
 

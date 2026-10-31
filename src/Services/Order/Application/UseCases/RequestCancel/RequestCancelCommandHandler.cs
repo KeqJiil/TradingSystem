@@ -1,11 +1,10 @@
 using MediatR;
-using Microsoft.Extensions.Internal;
 using Order.Application.Abstractions;
 using Order.Domain;
 
 namespace Order.Application.UseCases.RequestCancel;
 
-public class RequestCancelCommandHandler(IOrderRepository repository, IUnitOfWork uow, ISystemClock systemClock)
+public class RequestCancelCommandHandler(IOrderRepository repository, IUnitOfWork uow, TimeProvider timeProvider)
     : IRequestHandler<RequestCancelCommand, Result>
 {
     public async Task<Result> Handle(RequestCancelCommand request, CancellationToken cancellationToken)
@@ -22,7 +21,7 @@ public class RequestCancelCommandHandler(IOrderRepository repository, IUnitOfWor
                 Message = $"User with id {request.UserId} is not allowed to cancel order with id {request.OrderId}"
             });
 
-        var result = order.RequestCancel(systemClock.UtcNow);
+        var result = order.RequestCancel(timeProvider.GetUtcNow());
         if (result.IsFailure)
             return result.Error;
 
