@@ -4,14 +4,14 @@ namespace Messaging.EFCore.Outbox;
 
 internal class OutboxWriter<TContext>(TContext dbContext) where TContext : DbContext
 {
-    public async Task WriteAsync(OutboxEntity entry, CancellationToken cancellationToken)
+    public void Write(OutboxEntity entry)
     {
-        await dbContext.Set<OutboxEntity>().AddAsync(entry, cancellationToken);
+        dbContext.Set<OutboxEntity>().Add(entry);
     }
 
-    public async Task WriteManyAsync(IReadOnlyCollection<OutboxEntity> entries, CancellationToken cancellationToken)
+    public void WriteMany(IReadOnlyCollection<OutboxEntity> entries)
     {
-        await dbContext.Set<OutboxEntity>().AddRangeAsync(entries, cancellationToken);
+        dbContext.Set<OutboxEntity>().AddRange(entries);
     }
 
     public async ValueTask MarkCompletedAsync(IReadOnlyList<long> completedIds, IReadOnlyList<long> deadIds,

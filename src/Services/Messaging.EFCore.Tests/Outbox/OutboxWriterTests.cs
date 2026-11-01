@@ -27,7 +27,7 @@ public class OutboxWriterTests(MssqlFixture db) : IClassFixture<MssqlFixture>, I
     {
         var entry = Entry("order-1");
 
-        await _sut.WriteAsync(entry, CancellationToken.None);
+        _sut.Write(entry);
         await _context.SaveChangesAsync();
 
         var row = Assert.Single(await _table.GetAllAsync());
@@ -39,38 +39,13 @@ public class OutboxWriterTests(MssqlFixture db) : IClassFixture<MssqlFixture>, I
     {
         var entries = new[] { Entry("a"), Entry("b"), Entry("c") };
 
-        await _sut.WriteManyAsync(entries, CancellationToken.None);
+        _sut.WriteMany(entries);
         await _context.SaveChangesAsync();
 
         var rows = await _table.GetAllAsync();
         Assert.Equal(3, rows.Count);
         foreach (var entry in entries)
             AssertPending(entry, rows.Single(r => r.MessageId == entry.MessageId));
-    }
-
-    [Fact]
-    public async Task WriteMany_Entries_IdsAscendInInputOrder()
-    {
-        var entries = Enumerable.Range(0, 10).Select(i => Entry($"key-{i}")).ToList();
-
-        await _sut.WriteManyAsync(entries, CancellationToken.None);
-        await _context.SaveChangesAsync();
-
-        var rows = await _table.GetAllAsync();
-        Assert.Equal(entries.Select(e => e.MessageId), rows.Select(r => r.MessageId));
-    }
-
-    [Fact]
-    public async Task Write_SeveralCalls_IdsAscendInCallOrder()
-    {
-        var entries = Enumerable.Range(0, 5).Select(i => Entry($"key-{i}")).ToList();
-
-        foreach (var entry in entries)
-            await _sut.WriteAsync(entry, CancellationToken.None);
-        await _context.SaveChangesAsync();
-
-        var rows = await _table.GetAllAsync();
-        Assert.Equal(entries.Select(e => e.MessageId), rows.Select(r => r.MessageId));
     }
 
     [Fact]

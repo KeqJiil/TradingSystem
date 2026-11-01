@@ -6,7 +6,7 @@ public interface IOrderReader
 {
     Task<OrderDetailsDto?> GetOrderByIdAsync(Guid orderId, Guid userId, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<OrderDto>> GetOrdersByUserIdAsync(Guid userId, OrderStatus? status = null, int? limit = 20,
+    Task<IReadOnlyList<OrderDto>> GetOrdersByUserIdAsync(Guid userId, int limit, OrderStatus? status = null,
         DateTimeOffset? afterCreatedAt = null, Guid? afterId = null, CancellationToken cancellationToken = default);
 }
 

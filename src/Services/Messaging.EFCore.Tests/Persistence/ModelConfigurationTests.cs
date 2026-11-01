@@ -94,7 +94,7 @@ public class ModelConfigurationTests(MssqlFixture db) : IClassFixture<MssqlFixtu
         await using var connection = await db.OpenConnectionAsync();
 
         var increment = await connection.ExecuteScalarAsync<long?>(
-            "SELECT CAST(increment AS BIGINT) FROM sys.sequences WHERE name = 'outbox_id_seq'");
+            "SELECT CAST(increment AS BIGINT) FROM sys.sequences WHERE name = 'outbox_id_seq' AND SCHEMA_NAME(schema_id) = 'messaging'");
 
         Assert.Equal(1, increment);
     }

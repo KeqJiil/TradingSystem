@@ -4,25 +4,27 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
+        <UserSecretsId>3a23803d-dc4b-44ee-b815-4525feef54bc</UserSecretsId>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="AspNetCore.HealthChecks.SqlServer"/>
-        <PackageReference Include="MediatR"/>
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore"/>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer"/>
-        <PackageReference Include="protobuf-net"/>
+        <PackageReference Include="MediatR" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+        <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+        <PackageReference Include="protobuf-net" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Messaging\Messaging.csproj"/>
+        <ProjectReference Include="..\Messaging\Messaging.csproj" />
+        <ProjectReference Include="..\Messaging.EFCore\Messaging.EFCore.csproj" />
     </ItemGroup>
 
     <ItemGroup>
         <Folder Include="Application\UseCases\GetById\" />
         <Folder Include="Application\UseCases\GetListByUserId\" />
-        <Folder Include="Infrastructure\"/>
     </ItemGroup>
 
 </Project>
