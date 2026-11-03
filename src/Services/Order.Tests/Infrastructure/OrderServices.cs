@@ -10,7 +10,7 @@ namespace Order.Tests.Infrastructure;
 
 public static class OrderServices
 {
-    public static ServiceProvider Build(string connectionString)
+    public static ServiceProvider Build(string connectionString, Action<IServiceCollection>? configure = null)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -29,6 +29,7 @@ public static class OrderServices
         services.MapMessaging(configuration);
         services.AddSingleton(sp =>
             new PublishedMessages(connectionString, sp.GetRequiredService<IMessageSerializerResolver>()));
+        configure?.Invoke(services);
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
     }
