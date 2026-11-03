@@ -41,4 +41,22 @@ public class PriceTests
         Assert.True(result.IsSuccess);
         Assert.Equal(value, result.Value.Value);
     }
+
+    [Fact]
+    public void CreateOptional_NonPositiveValue_ReturnsNull()
+    {
+        var result = Price.CreateOptional(null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void CreateOptional_ValidValue_ReturnsPrice()
+    {
+        var result = Price.CreateOptional(10.00m);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(10.00m, result.Value!.Value);
+    }
 }
