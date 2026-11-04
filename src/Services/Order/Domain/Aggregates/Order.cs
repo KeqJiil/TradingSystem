@@ -258,4 +258,5 @@ public enum TimeInForce
 
 public enum Symbols
 {
+    Test = 99
 }

@@ -1,32 +1,15 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.EntityFrameworkCore;
-using Order.Application.Abstractions;
+using Order.Application;
 using Order.Infrastructure.Messaging;
+using Order.Infrastructure.Persistence;
 using Order.Infrastructure.Persistence.Configuration;
-using Order.Infrastructure.Persistence.Implementations;
-using Order.Infrastructure.Persistence.Interceptors;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 
-builder.Services.AddScoped<MessagePublishingInterceptor>();
-
-builder.Services.AddDbContext<OrderDbContext>((sp, cfg) =>
-    cfg.UseSqlServer(builder.Configuration.GetConnectionString("OrderDbConnectionString"), sqlOptions =>
-    {
-        sqlOptions.MigrationsAssembly(typeof(OrderDbContext).Assembly.FullName);
-        sqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
-    }).AddInterceptors(sp.GetRequiredService<MessagePublishingInterceptor>()));
-
-builder.Services.AddSingleton(TimeProvider.System);
-
-builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-builder.Services.AddScoped<IOrderReader, OrderReader>();
-builder.Services.AddScoped<IOrderRepository, OrderRepository>();
-
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
-
+builder.Services.AddApplication();
+builder.Services.AddPersistence(builder.Configuration);
 builder.Services.MapMessaging(builder.Configuration);
 
 builder.Services.AddHealthChecks()

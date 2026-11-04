@@ -32,32 +32,29 @@ public static class MessagingExtension
             cfg.AddExceptionHandling();
             cfg.AddTracing();
 
-            cfg.AddMessage<OrderPlacedEvent>(OrderTopic.OrderPlaced.Name(), serializer)
-                .AddMessage<OrderCancelRequestedEvent>(OrderTopic.OrderCancelRequested.Name(), serializer)
-                .AddMessage<OrderCanceledEvent>(OrderTopic.OrderCanceled.Name(), serializer)
-                .AddMessage<OrderFilledEvent>(OrderTopic.OrderFilled.Name(), serializer)
-                .AddMessage<OrderExpiredEvent>(OrderTopic.OrderExpired.Name(), serializer)
-                .AddMessage<OrderRejectedEvent>(OrderTopic.OrderRejected.Name(), serializer);
+            var orderEvents = OrderTopic.OrderEvents.Name();
+            cfg.AddMessage<OrderPlacedEvent>(orderEvents, serializer)
+                .AddMessage<OrderCancelRequestedEvent>(orderEvents, serializer)
+                .AddMessage<OrderCanceledEvent>(orderEvents, serializer)
+                .AddMessage<OrderFilledEvent>(orderEvents, serializer)
+                .AddMessage<OrderExpiredEvent>(orderEvents, serializer)
+                .AddMessage<OrderRejectedEvent>(orderEvents, serializer);
 
-            cfg.AddMessage<OrderAcceptedReport>(MatcherTopic.OrderAccepted.Name(), serializer)
-                .AddMessage<OrderRejectedReport>(MatcherTopic.OrderRejected.Name(), serializer)
-                .AddMessage<FillReport>(MatcherTopic.Fill.Name(), serializer)
-                .AddMessage<OrderExpiredReport>(MatcherTopic.OrderExpired.Name(), serializer)
-                .AddMessage<OrderCanceledReport>(MatcherTopic.OrderCanceled.Name(), serializer)
-                .AddMessage<CancelRejectedReport>(MatcherTopic.CancelRejected.Name(), serializer);
+            var executionReports = MatcherTopic.ExecutionReports.Name();
+            cfg.AddMessage<OrderAcceptedReport>(executionReports, serializer)
+                .AddMessage<OrderRejectedReport>(executionReports, serializer)
+                .AddMessage<FillReport>(executionReports, serializer)
+                .AddMessage<OrderExpiredReport>(executionReports, serializer)
+                .AddMessage<OrderCanceledReport>(executionReports, serializer)
+                .AddMessage<CancelRejectedReport>(executionReports, serializer);
 
-            cfg.AddConsumer<OrderAcceptedReport, OrderAcceptedConsumer>(
-                    new ConsumerOptions(MatcherTopic.OrderAccepted.Name(), "order-accepted-group"))
-                .AddConsumer<OrderRejectedReport, OrderRejectedConsumer>(
-                    new ConsumerOptions(MatcherTopic.OrderRejected.Name(), "order-rejected-group"))
-                .AddConsumer<FillReport, FillConsumer>(
-                    new ConsumerOptions(MatcherTopic.Fill.Name(), "order-fill-group"))
-                .AddConsumer<OrderExpiredReport, OrderExpiredConsumer>(
-                    new ConsumerOptions(MatcherTopic.OrderExpired.Name(), "order-expired-group"))
-                .AddConsumer<OrderCanceledReport, OrderCanceledConsumer>(
-                    new ConsumerOptions(MatcherTopic.OrderCanceled.Name(), "order-canceled-group"))
-                .AddConsumer<CancelRejectedReport, CancelRejectedConsumer>(
-                    new ConsumerOptions(MatcherTopic.CancelRejected.Name(), "order-cancel-rejected-group"));
+            var executionReportsConsumer = new ConsumerOptions(executionReports, "order-execution-reports-group");
+            cfg.AddConsumer<OrderAcceptedReport, OrderAcceptedConsumer>(executionReportsConsumer)
+                .AddConsumer<OrderRejectedReport, OrderRejectedConsumer>(executionReportsConsumer)
+                .AddConsumer<FillReport, FillConsumer>(executionReportsConsumer)
+                .AddConsumer<OrderExpiredReport, OrderExpiredConsumer>(executionReportsConsumer)
+                .AddConsumer<OrderCanceledReport, OrderCanceledConsumer>(executionReportsConsumer)
+                .AddConsumer<CancelRejectedReport, CancelRejectedConsumer>(executionReportsConsumer);
         }, options =>
         {
             options.BootstrapServers = kafka.BootstrapServers;
