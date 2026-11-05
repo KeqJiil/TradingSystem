@@ -38,14 +38,14 @@ public class OrderExpiredConsumerTests(MssqlFixture fixture) : IClassFixture<Mss
     }
 
     [Fact]
-    public async Task ConsumeAsync_InvalidTransition_ReturnsRetry()
+    public async Task ConsumeAsync_InvalidTransition_ReturnsDeadLetter()
     {
         var order = await _scope.SeedAsync(TestOrders.InStatus(OrderStatus.Filled));
 
         var outcome = await _scope.ConsumeAsync<OrderExpiredConsumer, OrderExpiredReport>(
             new OrderExpiredReport(order.Id, TestOrders.Now));
 
-        Assert.Equal(MessageConsumeResult.Retry, outcome.Kind);
+        Assert.Equal(MessageConsumeResult.DeadLetter, outcome.Kind);
         var updated = await _scope.FindAsync(order.Id);
         Assert.Equal(OrderStatus.Filled, updated!.Status);
     }

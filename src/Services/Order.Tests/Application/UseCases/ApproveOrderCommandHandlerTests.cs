@@ -16,7 +16,7 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
     [Fact]
     public async Task Handle_OrderDoesNotExist_ReturnsNotFound()
     {
-        var result = await _scope.SendAsync(new ApproveOrderCommand(Guid.NewGuid()));
+        var result = await _scope.SendAsync(new ApproveOrderCommand(Guid.NewGuid(), _scope.Clock.Now));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorType.NotFound, result.Error.Type);
@@ -27,7 +27,7 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
     {
         var order = await _scope.SeedAsync(TestOrders.PendingNew());
 
-        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id));
+        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id, _scope.Clock.Now));
 
         Assert.True(result.IsSuccess);
         var updated = await _scope.FindAsync(order.Id);
@@ -40,7 +40,7 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
     {
         var order = await _scope.SeedAsync(TestOrders.UnapprovedPendingCancel());
 
-        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id));
+        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id, _scope.Clock.Now));
 
         Assert.True(result.IsSuccess);
         var updated = await _scope.FindAsync(order.Id);
@@ -53,7 +53,7 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
     {
         var order = await _scope.SeedAsync(TestOrders.InStatus(OrderStatus.New));
 
-        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id));
+        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id, _scope.Clock.Now));
 
         Assert.True(result.IsSuccess);
         var updated = await _scope.FindAsync(order.Id);
@@ -66,7 +66,7 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
     {
         var order = await _scope.SeedAsync(TestOrders.InStatus(OrderStatus.Rejected));
 
-        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id));
+        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id, _scope.Clock.Now));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorType.Violation, result.Error.Type);

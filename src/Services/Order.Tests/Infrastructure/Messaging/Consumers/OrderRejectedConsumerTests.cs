@@ -39,14 +39,14 @@ public class OrderRejectedConsumerTests(MssqlFixture fixture) : IClassFixture<Ms
     }
 
     [Fact]
-    public async Task ConsumeAsync_InvalidTransition_ReturnsRetry()
+    public async Task ConsumeAsync_InvalidTransition_ReturnsDeadLetter()
     {
         var order = await _scope.SeedAsync(TestOrders.InStatus(OrderStatus.New));
 
         var outcome = await _scope.ConsumeAsync<OrderRejectedConsumer, OrderRejectedReport>(
             new OrderRejectedReport(order.Id, TestOrders.Reason, TestOrders.Now));
 
-        Assert.Equal(MessageConsumeResult.Retry, outcome.Kind);
+        Assert.Equal(MessageConsumeResult.DeadLetter, outcome.Kind);
         var updated = await _scope.FindAsync(order.Id);
         Assert.Equal(OrderStatus.New, updated!.Status);
     }

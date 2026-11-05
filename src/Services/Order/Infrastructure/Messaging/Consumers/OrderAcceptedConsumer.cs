@@ -9,7 +9,8 @@ public class OrderAcceptedConsumer(IMediator mediator) : IMessageConsumer<OrderA
 {
     public async Task<ConsumeOutcome> ConsumeAsync(OrderAcceptedReport message, CancellationToken cancellationToken)
     {
-        var result = await mediator.Send(new ApproveOrderCommand(message.OrderId), cancellationToken);
+        var result = await mediator.Send(new ApproveOrderCommand(message.OrderId, message.AcceptedAt),
+            cancellationToken);
         return result.ToConsumeOutcome();
     }
 }

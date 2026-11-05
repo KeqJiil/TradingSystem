@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 using Order.Application;
 using Order.Infrastructure.Messaging;
 using Order.Infrastructure.Persistence;
@@ -20,5 +21,8 @@ var app = builder.Build();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") });
+
+await using (var scope = app.Services.CreateAsyncScope())
+    await scope.ServiceProvider.GetRequiredService<OrderDbContext>().Database.MigrateAsync();
 
 app.Run();
