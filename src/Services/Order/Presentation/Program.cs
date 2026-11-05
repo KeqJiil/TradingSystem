@@ -4,12 +4,14 @@ using Order.Application;
 using Order.Infrastructure.Messaging;
 using Order.Infrastructure.Persistence;
 using Order.Infrastructure.Persistence.Configuration;
+using Order.Presentation;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 
 builder.Services.AddApplication();
+builder.AddObservability();
 builder.Services.AddPersistence(builder.Configuration);
 builder.Services.MapMessaging(builder.Configuration);
 

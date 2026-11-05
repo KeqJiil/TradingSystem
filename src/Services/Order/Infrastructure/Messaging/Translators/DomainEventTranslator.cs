@@ -24,6 +24,10 @@ public class DomainEventTranslator : IDomainEventTranslator
             OrderFilled e => new OrderFilledEvent(e.OrderId, e.Quantity, e.OccurredOn),
             OrderExpired e => new OrderExpiredEvent(e.OrderId, e.OccurredOn),
             OrderRejected e => new OrderRejectedEvent(e.OrderId, e.Reason, e.OccurredOn),
+            OrderApproved e => new OrderApprovedEvent(e.OrderId, e.OccurredOn),
+            OrderCancelRejected e => new OrderCancelRejectedEvent(e.OrderId, e.Reason, e.OccurredOn),
+            FillRecorded e => new OrderFillRecordedEvent(e.OrderId, e.ExecutionId, e.Quantity.Value, e.Price.Value,
+                e.OccurredOn),
             _ => null
         };
     }

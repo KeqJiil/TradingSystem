@@ -1,6 +1,7 @@
 using Order.Application.UseCases.ApproveOrder;
 using Order.Domain;
 using Order.Domain.Aggregates;
+using Order.Infrastructure.Messaging.Events;
 using Order.Tests.Domain.Aggregates;
 using Order.Tests.Infrastructure;
 using Xunit;
@@ -33,6 +34,9 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
         var updated = await _scope.FindAsync(order.Id);
         Assert.Equal(OrderStatus.New, updated!.Status);
         Assert.Equal(_scope.Clock.Now, updated.ApprovedAt);
+
+        var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderApprovedEvent>(order.Id.ToString()));
+        Assert.Equal(_scope.Clock.Now, published.Message.OccurredAt);
     }
 
     [Fact]
@@ -59,6 +63,7 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
         var updated = await _scope.FindAsync(order.Id);
         Assert.Equal(OrderStatus.New, updated!.Status);
         Assert.Equal(TestOrders.ApprovedAt, updated.ApprovedAt);
+        Assert.Empty(await _scope.Published.OfTypeAsync<OrderApprovedEvent>(order.Id.ToString()));
     }
 
     [Fact]

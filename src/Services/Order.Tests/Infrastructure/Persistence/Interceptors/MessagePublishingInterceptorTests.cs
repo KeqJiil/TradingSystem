@@ -51,10 +51,9 @@ public class MessagePublishingInterceptorTests(MssqlFixture fixture) : IClassFix
     }
 
     [Fact]
-    public async Task SaveChanges_OnlyInternalEvents_PublishesNothing()
+    public async Task SaveChanges_LoadedAggregateChanged_PublishesItsEvent()
     {
         var order = await _scope.SeedAsync(TestOrders.PendingNew());
-        order.ClearDomainEvents();
 
         await _scope.ExecuteAsync(async sp =>
         {
@@ -64,9 +63,8 @@ public class MessagePublishingInterceptorTests(MssqlFixture fixture) : IClassFix
             return await context.SaveChangesAsync();
         });
 
-        Assert.Equal(0, await PublishedCountAsync(order.Id));
-        var updated = await _scope.FindAsync(order.Id);
-        Assert.NotNull(updated!.ApprovedAt);
+        Assert.Single(await _scope.Published.OfTypeAsync<OrderApprovedEvent>(order.Id.ToString()));
+        Assert.Empty(await _scope.Published.OfTypeAsync<OrderPlacedEvent>(order.Id.ToString()));
     }
 
     [Fact]
@@ -107,16 +105,5 @@ public class MessagePublishingInterceptorTests(MssqlFixture fixture) : IClassFix
 
         Assert.Empty(await _scope.Published.OfTypeAsync<OrderPlacedEvent>(order.Id.ToString()));
         Assert.Null(await _scope.FindAsync(order.Id));
-    }
-
-    private async Task<int> PublishedCountAsync(Guid orderId)
-    {
-        var key = orderId.ToString();
-        return (await _scope.Published.OfTypeAsync<OrderPlacedEvent>(key)).Count
-               + (await _scope.Published.OfTypeAsync<OrderCancelRequestedEvent>(key)).Count
-               + (await _scope.Published.OfTypeAsync<OrderCanceledEvent>(key)).Count
-               + (await _scope.Published.OfTypeAsync<OrderFilledEvent>(key)).Count
-               + (await _scope.Published.OfTypeAsync<OrderExpiredEvent>(key)).Count
-               + (await _scope.Published.OfTypeAsync<OrderRejectedEvent>(key)).Count;
     }
 }

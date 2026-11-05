@@ -99,18 +99,40 @@ public class DomainEventTranslatorTests
         Assert.Equal(TestOrders.Now, translated.OccurredAt);
     }
 
-    public static TheoryData<DomainEvent> InternalEvents => new()
+    [Fact]
+    public void Translate_OrderApproved_MapsOrderIdAndOccurredOn()
     {
-        new OrderApproved(Guid.NewGuid(), TestOrders.Now),
-        new OrderCancelRejected(Guid.NewGuid(), TestOrders.Reason, TestOrders.Now),
-        new FillRecorded(Guid.NewGuid(), Guid.NewGuid(), Quantity.Create(1).Value, Price.Create(10m).Value,
-            TestOrders.Now)
-    };
+        var translated = Assert.IsType<OrderApprovedEvent>(
+            _translator.Translate(new OrderApproved(_orderId, TestOrders.Now)));
 
-    [Theory]
-    [MemberData(nameof(InternalEvents))]
-    public void Translate_InternalEvent_ReturnsNull(DomainEvent domainEvent)
+        Assert.Equal(_orderId, translated.AggregateId);
+        Assert.Equal(TestOrders.Now, translated.OccurredAt);
+    }
+
+    [Fact]
+    public void Translate_OrderCancelRejected_MapsReason()
     {
-        Assert.Null(_translator.Translate(domainEvent));
+        var translated = Assert.IsType<OrderCancelRejectedEvent>(
+            _translator.Translate(new OrderCancelRejected(_orderId, TestOrders.Reason, TestOrders.Now)));
+
+        Assert.Equal(_orderId, translated.AggregateId);
+        Assert.Equal(TestOrders.Reason, translated.Reason);
+        Assert.Equal(TestOrders.Now, translated.OccurredAt);
+    }
+
+    [Fact]
+    public void Translate_FillRecorded_MapsExecutionQuantityAndPrice()
+    {
+        var executionId = Guid.NewGuid();
+        var domainEvent = new FillRecorded(_orderId, executionId, Quantity.Create(3).Value, Price.Create(12.5m).Value,
+            TestOrders.Now);
+
+        var translated = Assert.IsType<OrderFillRecordedEvent>(_translator.Translate(domainEvent));
+
+        Assert.Equal(_orderId, translated.AggregateId);
+        Assert.Equal(executionId, translated.ExecutionId);
+        Assert.Equal(3, translated.Quantity);
+        Assert.Equal(12.5m, translated.Price);
+        Assert.Equal(TestOrders.Now, translated.OccurredAt);
     }
 }

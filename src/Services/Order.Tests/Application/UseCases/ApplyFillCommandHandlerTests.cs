@@ -71,6 +71,10 @@ public class ApplyFillCommandHandlerTests(MssqlFixture fixture) : IClassFixture<
         Assert.Equal(10m, fill.Price.Value);
         Assert.Equal(TestOrders.Now, fill.FilledAt);
 
+        var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderFillRecordedEvent>(order.Id.ToString()));
+        Assert.Equal(executionId, published.Message.ExecutionId);
+        Assert.Equal(3, published.Message.Quantity);
+        Assert.Equal(10m, published.Message.Price);
         Assert.Empty(await _scope.Published.OfTypeAsync<OrderFilledEvent>(order.Id.ToString()));
     }
 
@@ -107,6 +111,7 @@ public class ApplyFillCommandHandlerTests(MssqlFixture fixture) : IClassFixture<
         var updated = await _scope.FindAsync(order.Id);
         Assert.Equal(TestOrders.Quantity, updated!.FilledQuantity);
         Assert.Single(updated.Fills);
+        Assert.Single(await _scope.Published.OfTypeAsync<OrderFillRecordedEvent>(order.Id.ToString()));
         Assert.Single(await _scope.Published.OfTypeAsync<OrderFilledEvent>(order.Id.ToString()));
     }
 

@@ -38,7 +38,10 @@ public static class MessagingExtension
                 .AddMessage<OrderCanceledEvent>(orderEvents, serializer)
                 .AddMessage<OrderFilledEvent>(orderEvents, serializer)
                 .AddMessage<OrderExpiredEvent>(orderEvents, serializer)
-                .AddMessage<OrderRejectedEvent>(orderEvents, serializer);
+                .AddMessage<OrderRejectedEvent>(orderEvents, serializer)
+                .AddMessage<OrderApprovedEvent>(orderEvents, serializer)
+                .AddMessage<OrderCancelRejectedEvent>(orderEvents, serializer)
+                .AddMessage<OrderFillRecordedEvent>(orderEvents, serializer);
 
             var executionReports = MatcherTopic.ExecutionReports.Name();
             cfg.AddMessage<OrderAcceptedReport>(executionReports, serializer)
