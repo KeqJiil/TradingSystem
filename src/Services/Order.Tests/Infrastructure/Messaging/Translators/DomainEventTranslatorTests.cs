@@ -57,13 +57,15 @@ public class DomainEventTranslatorTests
     }
 
     [Fact]
-    public void Translate_OrderCanceled_MapsReason()
+    public void Translate_OrderCanceled_MapsReasonAndQuantities()
     {
         var translated = Assert.IsType<OrderCanceledEvent>(
-            _translator.Translate(new OrderCanceled(_orderId, TestOrders.Reason, TestOrders.Now)));
+            _translator.Translate(new OrderCanceled(_orderId, TestOrders.Reason, 3, 7, TestOrders.Now)));
 
         Assert.Equal(_orderId, translated.AggregateId);
         Assert.Equal(TestOrders.Reason, translated.Reason);
+        Assert.Equal(3, translated.FilledQuantity);
+        Assert.Equal(7, translated.CanceledQuantity);
         Assert.Equal(TestOrders.Now, translated.OccurredAt);
     }
 
@@ -79,12 +81,14 @@ public class DomainEventTranslatorTests
     }
 
     [Fact]
-    public void Translate_OrderExpired_MapsOrderIdAndOccurredOn()
+    public void Translate_OrderExpired_MapsQuantities()
     {
         var translated = Assert.IsType<OrderExpiredEvent>(
-            _translator.Translate(new OrderExpired(_orderId, TestOrders.Now)));
+            _translator.Translate(new OrderExpired(_orderId, 3, 7, TestOrders.Now)));
 
         Assert.Equal(_orderId, translated.AggregateId);
+        Assert.Equal(3, translated.FilledQuantity);
+        Assert.Equal(7, translated.ExpiredQuantity);
         Assert.Equal(TestOrders.Now, translated.OccurredAt);
     }
 

@@ -40,7 +40,7 @@ public class ExpireOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtur
     }
 
     [Fact]
-    public async Task Handle_PartiallyFilledOrder_PersistsExpiredAndKeepsFilledQuantity()
+    public async Task Handle_PartiallyFilledOrder_PersistsExpiredAndPublishesFilledAndRemainingQuantity()
     {
         var order = await _scope.SeedAsync(TestOrders.InStatus(OrderStatus.PartiallyFilled));
 
@@ -51,6 +51,10 @@ public class ExpireOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtur
         Assert.Equal(OrderStatus.Expired, updated!.Status);
         Assert.Equal(order.FilledQuantity, updated.FilledQuantity);
         Assert.Single(updated.Fills);
+
+        var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderExpiredEvent>(order.Id.ToString()));
+        Assert.Equal(1, published.Message.FilledQuantity);
+        Assert.Equal(TestOrders.Quantity - 1, published.Message.ExpiredQuantity);
     }
 
     [Fact]

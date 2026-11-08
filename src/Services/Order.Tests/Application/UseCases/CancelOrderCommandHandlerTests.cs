@@ -42,7 +42,7 @@ public class CancelOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtur
     }
 
     [Fact]
-    public async Task Handle_PartiallyFilledOrder_PersistsCanceledAndKeepsFilledQuantity()
+    public async Task Handle_PartiallyFilledOrder_PersistsCanceledAndPublishesFilledAndRemainingQuantity()
     {
         var order = await _scope.SeedAsync(TestOrders.InStatus(OrderStatus.PartiallyFilled));
 
@@ -53,6 +53,10 @@ public class CancelOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtur
         Assert.Equal(OrderStatus.Canceled, updated!.Status);
         Assert.Equal(order.FilledQuantity, updated.FilledQuantity);
         Assert.Single(updated.Fills);
+
+        var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderCanceledEvent>(order.Id.ToString()));
+        Assert.Equal(1, published.Message.FilledQuantity);
+        Assert.Equal(TestOrders.Quantity - 1, published.Message.CanceledQuantity);
     }
 
     [Fact]

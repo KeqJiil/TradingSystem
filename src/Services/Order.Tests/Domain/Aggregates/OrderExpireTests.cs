@@ -36,6 +36,8 @@ public class OrderExpireTests
         Assert.Equal(Now, order.ExpiredAt);
         var expired = Assert.IsType<OrderExpired>(Assert.Single(order.GetDomainEvents()));
         Assert.Equal(order.Id, expired.OrderId);
+        Assert.Equal(order.FilledQuantity, expired.FilledQuantity);
+        Assert.Equal(order.Remaining, expired.ExpiredQuantity);
         Assert.Equal(Now, expired.ExpiredAt);
     }
 

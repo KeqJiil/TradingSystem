@@ -180,7 +180,7 @@ public class Order : AggregateRoot
         CancellationReason = reason;
         CanceledAt = now;
 
-        AddDomainEvent(new OrderCanceled(Id, reason, now));
+        AddDomainEvent(new OrderCanceled(Id, reason, FilledQuantity, Remaining, now));
 
         return Result.Success();
     }
@@ -218,7 +218,7 @@ public class Order : AggregateRoot
         Status = OrderStatus.Expired;
         ExpiredAt = now;
 
-        AddDomainEvent(new OrderExpired(Id, now));
+        AddDomainEvent(new OrderExpired(Id, FilledQuantity, Remaining, now));
 
         return Result.Success();
     }
