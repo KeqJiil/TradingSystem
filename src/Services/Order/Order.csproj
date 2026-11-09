@@ -8,6 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Grpc.AspNetCore" />
         <PackageReference Include="MediatR" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" />
@@ -24,6 +25,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\Contracts\TradingSystem.Contracts.csproj" />
         <ProjectReference Include="..\Messaging\Messaging.csproj" />
         <ProjectReference Include="..\Messaging.EFCore\Messaging.EFCore.csproj" />
     </ItemGroup>

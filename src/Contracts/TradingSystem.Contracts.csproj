@@ -7,11 +7,13 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Google.Protobuf"/>
+        <PackageReference Include="Grpc.Tools" PrivateAssets="all"/>
         <PackageReference Include="protobuf-net"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="ProtobufClasses\Order\"/>
+        <Protobuf Include="ProtobufClasses\Order\*.proto" GrpcServices="None"/>
     </ItemGroup>
 
 </Project>

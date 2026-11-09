@@ -8,6 +8,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Services/Order/Order.csproj", "src/Services/Order/"]
+COPY ["src/Contracts/TradingSystem.Contracts.csproj", "src/Contracts/"]
 COPY ["src/Services/Messaging.Abstractions/Messaging.Abstractions.csproj", "src/Services/Messaging.Abstractions/"]
 COPY ["src/Services/Messaging/Messaging.csproj", "src/Services/Messaging/"]
 COPY ["src/Services/Messaging.EFCore/Messaging.EFCore.csproj", "src/Services/Messaging.EFCore/"]
