@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package trading.order.v1;
+
+option csharp_namespace = "TradingSystem.Contracts.ProtobufClasses.Order";
+
+import "ProtobufClasses/Order/ServiceContracts/OrderDto.proto";
+
+message GetOrdersByUserIdResponse {
+    repeated OrderDto orders = 1;
+}

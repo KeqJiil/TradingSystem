@@ -3,6 +3,10 @@ using Order.Domain.Aggregates;
 using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Tests.Infrastructure;
 using Xunit;
+using OrderSide = Order.Domain.Aggregates.OrderSide;
+using OrderStatus = Order.Domain.Aggregates.OrderStatus;
+using OrderType = Order.Domain.Aggregates.OrderType;
+using TimeInForce = Order.Domain.Aggregates.TimeInForce;
 
 namespace Order.Tests.Application.UseCases;
 

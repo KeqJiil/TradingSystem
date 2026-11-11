@@ -6,6 +6,9 @@ using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Infrastructure.Messaging.Translators;
 using Order.Tests.Domain.Aggregates;
 using Xunit;
+using OrderSide = Order.Domain.Aggregates.OrderSide;
+using OrderType = Order.Domain.Aggregates.OrderType;
+using TimeInForce = Order.Domain.Aggregates.TimeInForce;
 
 namespace Order.Tests.Infrastructure.Messaging.Translators;
 

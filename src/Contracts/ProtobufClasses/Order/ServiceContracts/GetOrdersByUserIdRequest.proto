@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package trading.order.v1;
+
+option csharp_namespace = "TradingSystem.Contracts.ProtobufClasses.Order";
+
+import "google/protobuf/timestamp.proto";
+import "ProtobufClasses/Order/ServiceContracts/Enums.proto";
+
+message GetOrdersByUserIdRequest {
+    optional OrderStatus status = 1;
+    int32 limit = 2;
+    optional google.protobuf.Timestamp afterCreatedAt = 3;
+    optional string afterId = 4;
+}

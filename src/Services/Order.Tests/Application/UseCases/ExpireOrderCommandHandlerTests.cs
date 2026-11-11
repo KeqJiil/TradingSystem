@@ -5,6 +5,7 @@ using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Tests.Domain.Aggregates;
 using Order.Tests.Infrastructure;
 using Xunit;
+using OrderStatus = Order.Domain.Aggregates.OrderStatus;
 
 namespace Order.Tests.Application.UseCases;
 

@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package trading.order.v1;
+
+option csharp_namespace = "TradingSystem.Contracts.ProtobufClasses.Order";
+
+import "google/protobuf/timestamp.proto";
+import "ProtobufClasses/Order/ServiceContracts/Enums.proto";
+import "ProtobufClasses/Order/ServiceContracts/OrderDto.proto";
+
+message GetOrderResponse {
+    OrderDto order = 1;
+    TimeInForce timeInForce = 2;
+    optional google.protobuf.Timestamp approvedAt = 3;
+    optional google.protobuf.Timestamp closedAt = 4;
+    optional string cancelReason = 5;
+    repeated OrderFillDto fills = 6;
+}

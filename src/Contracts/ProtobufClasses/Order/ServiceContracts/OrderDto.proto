@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package trading.order.v1;
+
+option csharp_namespace = "TradingSystem.Contracts.ProtobufClasses.Order";
+
+import "google/protobuf/timestamp.proto";
+import "ProtobufClasses/Order/ServiceContracts/Enums.proto";
+
+message OrderDto {
+  string Id = 1;
+  Symbol Symbol = 2;
+  OrderSide Side = 3;
+  OrderType Type = 4;
+  optional string LimitPrice = 5;
+  string Quantity = 6;
+  string FilledQuantity = 7;
+  OrderStatus Status = 8;
+  google.protobuf.Timestamp CreatedAt = 9;
+}
+
+message OrderFillDto {
+  string executionId = 1;
+  string quantity = 2;
+  string price = 3;
+  google.protobuf.Timestamp filledAt = 4;
+}

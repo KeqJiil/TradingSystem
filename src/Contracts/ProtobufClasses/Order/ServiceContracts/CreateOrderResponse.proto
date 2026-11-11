@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package trading.order.v1;
+
+option csharp_namespace = "TradingSystem.Contracts.ProtobufClasses.Order";
+
+message CreateOrderResponse {
+    string orderId = 1;
+}
