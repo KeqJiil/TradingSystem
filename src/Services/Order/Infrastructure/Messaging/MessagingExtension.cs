@@ -5,12 +5,13 @@ using Messaging.EFCore.Outbox;
 using Messaging.Middlewares;
 using Messaging.Serializers;
 using Order.Infrastructure.Messaging.Consumers;
-using Order.Infrastructure.Messaging.Events;
 using Order.Infrastructure.Messaging.Reports;
+using Order.Infrastructure.Messaging.Serialization;
 using Order.Infrastructure.Messaging.Translators;
 using Order.Infrastructure.Options;
 using Order.Infrastructure.Persistence.Configuration;
 using Order.Infrastructure.Topics;
+using TradingSystem.Contracts.ProtobufClasses.Order;
 
 namespace Order.Infrastructure.Messaging;
 
@@ -33,15 +34,15 @@ public static class MessagingExtension
             cfg.AddTracing();
 
             var orderEvents = OrderTopic.OrderEvents.Name();
-            cfg.AddMessage<OrderPlacedEvent>(orderEvents, serializer)
-                .AddMessage<OrderCancelRequestedEvent>(orderEvents, serializer)
-                .AddMessage<OrderCanceledEvent>(orderEvents, serializer)
-                .AddMessage<OrderFilledEvent>(orderEvents, serializer)
-                .AddMessage<OrderExpiredEvent>(orderEvents, serializer)
-                .AddMessage<OrderRejectedEvent>(orderEvents, serializer)
-                .AddMessage<OrderApprovedEvent>(orderEvents, serializer)
-                .AddMessage<OrderCancelRejectedEvent>(orderEvents, serializer)
-                .AddMessage<OrderFillRecordedEvent>(orderEvents, serializer);
+            cfg.AddMessage<OrderPlacedEvent>(orderEvents, new ProtobufSerializer<OrderPlacedEvent>())
+                .AddMessage<OrderCancelRequestedEvent>(orderEvents, new ProtobufSerializer<OrderCancelRequestedEvent>())
+                .AddMessage<OrderCanceledEvent>(orderEvents, new ProtobufSerializer<OrderCanceledEvent>())
+                .AddMessage<OrderFilledEvent>(orderEvents, new ProtobufSerializer<OrderFilledEvent>())
+                .AddMessage<OrderExpiredEvent>(orderEvents, new ProtobufSerializer<OrderExpiredEvent>())
+                .AddMessage<OrderRejectedEvent>(orderEvents, new ProtobufSerializer<OrderRejectedEvent>())
+                .AddMessage<OrderApprovedEvent>(orderEvents, new ProtobufSerializer<OrderApprovedEvent>())
+                .AddMessage<OrderCancelRejectedEvent>(orderEvents, new ProtobufSerializer<OrderCancelRejectedEvent>())
+                .AddMessage<OrderFillRecordedEvent>(orderEvents, new ProtobufSerializer<OrderFillRecordedEvent>());
 
             var executionReports = MatcherTopic.ExecutionReports.Name();
             cfg.AddMessage<OrderAcceptedReport>(executionReports, serializer)

@@ -1,11 +1,13 @@
+using Google.Protobuf;
 using Messaging.Abstractions;
 
 namespace Order.Infrastructure.Messaging.Events;
 
-public abstract record ExternalEvent<TSelf> where TSelf : ExternalEvent<TSelf>
+public sealed record ExternalEvent(
+    Guid AggregateId,
+    IMessage Message,
+    Func<IMessagePublisher, PublishOptions, CancellationToken, Task<PublishOutcome>> Publish)
 {
-    public Task<PublishOutcome> PublishWith(IMessagePublisher publisher, PublishOptions options, CancellationToken cancellationToken)
-    {
-        return publisher.PublishAsync((TSelf)this, options, cancellationToken);
-    }
+    public static ExternalEvent Create<T>(Guid aggregateId, T message) where T : IMessage<T> =>
+        new(aggregateId, message, (publisher, options, ct) => publisher.PublishAsync(message, options, ct));
 }

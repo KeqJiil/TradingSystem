@@ -35,7 +35,7 @@ public class MessagePublishingInterceptor(IServiceProvider sp, IDomainEventTrans
                 continue;
             }
             
-            var publishOutcome = await externalEvent.PublishWith(publisher, new PublishOptions(externalEvent.AggregateId.ToString()), cancellationToken);
+            var publishOutcome = await externalEvent.Publish(publisher, new PublishOptions(externalEvent.AggregateId.ToString()), cancellationToken);
 
             if (!publishOutcome.IsSuccessful)
                 throw new Exception(publishOutcome.ErrorMessage);

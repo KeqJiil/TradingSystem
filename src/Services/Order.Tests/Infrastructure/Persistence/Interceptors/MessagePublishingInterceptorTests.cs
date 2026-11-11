@@ -1,11 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Order.Infrastructure.Messaging.Events;
+using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Infrastructure.Persistence.Configuration;
 using Order.Infrastructure.Topics;
 using Order.Tests.Domain.Aggregates;
-using Order.Tests.Infrastructure;
-using OrderAggregate = Order.Domain.Aggregates.Order;
 using Xunit;
 
 namespace Order.Tests.Infrastructure.Persistence.Interceptors;
@@ -29,7 +27,7 @@ public class MessagePublishingInterceptorTests(MssqlFixture fixture) : IClassFix
         });
 
         var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderPlacedEvent>(order.Id.ToString()));
-        Assert.Equal(order.Id, published.Message.AggregateId);
+        Assert.Equal(order.Id.ToString(), published.Message.AggregateId);
         Assert.Equal(OrderTopic.OrderEvents.Name(), published.Topic);
     }
 

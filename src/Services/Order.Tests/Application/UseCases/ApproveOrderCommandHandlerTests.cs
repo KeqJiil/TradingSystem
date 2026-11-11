@@ -1,7 +1,7 @@
 using Order.Application.UseCases.ApproveOrder;
 using Order.Domain;
 using Order.Domain.Aggregates;
-using Order.Infrastructure.Messaging.Events;
+using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Tests.Domain.Aggregates;
 using Order.Tests.Infrastructure;
 using Xunit;
@@ -36,7 +36,7 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
         Assert.Equal(_scope.Clock.Now, updated.ApprovedAt);
 
         var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderApprovedEvent>(order.Id.ToString()));
-        Assert.Equal(_scope.Clock.Now, published.Message.OccurredAt);
+        Assert.Equal(_scope.Clock.Now, published.Message.OccurredAt.ToDateTimeOffset());
     }
 
     [Fact]

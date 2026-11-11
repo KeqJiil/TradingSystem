@@ -1,7 +1,7 @@
 using Order.Application.UseCases.RejectCancel;
 using Order.Domain;
 using Order.Domain.Aggregates;
-using Order.Infrastructure.Messaging.Events;
+using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Tests.Domain.Aggregates;
 using Order.Tests.Infrastructure;
 using Xunit;
@@ -36,7 +36,7 @@ public class RejectCancelCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
 
         var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderCancelRejectedEvent>(order.Id.ToString()));
         Assert.Equal(TestOrders.Reason, published.Message.Reason);
-        Assert.Equal(TestOrders.Now, published.Message.OccurredAt);
+        Assert.Equal(TestOrders.Now, published.Message.OccurredAt.ToDateTimeOffset());
     }
 
     [Fact]

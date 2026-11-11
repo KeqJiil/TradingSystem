@@ -1,7 +1,8 @@
+using System.Globalization;
 using Order.Application.UseCases.ApplyFill;
 using Order.Domain;
 using Order.Domain.Aggregates;
-using Order.Infrastructure.Messaging.Events;
+using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Tests.Domain.Aggregates;
 using Order.Tests.Infrastructure;
 using Xunit;
@@ -72,9 +73,9 @@ public class ApplyFillCommandHandlerTests(MssqlFixture fixture) : IClassFixture<
         Assert.Equal(TestOrders.Now, fill.FilledAt);
 
         var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderFillRecordedEvent>(order.Id.ToString()));
-        Assert.Equal(executionId, published.Message.ExecutionId);
+        Assert.Equal(executionId.ToString(), published.Message.ExecutionId);
         Assert.Equal(3, published.Message.Quantity);
-        Assert.Equal(10m, published.Message.Price);
+        Assert.Equal(10m, decimal.Parse(published.Message.Price, CultureInfo.InvariantCulture));
         Assert.Empty(await _scope.Published.OfTypeAsync<OrderFilledEvent>(order.Id.ToString()));
     }
 
@@ -94,7 +95,7 @@ public class ApplyFillCommandHandlerTests(MssqlFixture fixture) : IClassFixture<
 
         var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderFilledEvent>(order.Id.ToString()));
         Assert.Equal(TestOrders.Quantity, published.Message.Quantity);
-        Assert.Equal(TestOrders.Now, published.Message.OccurredAt);
+        Assert.Equal(TestOrders.Now, published.Message.OccurredAt.ToDateTimeOffset());
     }
 
     [Fact]

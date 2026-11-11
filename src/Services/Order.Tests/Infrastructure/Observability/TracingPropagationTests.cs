@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Messaging.Abstractions;
 using Order.Application.UseCases.PlaceOrder;
 using Order.Domain.Aggregates;
-using Order.Infrastructure.Messaging.Events;
+using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Infrastructure.Observability;
 using Order.Tests.Infrastructure;
 using Xunit;

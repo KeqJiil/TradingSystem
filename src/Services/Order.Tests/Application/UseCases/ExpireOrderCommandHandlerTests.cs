@@ -1,7 +1,7 @@
 using Order.Application.UseCases.ExpireOrder;
 using Order.Domain;
 using Order.Domain.Aggregates;
-using Order.Infrastructure.Messaging.Events;
+using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Tests.Domain.Aggregates;
 using Order.Tests.Infrastructure;
 using Xunit;
@@ -36,7 +36,7 @@ public class ExpireOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtur
         Assert.Equal(TestOrders.Now, updated.ExpiredAt);
 
         var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderExpiredEvent>(order.Id.ToString()));
-        Assert.Equal(TestOrders.Now, published.Message.OccurredAt);
+        Assert.Equal(TestOrders.Now, published.Message.OccurredAt.ToDateTimeOffset());
     }
 
     [Fact]
