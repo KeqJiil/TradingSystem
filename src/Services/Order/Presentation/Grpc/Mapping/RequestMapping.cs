@@ -14,16 +14,25 @@ public static class RequestMapping
     public static Result<PlaceOrderCommand> ToCommand(this Proto.CreateOrderRequest request, Guid userId)
     {
         var symbol = request.Symbol.ToDomain();
+        if (symbol is null)
+            return Invalid("symbol");
+
         var side = request.OrderSide.ToDomain();
+        if (side is null)
+            return Invalid("order side");
+
         var timeInForce = request.TimeInForce.ToDomain();
+        if (timeInForce is null)
+            return Invalid("time in force");
+
         var type = request.OrderType.ToDomain();
-        if (symbol is null || side is null || timeInForce is null || type is null)
-            return Invalid("order parameters");
+        if (type is null)
+            return Invalid("order type");
 
         decimal? limitPrice = null;
         if (request.HasLimitPrice)
         {
-            if (!decimal.TryParse(request.LimitPrice, NumberStyles.Number, CultureInfo.InvariantCulture,
+            if (!decimal.TryParse(request.LimitPrice, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture,
                     out var price))
                 return Invalid("limit price");
             limitPrice = price;

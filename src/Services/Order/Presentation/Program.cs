@@ -19,7 +19,7 @@ builder.Services.MapMessaging(builder.Configuration);
 builder.Services.AddAuthentication().AddJwtBearer(options => options.MapInboundClaims = false);
 builder.Services.AddAuthorization();
 
-builder.Services.AddGrpc();
+builder.Services.AddGrpc(options => options.EnableDetailedErrors = builder.Environment.IsDevelopment());
 builder.Services.AddGrpcReflection();
 
 builder.Services.AddHealthChecks()
