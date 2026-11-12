@@ -24,17 +24,17 @@ public class ResponseMappingTests
         Assert.Equal(Proto.OrderSide.Sell, response.Order.Side);
         Assert.Equal(Proto.OrderType.Limit, response.Order.Type);
         Assert.Equal("12.5", response.Order.LimitPrice);
-        Assert.Equal("10", response.Order.Quantity);
-        Assert.Equal("3", response.Order.FilledQuantity);
+        Assert.Equal(10, response.Order.Quantity);
+        Assert.Equal(3, response.Order.FilledQuantity);
         Assert.Equal(Proto.OrderStatus.Canceled, response.Order.Status);
         Assert.Equal(TestOrders.CreatedAt, response.Order.CreatedAt.ToDateTimeOffset());
         Assert.Equal(Proto.TimeInForce.Gtc, response.TimeInForce);
         Assert.Equal(TestOrders.ApprovedAt, response.ApprovedAt.ToDateTimeOffset());
         Assert.Equal(TestOrders.Now, response.ClosedAt.ToDateTimeOffset());
-        Assert.Equal("user request", response.CancelReason);
+        Assert.Equal("user request", response.CloseReason);
         var mappedFill = Assert.Single(response.Fills);
         Assert.Equal(fill.ExecutionId.ToString(), mappedFill.ExecutionId);
-        Assert.Equal("3", mappedFill.Quantity);
+        Assert.Equal(3, mappedFill.Quantity);
         Assert.Equal("12.25", mappedFill.Price);
         Assert.Equal(TestOrders.Now, mappedFill.FilledAt.ToDateTimeOffset());
     }
@@ -50,7 +50,7 @@ public class ResponseMappingTests
         Assert.False(response.Order.HasLimitPrice);
         Assert.Null(response.ApprovedAt);
         Assert.Null(response.ClosedAt);
-        Assert.False(response.HasCancelReason);
+        Assert.False(response.HasCloseReason);
         Assert.Empty(response.Fills);
     }
 

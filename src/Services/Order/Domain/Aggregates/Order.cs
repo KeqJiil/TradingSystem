@@ -45,6 +45,10 @@ public class Order : AggregateRoot
         OrderSide side,
         DateTimeOffset now)
     {
+        if (!Enum.IsDefined(symbol))
+            return Result<Order>.Failure(new Error
+                { Message = "Invalid symbol.", Type = ErrorType.Validation });
+
         if (!Enum.IsDefined(side))
             return Result<Order>.Failure(new Error
                 { Message = "Invalid order side.", Type = ErrorType.Validation });

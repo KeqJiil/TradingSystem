@@ -19,7 +19,7 @@ public static class ResponseMapping
         };
 
         if (details.CloseReason is not null)
-            response.CancelReason = details.CloseReason;
+            response.CloseReason = details.CloseReason;
 
         return response;
     }
@@ -37,8 +37,8 @@ public static class ResponseMapping
             Symbol = order.Symbol.ToProto(),
             Side = order.Side.ToProto(),
             Type = order.Type.ToProto(),
-            Quantity = order.Quantity.ToString(CultureInfo.InvariantCulture),
-            FilledQuantity = order.FilledQuantity.ToString(CultureInfo.InvariantCulture),
+            Quantity = order.Quantity,
+            FilledQuantity = order.FilledQuantity,
             Status = order.Status.ToProto(),
             CreatedAt = Timestamp.FromDateTimeOffset(order.CreatedAt)
         };
@@ -54,7 +54,7 @@ public static class ResponseMapping
         return new Proto.OrderFillDto
         {
             ExecutionId = fill.ExecutionId.ToString(),
-            Quantity = fill.Quantity.ToString(CultureInfo.InvariantCulture),
+            Quantity = fill.Quantity,
             Price = fill.Price.ToString(CultureInfo.InvariantCulture),
             FilledAt = Timestamp.FromDateTimeOffset(fill.FilledAt)
         };

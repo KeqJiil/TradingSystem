@@ -10,6 +10,6 @@ import "ProtobufClasses/Order/ServiceContracts/Enums.proto";
 message GetOrdersByUserIdRequest {
     optional OrderStatus status = 1;
     int32 limit = 2;
-    optional google.protobuf.Timestamp afterCreatedAt = 3;
-    optional string afterId = 4;
+    optional google.protobuf.Timestamp after_created_at = 3;
+    optional string after_id = 4;
 }
