@@ -19,7 +19,7 @@ public static class TestOrders
         var terms = OrderTerms.Create(TimeInForce.Ioc, OrderType.Market).Value;
         var quantity = Order.Domain.VO.Quantity.Create(Quantity).Value;
 
-        return OrderAggregate.Create(Guid.NewGuid(), default, quantity, terms, OrderSide.Buy, CreatedAt).Value;
+        return OrderAggregate.Create(Guid.NewGuid(), Symbols.Test, quantity, terms, OrderSide.Buy, CreatedAt).Value;
     }
 
     public static OrderAggregate UnapprovedPendingCancel()

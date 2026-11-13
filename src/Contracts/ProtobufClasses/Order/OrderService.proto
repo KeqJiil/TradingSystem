@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package trading.order.v1;
+
+option csharp_namespace = "TradingSystem.Contracts.ProtobufClasses.Order";
+
+import "google/protobuf/empty.proto";
+import "ProtobufClasses/Order/ServiceContracts/CreateOrderRequest.proto";
+import "ProtobufClasses/Order/ServiceContracts/CreateOrderResponse.proto";
+import "ProtobufClasses/Order/ServiceContracts/RequestOrderCancelRequest.proto";
+import "ProtobufClasses/Order/ServiceContracts/GetOrderRequest.proto";
+import "ProtobufClasses/Order/ServiceContracts/GetOrderResponse.proto";
+import "ProtobufClasses/Order/ServiceContracts/GetOrdersByUserIdRequest.proto";
+import "ProtobufClasses/Order/ServiceContracts/GetOrdersByUserIdResponse.proto";
+
+service OrderService {
+  rpc CreateOrder (CreateOrderRequest) returns (CreateOrderResponse);
+  rpc RequestOrderCancel (RequestOrderCancelRequest) returns (google.protobuf.Empty);
+  rpc GetById (GetOrderRequest) returns (GetOrderResponse);
+  rpc GetListByUserId (GetOrdersByUserIdRequest) returns (GetOrdersByUserIdResponse);
+}

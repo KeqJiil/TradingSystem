@@ -1,11 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Order.Infrastructure.Messaging.Events;
+using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Infrastructure.Persistence.Configuration;
 using Order.Infrastructure.Topics;
 using Order.Tests.Domain.Aggregates;
-using Order.Tests.Infrastructure;
-using OrderAggregate = Order.Domain.Aggregates.Order;
 using Xunit;
 
 namespace Order.Tests.Infrastructure.Persistence.Interceptors;
@@ -29,7 +27,7 @@ public class MessagePublishingInterceptorTests(MssqlFixture fixture) : IClassFix
         });
 
         var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderPlacedEvent>(order.Id.ToString()));
-        Assert.Equal(order.Id, published.Message.AggregateId);
+        Assert.Equal(order.Id.ToString(), published.Message.AggregateId);
         Assert.Equal(OrderTopic.OrderEvents.Name(), published.Topic);
     }
 
@@ -51,10 +49,9 @@ public class MessagePublishingInterceptorTests(MssqlFixture fixture) : IClassFix
     }
 
     [Fact]
-    public async Task SaveChanges_OnlyInternalEvents_PublishesNothing()
+    public async Task SaveChanges_LoadedAggregateChanged_PublishesItsEvent()
     {
         var order = await _scope.SeedAsync(TestOrders.PendingNew());
-        order.ClearDomainEvents();
 
         await _scope.ExecuteAsync(async sp =>
         {
@@ -64,9 +61,8 @@ public class MessagePublishingInterceptorTests(MssqlFixture fixture) : IClassFix
             return await context.SaveChangesAsync();
         });
 
-        Assert.Equal(0, await PublishedCountAsync(order.Id));
-        var updated = await _scope.FindAsync(order.Id);
-        Assert.NotNull(updated!.ApprovedAt);
+        Assert.Single(await _scope.Published.OfTypeAsync<OrderApprovedEvent>(order.Id.ToString()));
+        Assert.Empty(await _scope.Published.OfTypeAsync<OrderPlacedEvent>(order.Id.ToString()));
     }
 
     [Fact]
@@ -107,16 +103,5 @@ public class MessagePublishingInterceptorTests(MssqlFixture fixture) : IClassFix
 
         Assert.Empty(await _scope.Published.OfTypeAsync<OrderPlacedEvent>(order.Id.ToString()));
         Assert.Null(await _scope.FindAsync(order.Id));
-    }
-
-    private async Task<int> PublishedCountAsync(Guid orderId)
-    {
-        var key = orderId.ToString();
-        return (await _scope.Published.OfTypeAsync<OrderPlacedEvent>(key)).Count
-               + (await _scope.Published.OfTypeAsync<OrderCancelRequestedEvent>(key)).Count
-               + (await _scope.Published.OfTypeAsync<OrderCanceledEvent>(key)).Count
-               + (await _scope.Published.OfTypeAsync<OrderFilledEvent>(key)).Count
-               + (await _scope.Published.OfTypeAsync<OrderExpiredEvent>(key)).Count
-               + (await _scope.Published.OfTypeAsync<OrderRejectedEvent>(key)).Count;
     }
 }

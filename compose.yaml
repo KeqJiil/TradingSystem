@@ -36,7 +36,31 @@ services:
       retries: 12
       start_period: 30s
     restart: unless-stopped
-  
+
+  order:
+    image: order
+    build:
+      context: .
+      dockerfile: src/Services/Order/Dockerfile
+    ports:
+      - "8082:8080"
+      - "8083:8081"
+    environment:
+      - ConnectionStrings__OrderDbConnectionString=${ConnectionStrings__OrderDbConnectionString}
+      - Authentication__Schemes__Bearer__ValidIssuer=dotnet-user-jwts
+      - Authentication__Schemes__Bearer__ValidAudiences__0=http://localhost:5026
+      - Authentication__Schemes__Bearer__SigningKeys__0__Issuer=dotnet-user-jwts
+      - Authentication__Schemes__Bearer__SigningKeys__0__Value=${ORDER_JWT_SIGNING_KEY}
+      - KafkaOptions__BootstrapServers=kafka:29092
+      - KafkaOptions__ProducerClientId=order-producer
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
+    depends_on:
+      order-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
   order-db:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: mssql-server-order

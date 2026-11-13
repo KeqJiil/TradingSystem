@@ -5,5 +5,5 @@ namespace Order.Infrastructure.Messaging.Translators;
 
 public interface IDomainEventTranslator
 {
-    IExternalEvent? Translate(DomainEvent domainEvent);
+    ExternalEvent? Translate(DomainEvent domainEvent);
 }

@@ -45,6 +45,10 @@ public class Order : AggregateRoot
         OrderSide side,
         DateTimeOffset now)
     {
+        if (!Enum.IsDefined(symbol))
+            return Result<Order>.Failure(new Error
+                { Message = "Invalid symbol.", Type = ErrorType.Validation });
+
         if (!Enum.IsDefined(side))
             return Result<Order>.Failure(new Error
                 { Message = "Invalid order side.", Type = ErrorType.Validation });
@@ -180,7 +184,7 @@ public class Order : AggregateRoot
         CancellationReason = reason;
         CanceledAt = now;
 
-        AddDomainEvent(new OrderCanceled(Id, reason, now));
+        AddDomainEvent(new OrderCanceled(Id, reason, FilledQuantity, Remaining, now));
 
         return Result.Success();
     }
@@ -218,7 +222,7 @@ public class Order : AggregateRoot
         Status = OrderStatus.Expired;
         ExpiredAt = now;
 
-        AddDomainEvent(new OrderExpired(Id, now));
+        AddDomainEvent(new OrderExpired(Id, FilledQuantity, Remaining, now));
 
         return Result.Success();
     }

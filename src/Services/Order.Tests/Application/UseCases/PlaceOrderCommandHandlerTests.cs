@@ -1,8 +1,12 @@
 using Order.Application.UseCases.PlaceOrder;
 using Order.Domain.Aggregates;
-using Order.Infrastructure.Messaging.Events;
+using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Tests.Infrastructure;
 using Xunit;
+using OrderSide = Order.Domain.Aggregates.OrderSide;
+using OrderStatus = Order.Domain.Aggregates.OrderStatus;
+using OrderType = Order.Domain.Aggregates.OrderType;
+using TimeInForce = Order.Domain.Aggregates.TimeInForce;
 
 namespace Order.Tests.Application.UseCases;
 
@@ -35,7 +39,7 @@ public class PlaceOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixture
         Assert.Equal(_scope.Clock.Now, order.CreatedAt);
 
         var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderPlacedEvent>(result.Value.ToString()));
-        Assert.Equal(command.UserId, published.Message.UserId);
+        Assert.Equal(command.UserId.ToString(), published.Message.UserId);
     }
     
     [Fact]
@@ -55,6 +59,6 @@ public class PlaceOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixture
 
         Assert.True(result.IsFailure);
         var published = await _scope.Published.OfTypeAsync<OrderPlacedEvent>();
-        Assert.DoesNotContain(published, m => m.Message.UserId == command.UserId);
+        Assert.DoesNotContain(published, m => m.Message.UserId == command.UserId.ToString());
     }
 }

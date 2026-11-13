@@ -10,7 +10,7 @@ public static class ResultToOutcome
         if (result.IsSuccess)
             return new ConsumeOutcome(MessageConsumeResult.Success);
 
-        return result.Error.Type == ErrorType.Validation
+        return result.Error.Type is ErrorType.Validation or ErrorType.Violation
             ? new ConsumeOutcome(MessageConsumeResult.DeadLetter, result.Error.Message)
             : new ConsumeOutcome(MessageConsumeResult.Retry, result.Error.Message);
     }

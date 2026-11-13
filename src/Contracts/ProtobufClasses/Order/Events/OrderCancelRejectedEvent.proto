@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+option csharp_namespace = "TradingSystem.Contracts.ProtobufClasses.Order";
+
+import "google/protobuf/timestamp.proto";
+
+message OrderCancelRejectedEvent {
+    string AggregateId = 1;
+    string Reason = 2;
+    google.protobuf.Timestamp OccurredAt = 3;
+}

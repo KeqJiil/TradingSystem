@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+option csharp_namespace = "TradingSystem.Contracts.ProtobufClasses.Order";
+
+import "google/protobuf/timestamp.proto";
+
+message OrderFillRecordedEvent {
+    string AggregateId = 1;
+    string ExecutionId = 2;
+    int32 Quantity = 3;
+    string Price = 4;
+    google.protobuf.Timestamp OccurredAt = 5;
+}

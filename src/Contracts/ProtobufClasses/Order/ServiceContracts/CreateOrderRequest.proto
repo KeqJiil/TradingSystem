@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package trading.order.v1;
+
+option csharp_namespace = "TradingSystem.Contracts.ProtobufClasses.Order";
+
+import "ProtobufClasses/Order/ServiceContracts/Enums.proto";
+
+message CreateOrderRequest {
+    Symbol symbol = 1;
+    int32 quantity = 2;
+    OrderSide order_side = 3;
+    TimeInForce time_in_force = 4;
+    OrderType order_type = 5;
+    optional string limit_price = 6;
+}

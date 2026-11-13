@@ -1,10 +1,11 @@
 using Order.Application.UseCases.CancelOrder;
 using Order.Domain;
 using Order.Domain.Aggregates;
-using Order.Infrastructure.Messaging.Events;
+using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Tests.Domain.Aggregates;
 using Order.Tests.Infrastructure;
 using Xunit;
+using OrderStatus = Order.Domain.Aggregates.OrderStatus;
 
 namespace Order.Tests.Application.UseCases;
 
@@ -38,11 +39,11 @@ public class CancelOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtur
 
         var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderCanceledEvent>(order.Id.ToString()));
         Assert.Equal(TestOrders.Reason, published.Message.Reason);
-        Assert.Equal(TestOrders.Now, published.Message.OccurredAt);
+        Assert.Equal(TestOrders.Now, published.Message.OccurredAt.ToDateTimeOffset());
     }
 
     [Fact]
-    public async Task Handle_PartiallyFilledOrder_PersistsCanceledAndKeepsFilledQuantity()
+    public async Task Handle_PartiallyFilledOrder_PersistsCanceledAndPublishesFilledAndRemainingQuantity()
     {
         var order = await _scope.SeedAsync(TestOrders.InStatus(OrderStatus.PartiallyFilled));
 
@@ -53,6 +54,10 @@ public class CancelOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtur
         Assert.Equal(OrderStatus.Canceled, updated!.Status);
         Assert.Equal(order.FilledQuantity, updated.FilledQuantity);
         Assert.Single(updated.Fills);
+
+        var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderCanceledEvent>(order.Id.ToString()));
+        Assert.Equal(1, published.Message.FilledQuantity);
+        Assert.Equal(TestOrders.Quantity - 1, published.Message.CanceledQuantity);
     }
 
     [Fact]

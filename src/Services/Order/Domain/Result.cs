@@ -1,6 +1,12 @@
 namespace Order.Domain;
 
-public readonly struct Result<T>
+public interface IResultBase
+{
+    bool IsFailure { get; }
+    Error Error { get; }
+}
+
+public readonly struct Result<T> : IResultBase
 {
     public bool IsSuccess { get; private init; }
     public bool IsFailure => !IsSuccess;
@@ -32,7 +38,7 @@ public readonly struct Result<T>
     public static implicit operator Result<T>(Error error) => Failure(error);
 }
 
-public readonly struct Result
+public readonly struct Result : IResultBase
 {
     public bool IsSuccess { get; private init; }
     public bool IsFailure => !IsSuccess;

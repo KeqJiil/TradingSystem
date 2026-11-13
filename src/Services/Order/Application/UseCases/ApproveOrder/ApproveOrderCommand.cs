@@ -3,4 +3,4 @@ using Order.Domain;
 
 namespace Order.Application.UseCases.ApproveOrder;
 
-public record ApproveOrderCommand(Guid OrderId) : IRequest<Result>;
+public record ApproveOrderCommand(Guid OrderId, DateTimeOffset ApprovedAt) : IRequest<Result>;

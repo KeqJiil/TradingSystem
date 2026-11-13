@@ -1,9 +1,11 @@
 using Order.Application.UseCases.ApproveOrder;
 using Order.Domain;
 using Order.Domain.Aggregates;
+using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Tests.Domain.Aggregates;
 using Order.Tests.Infrastructure;
 using Xunit;
+using OrderStatus = Order.Domain.Aggregates.OrderStatus;
 
 namespace Order.Tests.Application.UseCases;
 
@@ -16,7 +18,7 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
     [Fact]
     public async Task Handle_OrderDoesNotExist_ReturnsNotFound()
     {
-        var result = await _scope.SendAsync(new ApproveOrderCommand(Guid.NewGuid()));
+        var result = await _scope.SendAsync(new ApproveOrderCommand(Guid.NewGuid(), _scope.Clock.Now));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorType.NotFound, result.Error.Type);
@@ -27,12 +29,15 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
     {
         var order = await _scope.SeedAsync(TestOrders.PendingNew());
 
-        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id));
+        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id, _scope.Clock.Now));
 
         Assert.True(result.IsSuccess);
         var updated = await _scope.FindAsync(order.Id);
         Assert.Equal(OrderStatus.New, updated!.Status);
         Assert.Equal(_scope.Clock.Now, updated.ApprovedAt);
+
+        var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderApprovedEvent>(order.Id.ToString()));
+        Assert.Equal(_scope.Clock.Now, published.Message.OccurredAt.ToDateTimeOffset());
     }
 
     [Fact]
@@ -40,7 +45,7 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
     {
         var order = await _scope.SeedAsync(TestOrders.UnapprovedPendingCancel());
 
-        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id));
+        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id, _scope.Clock.Now));
 
         Assert.True(result.IsSuccess);
         var updated = await _scope.FindAsync(order.Id);
@@ -53,12 +58,13 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
     {
         var order = await _scope.SeedAsync(TestOrders.InStatus(OrderStatus.New));
 
-        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id));
+        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id, _scope.Clock.Now));
 
         Assert.True(result.IsSuccess);
         var updated = await _scope.FindAsync(order.Id);
         Assert.Equal(OrderStatus.New, updated!.Status);
         Assert.Equal(TestOrders.ApprovedAt, updated.ApprovedAt);
+        Assert.Empty(await _scope.Published.OfTypeAsync<OrderApprovedEvent>(order.Id.ToString()));
     }
 
     [Fact]
@@ -66,7 +72,7 @@ public class ApproveOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixtu
     {
         var order = await _scope.SeedAsync(TestOrders.InStatus(OrderStatus.Rejected));
 
-        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id));
+        var result = await _scope.SendAsync(new ApproveOrderCommand(order.Id, _scope.Clock.Now));
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorType.Violation, result.Error.Type);

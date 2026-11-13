@@ -74,6 +74,8 @@ public class OrderCancelTests
         var canceled = Assert.IsType<OrderCanceled>(Assert.Single(order.GetDomainEvents()));
         Assert.Equal(order.Id, canceled.OrderId);
         Assert.Equal("user request", canceled.Reason);
+        Assert.Equal(order.FilledQuantity, canceled.FilledQuantity);
+        Assert.Equal(order.Remaining, canceled.CanceledQuantity);
         Assert.Equal(Now, canceled.CancelledAt);
     }
 }

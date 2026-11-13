@@ -24,9 +24,9 @@ public record OrderDto(
     OrderSide Side,
     OrderType Type,
     decimal? LimitPrice,
-    decimal Quantity,
-    decimal FilledQuantity,
+    int Quantity,
+    int FilledQuantity,
     OrderStatus Status,
     DateTimeOffset CreatedAt);
 
-public record struct FillDto(Guid ExecutionId, decimal Quantity, decimal Price, DateTimeOffset FilledAt);
+public record struct FillDto(Guid ExecutionId, int Quantity, decimal Price, DateTimeOffset FilledAt);

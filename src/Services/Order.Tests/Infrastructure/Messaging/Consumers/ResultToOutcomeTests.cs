@@ -16,10 +16,12 @@ public class ResultToOutcomeTests
         Assert.Null(outcome.Reason);
     }
 
-    [Fact]
-    public void ToConsumeOutcome_ValidationError_ReturnsDeadLetterWithErrorMessage()
+    [Theory]
+    [InlineData(ErrorType.Validation)]
+    [InlineData(ErrorType.Violation)]
+    public void ToConsumeOutcome_NonRetryableError_ReturnsDeadLetterWithErrorMessage(ErrorType type)
     {
-        var outcome = Result.Failure(new Error { Type = ErrorType.Validation, Message = "invalid" }).ToConsumeOutcome();
+        var outcome = Result.Failure(new Error { Type = type, Message = "invalid" }).ToConsumeOutcome();
 
         Assert.Equal(MessageConsumeResult.DeadLetter, outcome.Kind);
         Assert.Equal("invalid", outcome.Reason);
@@ -27,9 +29,8 @@ public class ResultToOutcomeTests
 
     [Theory]
     [InlineData(ErrorType.Conflict)]
-    [InlineData(ErrorType.Violation)]
     [InlineData(ErrorType.NotFound)]
-    public void ToConsumeOutcome_NonValidationError_ReturnsRetryWithErrorMessage(ErrorType type)
+    public void ToConsumeOutcome_RetryableError_ReturnsRetryWithErrorMessage(ErrorType type)
     {
         var outcome = Result.Failure(new Error { Type = type, Message = "failed" }).ToConsumeOutcome();
 
