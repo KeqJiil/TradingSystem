@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using Grpc.Core;
 using Grpc.Net.Client;
+using Messaging.Abstractions;
+using Messaging.Testing;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -24,6 +26,9 @@ public sealed class OrderGrpcFixture : IAsyncLifetime
 
     public MssqlFixture Database { get; } = new();
     public Proto.OrderService.OrderServiceClient Client { get; private set; } = null!;
+
+    public PublishedMessages Published =>
+        new(Database.ConnectionString, _factory.Services.GetRequiredService<IMessageSerializerResolver>());
 
     public async Task InitializeAsync()
     {
