@@ -1,28 +1,18 @@
+using System.Globalization;
 using Stock.Application.Events;
+using Proto = TradingSystem.Contracts.ProtobufClasses.Stock;
 
 namespace Stock.Infrastructure.ExternalEvents;
 
-public record PriceChangeRequestedEvent(
-    Guid EventId,
-    Guid AggregateId,
-    decimal PriceChange,
-    DateTimeOffset OccurredAt
-) : IExternalEvent;
-
 public static class PriceChangeRequestedEventMapper
 {
-    public static PriceChangeRequested MapFrom(PriceChangeRequestedEvent @event)
+    public static PriceChangeRequested MapFrom(Proto.PriceChangeRequestedEvent @event)
     {
         return new PriceChangeRequested(
-            @event.EventId,
-            @event.AggregateId,
-            @event.PriceChange,
-            @event.OccurredAt
+            Guid.Parse(@event.EventId),
+            Guid.Parse(@event.AggregateId),
+            decimal.Parse(@event.PriceChange, CultureInfo.InvariantCulture),
+            @event.OccurredAt.ToDateTimeOffset()
         );
-    }
-    
-    public static IEnumerable<PriceChangeRequested> MapFrom(IEnumerable<PriceChangeRequestedEvent> events)
-    {
-        return events.Select(MapFrom);
     }
 }

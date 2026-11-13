@@ -1,10 +1,11 @@
 using Confluent.Kafka;
+using Messaging.Abstractions;
 
 namespace Stock.Tests.Infrastructure;
 
 public static class KafkaTestConsumer
 {
-    public static ConsumeResult<string, TValue> WaitForMessage<TValue>(string bootstrapAddress, string topic,
+    public static ConsumeResult<string, TValue> WaitForMessage<TValue>(string bootstrapAddress, IMessageSerializer serializer, string topic,
         Func<TValue, bool> predicate, TimeSpan timeout) where TValue : class
     {
         using var consumer = new ConsumerBuilder<string, TValue>(new ConsumerConfig
@@ -14,7 +15,7 @@ public static class KafkaTestConsumer
                 AutoOffsetReset = AutoOffsetReset.Earliest,
                 PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky
             })
-            .SetValueDeserializer(new ProtobufDeserializer<TValue>())
+            .SetValueDeserializer(new MessageDeserializer<TValue>(serializer))
             .Build();
 
         consumer.Subscribe(topic);
@@ -44,12 +45,11 @@ public static class KafkaTestConsumer
         throw new TimeoutException($"No matching message observed on topic '{topic}' within {timeout}.");
     }
 
-    private sealed class ProtobufDeserializer<T> : IDeserializer<T>
+    private sealed class MessageDeserializer<T>(IMessageSerializer serializer) : IDeserializer<T>
     {
         public T Deserialize(ReadOnlySpan<byte> data, bool isNull, SerializationContext context)
         {
-            using var stream = new MemoryStream(data.ToArray());
-            return ProtoBuf.Serializer.Deserialize<T>(stream);
+            return serializer.Deserialize<T>(data.ToArray()).Message;
         }
     }
-}
+}

@@ -1,5 +1,9 @@
 syntax = "proto3";
 
+package trading.stock.v1;
+
+option csharp_namespace = "TradingSystem.Contracts.ProtobufClasses.Stock";
+
 message NameChangedEvent {
     string AggregateId = 1;
     string Name = 2;

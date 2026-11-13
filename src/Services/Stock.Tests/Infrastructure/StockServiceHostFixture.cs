@@ -68,14 +68,18 @@ public class StockServiceHostFixture : IAsyncLifetime
         await _app.StartAsync();
     }
 
+    public IMessageSerializer SerializerFor<TMessage>()
+    {
+        return Services.GetRequiredService<IMessageSerializerResolver>().For<TMessage>();
+    }
+
     public void Produce<TValue>(string topic, Guid key, TValue value)
     {
-        using var stream = new MemoryStream();
-        ProtoBuf.Serializer.Serialize(stream, value);
+        var payload = SerializerFor<TValue>().Serialize(value).Message;
 
         using var producer = new ProducerBuilder<string, byte[]>(new ProducerConfig { BootstrapServers = BootstrapAddress })
             .Build();
-        producer.Produce(topic, KafkaMessageFactory.Create(key.ToString(), stream.ToArray(), typeof(TValue).Name,
+        producer.Produce(topic, KafkaMessageFactory.Create(key.ToString(), payload, typeof(TValue).Name,
             Guid.NewGuid().ToString(), []));
         producer.Flush(TimeSpan.FromSeconds(10));
     }

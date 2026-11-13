@@ -1,37 +1,32 @@
-namespace Stock.Infrastructure.ExternalEvents;
+using Google.Protobuf.WellKnownTypes;
+using Proto = TradingSystem.Contracts.ProtobufClasses.Stock;
 
-public record StockCreatedEvent(
-    Guid AggregateId,
-    string Name,
-    bool IsOpenToTrade,
-    string Currency,
-    TimeOnly TradingStartTime,
-    TimeOnly TradingCloseTime
-) : IExternalEvent;
+namespace Stock.Infrastructure.ExternalEvents;
 
 public static class StockCreatedEventMapper
 {
-    public static Application.Events.StockCreatedEvent MapFrom(StockCreatedEvent @event)
+    public static Application.Events.StockCreatedEvent MapFrom(Proto.StockCreatedEvent @event)
     {
         return new Application.Events.StockCreatedEvent(
-            @event.AggregateId,
+            Guid.Parse(@event.AggregateId),
             @event.Name,
             @event.IsOpenToTrade,
             @event.Currency,
-            @event.TradingStartTime,
-            @event.TradingCloseTime
+            TimeOnly.FromTimeSpan(@event.TradingStartTime.ToTimeSpan()),
+            TimeOnly.FromTimeSpan(@event.TradingCloseTime.ToTimeSpan())
         );
     }
 
-    public static StockCreatedEvent MapToExternal(Application.Events.StockCreatedEvent @event)
+    public static Proto.StockCreatedEvent MapToExternal(Application.Events.StockCreatedEvent @event)
     {
-        return new StockCreatedEvent(
-            @event.AggregateId,
-            @event.Name,
-            @event.IsOpenToTrade,
-            @event.Currency,
-            @event.TradingStartTime,
-            @event.TradingCloseTime
-        );
+        return new Proto.StockCreatedEvent
+        {
+            AggregateId = @event.AggregateId.ToString(),
+            Name = @event.Name,
+            IsOpenToTrade = @event.IsOpenToTrade,
+            Currency = @event.Currency,
+            TradingStartTime = Duration.FromTimeSpan(@event.TradingStartTime.ToTimeSpan()),
+            TradingCloseTime = Duration.FromTimeSpan(@event.TradingCloseTime.ToTimeSpan())
+        };
     }
 }

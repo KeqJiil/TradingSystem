@@ -1,19 +1,21 @@
-namespace Stock.Infrastructure.ExternalEvents;
+using Proto = TradingSystem.Contracts.ProtobufClasses.Stock;
 
-public record NameChangedEvent(
-    Guid AggregateId,
-    string Name,
-    long Version) : IExternalEvent;
+namespace Stock.Infrastructure.ExternalEvents;
 
 public static class NameChangedEventMapper
 {
-    public static Application.Events.NameChangedEvent MapFrom(NameChangedEvent @event)
+    public static Application.Events.NameChangedEvent MapFrom(Proto.NameChangedEvent @event)
     {
-        return new Application.Events.NameChangedEvent(@event.AggregateId, @event.Name, @event.Version);
+        return new Application.Events.NameChangedEvent(Guid.Parse(@event.AggregateId), @event.Name, @event.Version);
     }
 
-    public static NameChangedEvent MapToExternal(Application.Events.NameChangedEvent @event)
+    public static Proto.NameChangedEvent MapToExternal(Application.Events.NameChangedEvent @event)
     {
-        return new NameChangedEvent(@event.AggregateId, @event.Name, @event.Version);
+        return new Proto.NameChangedEvent
+        {
+            AggregateId = @event.AggregateId.ToString(),
+            Name = @event.Name,
+            Version = @event.Version
+        };
     }
 }

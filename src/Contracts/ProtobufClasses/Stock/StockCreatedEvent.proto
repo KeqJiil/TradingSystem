@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package trading.stock.v1;
+
+option csharp_namespace = "TradingSystem.Contracts.ProtobufClasses.Stock";
+
+import "google/protobuf/duration.proto";
+
+message StockCreatedEvent {
+    string AggregateId = 1;
+    string Name = 2;
+    bool IsOpenToTrade = 3;
+    string Currency = 4;
+    google.protobuf.Duration TradingStartTime = 5;
+    google.protobuf.Duration TradingCloseTime = 6;
+}

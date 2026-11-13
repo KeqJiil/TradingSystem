@@ -1,8 +1,9 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
-using Stock.Infrastructure.ExternalEvents;
+using Google.Protobuf.WellKnownTypes;
 using Stock.Infrastructure.Topics;
 using Xunit;
+using TradingSystem.Contracts.ProtobufClasses.Stock;
 using DomainPriceChanged = Stock.Application.Events.PriceChangedEvent;
 
 namespace Stock.Tests.Infrastructure.Messaging.Consumers;
@@ -21,7 +22,7 @@ public class PriceChangeRequestedConsumerTests
     public async Task HappyPath_PriceChangeRequestedEvent_AppendsEventStoreRow_AndPublishesPriceChanged()
     {
         var aggregateId = Guid.NewGuid();
-        var evt = new PriceChangeRequestedEvent(Guid.NewGuid(), aggregateId, 12.5m, DateTimeOffset.UtcNow);
+        var evt = NewRequest(aggregateId, "12.5");
 
         Produce(evt);
 
@@ -33,31 +34,41 @@ public class PriceChangeRequestedConsumerTests
         var published = await Polling.WaitUntilAsync(async () =>
             (await _fixture.Published.OfTypeAsync<DomainPriceChanged>(aggregateId.ToString())).SingleOrDefault(),
             TimeSpan.FromSeconds(45));
-        Assert.Equal(new DomainPriceChanged(aggregateId, 12.5m, 1, evt.OccurredAt), published.Message);
+        Assert.Equal(new DomainPriceChanged(aggregateId, 12.5m, 1, evt.OccurredAt.ToDateTimeOffset()), published.Message);
     }
 
     [Fact]
     public async Task PriceChangeRequestedEvent_PriceChangeOverflowsColumnPrecision_NeverAppended_RawEventRoutedToFatalDlq()
     {
         var aggregateId = Guid.NewGuid();
-        var overflowingPriceChange = decimal.Parse("12345678901234567");
-        var evt = new PriceChangeRequestedEvent(Guid.NewGuid(), aggregateId, overflowingPriceChange, DateTimeOffset.UtcNow);
+        var evt = NewRequest(aggregateId, "12345678901234567");
 
         Produce(evt);
 
         var fatalMessage = KafkaTestConsumer.WaitForMessage<PriceChangeRequestedEvent>(
-            _fixture.BootstrapAddress,
+            _fixture.BootstrapAddress, _fixture.SerializerFor<PriceChangeRequestedEvent>(),
             StockServiceHostFixture.DeadLetterTopic("price-change-requested-events-group", StockTopic.PriceChangeRequested.Name()),
-            m => m.AggregateId == aggregateId,
+            m => m.AggregateId == aggregateId.ToString(),
             TimeSpan.FromSeconds(45));
 
         Assert.Equal(evt, fatalMessage.Message.Value); 
         Assert.Null(await TryGetEventStoreRowAsync(aggregateId));
     }
 
+    private static PriceChangeRequestedEvent NewRequest(Guid aggregateId, string priceChange)
+    {
+        return new PriceChangeRequestedEvent
+        {
+            EventId = Guid.NewGuid().ToString(),
+            AggregateId = aggregateId.ToString(),
+            PriceChange = priceChange,
+            OccurredAt = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow)
+        };
+    }
+
     private void Produce(PriceChangeRequestedEvent evt)
     {
-        _fixture.Produce(StockTopic.PriceChangeRequested.Name(), evt.AggregateId, evt);
+        _fixture.Produce(StockTopic.PriceChangeRequested.Name(), Guid.Parse(evt.AggregateId), evt);
     }
 
     private async Task<EventStoreRow?> TryGetEventStoreRowAsync(Guid aggregateId)

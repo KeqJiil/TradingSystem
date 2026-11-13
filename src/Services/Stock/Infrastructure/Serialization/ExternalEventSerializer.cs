@@ -1,12 +1,15 @@
+using Google.Protobuf;
 using Messaging.Abstractions;
-using ProtoBuf;
 
 namespace Stock.Infrastructure.Serialization;
 
 public sealed class ExternalEventSerializer<TEvent, TExternal>(
     Func<TEvent, TExternal> toExternal,
     Func<TExternal, TEvent> fromExternal) : IMessageSerializer
+    where TExternal : IMessage<TExternal>, new()
 {
+    private static readonly MessageParser<TExternal> Parser = new(() => new TExternal());
+
     public SerializationResult<byte[]> Serialize<TMessage>(TMessage message)
     {
         if (message is not TEvent @event)
@@ -15,9 +18,7 @@ public sealed class ExternalEventSerializer<TEvent, TExternal>(
 
         try
         {
-            using var stream = new MemoryStream();
-            Serializer.Serialize(stream, toExternal(@event));
-            return new SerializationResult<byte[]>(stream.ToArray(), true);
+            return new SerializationResult<byte[]>(toExternal(@event).ToByteArray(), true);
         }
         catch (Exception ex)
         {
@@ -29,8 +30,7 @@ public sealed class ExternalEventSerializer<TEvent, TExternal>(
     {
         try
         {
-            using var stream = new MemoryStream(message);
-            return fromExternal(Serializer.Deserialize<TExternal>(stream)) is TMessage result
+            return fromExternal(Parser.ParseFrom(message)) is TMessage result
                 ? new SerializationResult<TMessage>(result, true)
                 : new SerializationResult<TMessage>(default!, false,
                     $"{typeof(TEvent).Name} is not {typeof(TMessage).Name}.");
