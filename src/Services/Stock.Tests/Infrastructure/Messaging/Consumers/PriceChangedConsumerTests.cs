@@ -1,6 +1,6 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
-using Stock.Infrastructure.ExternalEvents;
+using Stock.Application.Events;
 using Stock.Infrastructure.Topics;
 using Xunit;
 
@@ -43,7 +43,7 @@ public class PriceChangedConsumerTests
         Assert.Equal(5m, row.Price);
 
         var fatalMessage = KafkaTestConsumer.WaitForMessage<PriceChangedEvent>(
-            _fixture.BootstrapAddress,
+            _fixture.BootstrapAddress, _fixture.SerializerFor<PriceChangedEvent>(),
             StockServiceHostFixture.DeadLetterTopic("price-change-events-group", StockTopic.Price.Name()),
             m => m.AggregateId == aggregateId,
             TimeSpan.FromSeconds(45));

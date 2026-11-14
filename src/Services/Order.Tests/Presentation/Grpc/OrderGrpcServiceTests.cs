@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
+using Order.Presentation;
+using Messaging.Abstractions;
 using Order.Domain.Aggregates;
 using Order.Domain.VO;
 using Order.Tests.Domain.Aggregates;
@@ -57,6 +59,46 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
         Assert.Equal(10, order.Quantity.Value);
         Assert.Equal(12.5m, order.OrderTerms.LimitPrice!.Value);
         Assert.Equal(OrderStatus.PendingNew, order.Status);
+    }
+
+    [Fact]
+    public async Task CreateOrder_CorrelationIdInMetadata_PublishedEventCarriesIt()
+    {
+        var correlationId = Guid.NewGuid().ToString();
+        var headers = fixture.AuthFor(_userId);
+        headers.Add(CorrelationMiddleware.Header, correlationId);
+
+        var response = await _client.CreateOrderAsync(LimitOrderRequest(quantity: 10), headers);
+
+        var published = Assert.Single(await fixture.Published.OfTypeAsync<Proto.OrderPlacedEvent>(response.OrderId));
+        Assert.Equal(correlationId, published.Headers[MessagingHeaders.CorrelationId]);
+    }
+
+    [Fact]
+    public async Task CreateOrder_CorrelationIdInMetadata_EchoedInResponseHeaders()
+    {
+        var correlationId = Guid.NewGuid().ToString();
+        var headers = fixture.AuthFor(_userId);
+        headers.Add(CorrelationMiddleware.Header, correlationId);
+
+        using var call = _client.CreateOrderAsync(LimitOrderRequest(quantity: 10), headers);
+        await call;
+        var responseHeaders = await call.ResponseHeadersAsync;
+
+        Assert.Equal(correlationId, responseHeaders.GetValue(CorrelationMiddleware.Header));
+    }
+
+    [Fact]
+    public async Task CreateOrder_NoCorrelationId_GeneratedIdEchoedAndPublished()
+    {
+        using var call = _client.CreateOrderAsync(LimitOrderRequest(quantity: 10), fixture.AuthFor(_userId));
+        var response = await call;
+        var responseHeaders = await call.ResponseHeadersAsync;
+
+        var correlationId = responseHeaders.GetValue(CorrelationMiddleware.Header);
+        Assert.True(Guid.TryParse(correlationId, out _));
+        var published = Assert.Single(await fixture.Published.OfTypeAsync<Proto.OrderPlacedEvent>(response.OrderId));
+        Assert.Equal(correlationId, published.Headers[MessagingHeaders.CorrelationId]);
     }
 
     [Fact]

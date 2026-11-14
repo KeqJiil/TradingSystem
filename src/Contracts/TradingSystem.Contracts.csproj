@@ -10,12 +10,12 @@
         <PackageReference Include="Google.Protobuf"/>
         <PackageReference Include="Grpc.Core.Api"/>
         <PackageReference Include="Grpc.Tools" PrivateAssets="all"/>
-        <PackageReference Include="protobuf-net"/>
     </ItemGroup>
 
     <ItemGroup>
         <Protobuf Include="ProtobufClasses\Order\**\*.proto" GrpcServices="None"/>
         <Protobuf Update="ProtobufClasses\Order\OrderService.proto" GrpcServices="Both"/>
+        <Protobuf Include="ProtobufClasses\Stock\**\*.proto" GrpcServices="None"/>
     </ItemGroup>
 
 </Project>

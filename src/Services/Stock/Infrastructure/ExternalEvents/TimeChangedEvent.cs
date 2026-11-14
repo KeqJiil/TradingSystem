@@ -1,22 +1,25 @@
-namespace Stock.Infrastructure.ExternalEvents;
+using Google.Protobuf.WellKnownTypes;
+using Proto = TradingSystem.Contracts.ProtobufClasses.Stock;
 
-public record TimeChangedEvent(
-    Guid AggregateId,
-    TimeOnly TradingStartTime,
-    TimeOnly TradingCloseTime,
-    long Version) : IExternalEvent;
+namespace Stock.Infrastructure.ExternalEvents;
 
 public static class TimeChangedEventMapper
 {
-    public static Application.Events.TimeChangedEvent MapFrom(TimeChangedEvent @event)
+    public static Application.Events.TimeChangedEvent MapFrom(Proto.TimeChangedEvent @event)
     {
-        return new Application.Events.TimeChangedEvent(@event.AggregateId, @event.TradingStartTime,
-            @event.TradingCloseTime, @event.Version);
+        return new Application.Events.TimeChangedEvent(Guid.Parse(@event.AggregateId),
+            TimeOnly.FromTimeSpan(@event.TradingStartTime.ToTimeSpan()),
+            TimeOnly.FromTimeSpan(@event.TradingCloseTime.ToTimeSpan()), @event.Version);
     }
 
-    public static TimeChangedEvent MapToExternal(Application.Events.TimeChangedEvent @event)
+    public static Proto.TimeChangedEvent MapToExternal(Application.Events.TimeChangedEvent @event)
     {
-        return new TimeChangedEvent(@event.AggregateId, @event.TradingStartTime, @event.TradingCloseTime,
-            @event.Version);
+        return new Proto.TimeChangedEvent
+        {
+            AggregateId = @event.AggregateId.ToString(),
+            TradingStartTime = Duration.FromTimeSpan(@event.TradingStartTime.ToTimeSpan()),
+            TradingCloseTime = Duration.FromTimeSpan(@event.TradingCloseTime.ToTimeSpan()),
+            Version = @event.Version
+        };
     }
 }

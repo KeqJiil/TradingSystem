@@ -7,6 +7,7 @@ using Stock.Infrastructure.Messaging.Consumers;
 using Stock.Infrastructure.Options;
 using Stock.Infrastructure.Serialization;
 using Stock.Infrastructure.Topics;
+using Proto = TradingSystem.Contracts.ProtobufClasses.Stock;
 
 namespace Stock.Infrastructure.Messaging;
 
@@ -28,23 +29,23 @@ public static class StockMessaging
             b.Services.AddSingleton<IExceptionToOutcome, StockExceptionToOutcome>();
 
             b.AddMessage<Application.Events.StockCreatedEvent>(StockTopic.StockCreated.Name(),
-                new ExternalEventSerializer<Application.Events.StockCreatedEvent, ExternalEvents.StockCreatedEvent>(
+                new ExternalEventSerializer<Application.Events.StockCreatedEvent, Proto.StockCreatedEvent>(
                     StockCreatedEventMapper.MapToExternal, StockCreatedEventMapper.MapFrom));
             b.AddMessage<Application.Events.StockToggledStatusEvent>(StockTopic.StockStatusToggled.Name(),
                 new ExternalEventSerializer<Application.Events.StockToggledStatusEvent,
-                    ExternalEvents.StockToggledStatusEvent>(
+                    Proto.StockToggledStatusEvent>(
                     StockToggledStatusEventMapper.MapToExternal, StockToggledStatusEventMapper.MapFrom));
             b.AddMessage<Application.Events.PriceChangedEvent>(StockTopic.Price.Name(),
-                new ExternalEventSerializer<Application.Events.PriceChangedEvent, ExternalEvents.PriceChangedEvent>(
+                new ExternalEventSerializer<Application.Events.PriceChangedEvent, Proto.PriceChangedEvent>(
                     PriceChangedEventMapper.MapToExternal, PriceChangedEventMapper.MapFrom));
             b.AddMessage<Application.Events.NameChangedEvent>(StockTopic.StockNameChanged.Name(),
-                new ExternalEventSerializer<Application.Events.NameChangedEvent, ExternalEvents.NameChangedEvent>(
+                new ExternalEventSerializer<Application.Events.NameChangedEvent, Proto.NameChangedEvent>(
                     NameChangedEventMapper.MapToExternal, NameChangedEventMapper.MapFrom));
             b.AddMessage<Application.Events.TimeChangedEvent>(StockTopic.StockTradingTimeChanged.Name(),
-                new ExternalEventSerializer<Application.Events.TimeChangedEvent, ExternalEvents.TimeChangedEvent>(
+                new ExternalEventSerializer<Application.Events.TimeChangedEvent, Proto.TimeChangedEvent>(
                     TimeChangedEventMapper.MapToExternal, TimeChangedEventMapper.MapFrom));
-            b.AddMessage<PriceChangeRequestedEvent>(StockTopic.PriceChangeRequested.Name(),
-                new ExternalEventSerializer<PriceChangeRequestedEvent, PriceChangeRequestedEvent>(e => e, e => e));
+            b.AddMessage<Proto.PriceChangeRequestedEvent>(StockTopic.PriceChangeRequested.Name(),
+                new ExternalEventSerializer<Proto.PriceChangeRequestedEvent, Proto.PriceChangeRequestedEvent>(e => e, e => e));
 
             b.AddConsumer<Application.Events.StockCreatedEvent, StockCreatedConsumer>(
                 new ConsumerOptions(StockTopic.StockCreated.Name(), "stock-created-events-group"));
@@ -53,7 +54,7 @@ public static class StockMessaging
                     { MaxAttempts = ReadModelMaxAttempts });
             b.AddConsumer<Application.Events.PriceChangedEvent, PriceChangedConsumer>(
                 new ConsumerOptions(StockTopic.Price.Name(), "price-change-events-group"));
-            b.AddConsumer<PriceChangeRequestedEvent, PriceChangeRequestedConsumer>(
+            b.AddConsumer<Proto.PriceChangeRequestedEvent, PriceChangeRequestedConsumer>(
                 new ConsumerOptions(StockTopic.PriceChangeRequested.Name(), "price-change-requested-events-group"));
             b.AddConsumer<Application.Events.NameChangedEvent, NameChangedConsumer>(
                 new ConsumerOptions(StockTopic.StockNameChanged.Name(), "name-change-events-group")

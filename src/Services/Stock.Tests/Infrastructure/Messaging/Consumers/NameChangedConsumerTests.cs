@@ -1,6 +1,6 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
-using Stock.Infrastructure.ExternalEvents;
+using Stock.Application.Events;
 using Stock.Infrastructure.Topics;
 using Xunit;
 

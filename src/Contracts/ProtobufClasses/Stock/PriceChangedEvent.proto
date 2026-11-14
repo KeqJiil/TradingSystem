@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package trading.stock.v1;
+
+option csharp_namespace = "TradingSystem.Contracts.ProtobufClasses.Stock";
+
+import "google/protobuf/timestamp.proto";
+
+message PriceChangedEvent {
+    string PriceChange = 1;
+    string AggregateId = 2;
+    optional int64 Version = 3;
+    google.protobuf.Timestamp OccurredAt = 4;
+}

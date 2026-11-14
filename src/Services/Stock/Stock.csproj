@@ -27,7 +27,6 @@
         <PackageReference Include="OpenTelemetry.Instrumentation.Runtime"/>
         <PackageReference Include="OpenTelemetry.Instrumentation.SqlClient"/>
         <PackageReference Include="Polly"/>
-        <PackageReference Include="protobuf-net"/>
     </ItemGroup>
 
     <ItemGroup>
