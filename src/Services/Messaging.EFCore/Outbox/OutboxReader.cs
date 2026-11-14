@@ -12,11 +12,18 @@ internal class OutboxReader<TContext>(TContext dbContext) where TContext : DbCon
             .Set<OutboxEntity>()
             .FromSqlRaw("""
                             ;WITH cte AS (
-                                SELECT TOP({0}) *
-                                FROM messaging.outbox WITH (ROWLOCK, UPDLOCK, READPAST)
-                                WHERE status IN ('Pending', 'Processing')
-                                    AND (processed_at IS NULL OR processed_at <= DATEADD(MINUTE, -{1}, SYSDATETIMEOFFSET()))
-                                ORDER BY id
+                                SELECT TOP({0}) o.*
+                                FROM messaging.outbox AS o WITH (ROWLOCK, UPDLOCK, READPAST)
+                                WHERE o.status IN ('Pending', 'Processing')
+                                    AND (o.processed_at IS NULL OR o.processed_at <= DATEADD(MINUTE, -{1}, SYSDATETIMEOFFSET()))
+                                    AND NOT EXISTS (
+                                        SELECT 1
+                                        FROM messaging.outbox AS earlier
+                                        WHERE earlier.topic = o.topic
+                                            AND earlier.message_key = o.message_key
+                                            AND earlier.id < o.id
+                                            AND earlier.status IN ('PENDING', 'PROCESSING'))
+                                ORDER BY o.id
                             )
                             UPDATE cte
                             SET status = 'Processing', processed_at = SYSDATETIMEOFFSET(),

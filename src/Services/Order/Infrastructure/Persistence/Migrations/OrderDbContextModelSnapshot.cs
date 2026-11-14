@@ -122,6 +122,10 @@ namespace Order.Infrastructure.Persistence.Migrations
 
                     SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("Id"), new[] { "ProcessedAt" });
 
+                    b.HasIndex("Topic", "MessageKey", "Id")
+                        .HasDatabaseName("idx_outbox_unfinished_key")
+                        .HasFilter("[status] IN ('Pending', 'Processing')");
+
                     b.ToTable("outbox", "messaging");
                 });
 
