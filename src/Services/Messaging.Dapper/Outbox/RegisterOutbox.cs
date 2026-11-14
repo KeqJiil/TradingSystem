@@ -19,6 +19,7 @@ public static class RegisterOutbox
         services.AddCleanup();
         services.AddScoped<IPublishTerminal, OutboxPublishTerminal>();
         services.AddSingleton(MessagingMigrations.Outbox);
+        services.AddSingleton(MessagingMigrations.OutboxKeyOrder);
 
         return builder;
     }

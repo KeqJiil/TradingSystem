@@ -84,7 +84,7 @@ public class OutboxReaderTests(MssqlFixture db) : IClassFixture<MssqlFixture>, I
     {
         var ids = new List<long>();
         for (var i = 0; i < 5; i++)
-            ids.Add(await _table.SeedAsync(new OutboxSeed { Key = $"key-{i % 2}" }));
+            ids.Add(await _table.SeedAsync(new OutboxSeed { Key = $"key-{i}" }));
 
         var result = await _sut.GetPendingAsync(10, LeaseMinutes, CancellationToken.None);
 
@@ -92,11 +92,27 @@ public class OutboxReaderTests(MssqlFixture db) : IClassFixture<MssqlFixture>, I
     }
 
     [Fact]
+    public async Task GetPending_EarlierRowOfKeyUnfinished_SkipsLaterRow()
+    {
+        await _table.SeedAsync(new OutboxSeed
+        {
+            Key = "held", Status = "PROCESSING", Attempts = 1, ProcessedAt = DateTimeOffset.UtcNow.AddSeconds(-10)
+        });
+        var heldLater = await _table.SeedAsync(new OutboxSeed { Key = "held" });
+        var other = await _table.SeedAsync(new OutboxSeed { Key = "other" });
+
+        var result = await _sut.GetPendingAsync(10, LeaseMinutes, CancellationToken.None);
+
+        Assert.Equal(other, Assert.Single(result).Id);
+        Assert.Equal("PENDING", (await _table.GetAsync(heldLater))!.Status);
+    }
+
+    [Fact]
     public async Task GetPending_MoreRowsThanAmount_ReturnsFirstRowsAndLeavesRestUntouched()
     {
         var ids = new List<long>();
         for (var i = 0; i < 3; i++)
-            ids.Add(await _table.SeedAsync(new OutboxSeed()));
+            ids.Add(await _table.SeedAsync(new OutboxSeed { Key = $"key-{i}" }));
 
         var result = await _sut.GetPendingAsync(2, LeaseMinutes, CancellationToken.None);
 

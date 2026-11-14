@@ -67,7 +67,7 @@ internal class OutboxDispatchService : BackgroundService
 
         using var gate = new SemaphoreSlim(_options.MaxParallelKeys);
 
-        var results = await Task.WhenAll(batch.GroupBy(m => m.Key).Select(async group =>
+        var results = await Task.WhenAll(batch.GroupBy(m => (m.Topic, m.Key)).Select(async group =>
         {
             await gate.WaitAsync(ct);
             try
@@ -80,10 +80,11 @@ internal class OutboxDispatchService : BackgroundService
             }
         }));
 
-        await store.MarkCompletedAsync(results.SelectMany(r => r.Completed).ToList(),
-            results.SelectMany(r => r.Dead).ToList(), ct);
+        var completed = results.SelectMany(r => r.Completed).ToList();
+        var dead = results.SelectMany(r => r.Dead).ToList();
+        await store.MarkCompletedAsync(completed, dead, ct);
 
-        return batch.Count == _options.BatchSize;
+        return completed.Count + dead.Count > 0;
     }
 
     private async Task<(List<long> Completed, List<long> Dead)> DispatchKeyAsync(IEnumerable<OutboxData> messages,

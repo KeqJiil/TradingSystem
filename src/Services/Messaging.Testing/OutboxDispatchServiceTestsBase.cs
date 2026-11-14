@@ -130,22 +130,56 @@ public abstract class OutboxDispatchServiceTestsBase : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Relay_KeyFails_HoldsRestOfThatKeyAndCompletesOtherKeys()
+    public async Task Relay_TopicFails_DoesNotHoldSameKeyOfOtherTopic()
     {
         var topic = await _kafka.CreateTopicAsync();
         var failing = await _table.SeedAsync(new OutboxSeed { Topic = "invalid topic!", Key = "a" });
-        var held = await _table.SeedAsync(new OutboxSeed { Topic = topic, Key = "a", Payload = Bytes("held") });
-        var other = await _table.SeedAsync(new OutboxSeed { Topic = topic, Key = "b", Payload = Bytes("other") });
+        var sameKey = await _table.SeedAsync(new OutboxSeed { Topic = topic, Key = "a", Payload = Bytes("same-key") });
 
         await StartRelayAsync(_kafkaFixture.BootstrapAddress, messageTimeoutMs: 5_000);
 
+        await Wait.UntilAsync(async () => (await _table.GetAsync(sameKey))!.Status == "COMPLETED",
+            "same key of other topic completed");
+        Assert.Equal("PROCESSING", (await _table.GetAsync(failing))!.Status);
+        var published = await _kafka.ReadAsync(topic, 2, TimeSpan.FromSeconds(5));
+        Assert.Equal(["same-key"], published.Select(m => Encoding.UTF8.GetString(m.Value)));
+    }
+
+    [Fact]
+    public async Task Relay_EarlierRowOfKeyLeased_HoldsLaterRowOfThatKey()
+    {
+        var topic = await _kafka.CreateTopicAsync();
+        var leased = await _table.SeedAsync(new OutboxSeed
+            { Topic = topic, Key = "a", Status = "PROCESSING", Attempts = 1, ProcessedAt = DateTimeOffset.UtcNow });
+        var held = await _table.SeedAsync(new OutboxSeed { Topic = topic, Key = "a", Payload = Bytes("held") });
+        var other = await _table.SeedAsync(new OutboxSeed { Topic = topic, Key = "b", Payload = Bytes("other") });
+
+        await StartRelayAsync(_kafkaFixture.BootstrapAddress);
+
         await Wait.UntilAsync(async () => (await _table.GetAsync(other))!.Status == "COMPLETED", "other key completed");
-        var failingRow = await _table.GetAsync(failing);
         var heldRow = await _table.GetAsync(held);
-        Assert.Equal("PROCESSING", failingRow!.Status);
-        Assert.Equal("PROCESSING", heldRow!.Status);
+        Assert.Equal("PENDING", heldRow!.Status);
+        Assert.Equal(0, heldRow.Attempts);
+        Assert.Equal("PROCESSING", (await _table.GetAsync(leased))!.Status);
         var published = await _kafka.ReadAsync(topic, 2, TimeSpan.FromSeconds(5));
         Assert.Equal(["other"], published.Select(m => Encoding.UTF8.GetString(m.Value)));
+    }
+
+    [Fact]
+    public async Task Relay_KeyBacklog_DrainsWithoutWaitingForPollInterval()
+    {
+        var topic = await _kafka.CreateTopicAsync();
+        const int count = 20;
+        for (var i = 0; i < count; i++)
+            await _table.SeedAsync(new OutboxSeed { Topic = topic, Key = "a", Payload = Bytes($"m-{i}") });
+
+        await StartRelayAsync(_kafkaFixture.BootstrapAddress, pollInterval: TimeSpan.FromMinutes(5));
+
+        await Wait.UntilAsync(async () => (await _table.GetAllAsync()).All(r => r.Status == "COMPLETED"),
+            "backlog drained");
+        var messages = await _kafka.ReadAsync(topic, count);
+        Assert.Equal(Enumerable.Range(0, count).Select(i => $"m-{i}"),
+            messages.Select(m => Encoding.UTF8.GetString(m.Value)));
     }
 
     [Fact]
@@ -168,7 +202,7 @@ public abstract class OutboxDispatchServiceTestsBase : IAsyncLifetime
     }
 
     private async Task StartRelayAsync(string bootstrapServers, string? connectionString = null,
-        int messageTimeoutMs = 10_000, int maxAttempts = 3)
+        int messageTimeoutMs = 10_000, int maxAttempts = 3, TimeSpan? pollInterval = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -176,7 +210,7 @@ public abstract class OutboxDispatchServiceTestsBase : IAsyncLifetime
         AddPersistence(services, connectionString ?? _db.ConnectionString);
         services.AddMessaging(b => AddOutbox(b, o =>
         {
-            o.PollInterval = TimeSpan.FromMilliseconds(200);
+            o.PollInterval = pollInterval ?? TimeSpan.FromMilliseconds(200);
             o.LeaseMinutes = 1;
             o.MaxAttempts = maxAttempts;
         }), o =>

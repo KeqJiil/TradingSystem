@@ -9,11 +9,18 @@ internal class OutboxReader(ITransactionContext context)
     {
         var sql = """
                     ;WITH cte AS (
-                        SELECT TOP(@Amount) *
-                        FROM messaging.outbox WITH (ROWLOCK, UPDLOCK, READPAST)
-                        WHERE status IN ('PENDING', 'PROCESSING')
-                            AND (processed_at IS NULL OR processed_at <= DATEADD(MINUTE, -@LeaseMinutes, SYSDATETIMEOFFSET()))
-                        ORDER BY id
+                        SELECT TOP(@Amount) o.*
+                        FROM messaging.outbox AS o WITH (ROWLOCK, UPDLOCK, READPAST)
+                        WHERE o.status IN ('PENDING', 'PROCESSING')
+                            AND (o.processed_at IS NULL OR o.processed_at <= DATEADD(MINUTE, -@LeaseMinutes, SYSDATETIMEOFFSET()))
+                            AND NOT EXISTS (
+                                SELECT 1
+                                FROM messaging.outbox AS earlier
+                                WHERE earlier.topic = o.topic
+                                    AND earlier.message_key = o.message_key
+                                    AND earlier.id < o.id
+                                    AND earlier.status IN ('PENDING', 'PROCESSING'))
+                        ORDER BY o.id
                             )
                     UPDATE cte
                     SET status = 'PROCESSING', processed_at = SYSDATETIMEOFFSET(),
