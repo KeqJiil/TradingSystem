@@ -15,6 +15,7 @@ public abstract class OutboxDispatchServiceTestsBase : IAsyncLifetime
     private readonly KafkaReader _kafka;
     private readonly CapturingLogger<OutboxDispatchService> _logger = new();
     private readonly List<(ServiceProvider Provider, OutboxDispatchService Relay)> _relays = [];
+    private readonly List<OutboxAgeSampler> _samplers = [];
 
     protected OutboxDispatchServiceTestsBase(MssqlFixtureBase db, KafkaFixture kafka)
     {
@@ -37,6 +38,9 @@ public abstract class OutboxDispatchServiceTestsBase : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        foreach (var sampler in _samplers)
+            await sampler.StopAsync(CancellationToken.None);
+
         foreach (var (provider, relay) in _relays)
         {
             await relay.StopAsync(CancellationToken.None);
@@ -228,6 +232,36 @@ public abstract class OutboxDispatchServiceTestsBase : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Relay_AgeMetricConfigured_ReportsAgeOfOldestUnfinishedRow()
+    {
+        using var metrics = new MetricRecorder();
+        var now = DateTimeOffset.UtcNow;
+        await _table.SeedAsync(new OutboxSeed
+        {
+            Status = "PROCESSING", Attempts = 1, ProcessedAt = now, CreatedAt = now.AddMinutes(-10)
+        });
+
+        await StartRelayAsync(_kafkaFixture.BootstrapAddress, ageMetricInterval: TimeSpan.FromMilliseconds(200));
+
+        await Wait.UntilAsync(() =>
+        {
+            metrics.Observe();
+            return Task.FromResult(metrics.For("messaging.outbox.oldest_age").Any(m => m.Value >= 590));
+        }, "oldest age reported");
+    }
+
+    [Fact]
+    public async Task Relay_AgeMetricNotConfigured_DoesNotReportAge()
+    {
+        using var metrics = new MetricRecorder();
+
+        await StartRelayAsync(_kafkaFixture.BootstrapAddress);
+
+        metrics.Observe();
+        Assert.Empty(metrics.For("messaging.outbox.oldest_age"));
+    }
+
+    [Fact]
     public async Task Relay_DatabaseUnavailable_KeepsRunningAndRecoversWhenDatabaseAppears()
     {
         var connectionString = new SqlConnectionStringBuilder(_db.NewDatabaseConnectionString()) { Pooling = false }
@@ -247,7 +281,8 @@ public abstract class OutboxDispatchServiceTestsBase : IAsyncLifetime
     }
 
     private async Task StartRelayAsync(string bootstrapServers, string? connectionString = null,
-        int messageTimeoutMs = 10_000, int maxAttempts = 3, TimeSpan? pollInterval = null)
+        int messageTimeoutMs = 10_000, int maxAttempts = 3, TimeSpan? pollInterval = null,
+        TimeSpan? ageMetricInterval = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -258,6 +293,7 @@ public abstract class OutboxDispatchServiceTestsBase : IAsyncLifetime
             o.PollInterval = pollInterval ?? TimeSpan.FromMilliseconds(200);
             o.LeaseMinutes = 1;
             o.MaxAttempts = maxAttempts;
+            o.AgeMetricInterval = ageMetricInterval;
         }), o =>
         {
             o.BootstrapServers = bootstrapServers;
@@ -269,6 +305,11 @@ public abstract class OutboxDispatchServiceTestsBase : IAsyncLifetime
         var relay = provider.GetServices<IHostedService>().OfType<OutboxDispatchService>().Single();
         _relays.Add((provider, relay));
         await relay.StartAsync(CancellationToken.None);
+
+        var sampler = provider.GetServices<IHostedService>().OfType<OutboxAgeSampler>().SingleOrDefault();
+        if (sampler is null) return;
+        _samplers.Add(sampler);
+        await sampler.StartAsync(CancellationToken.None);
     }
 
     private static double Dispatched(MetricRecorder metrics, string topic, string outcome) =>

@@ -28,8 +28,16 @@ public class OutboxRelayOptions
     /// </summary>
     public int MaxAttempts { get; set; } = 3;
 
+    /// <summary>
+    /// Gets or sets how often the age of the oldest unfinished row is sampled for the
+    /// <c>messaging.outbox.oldest_age</c> metric. The metric is disabled when not set.
+    /// </summary>
+    public TimeSpan? AgeMetricInterval { get; set; }
+
     internal void Validate()
     {
+        if (AgeMetricInterval <= TimeSpan.Zero)
+            throw new InvalidOperationException($"{nameof(AgeMetricInterval)} must be greater than zero.");
         if (PollInterval <= TimeSpan.Zero)
             throw new InvalidOperationException($"{nameof(PollInterval)} must be greater than zero.");
         if (BatchSize < 1)

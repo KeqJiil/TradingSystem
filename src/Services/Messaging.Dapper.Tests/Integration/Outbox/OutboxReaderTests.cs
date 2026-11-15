@@ -154,6 +154,33 @@ public class OutboxReaderTests(MssqlFixture db) : IClassFixture<MssqlFixture>, I
     }
 
     [Fact]
+    public async Task GetOldestUnfinishedAt_NoUnfinishedRows_ReturnsNull()
+    {
+        await _table.SeedAsync(new OutboxSeed { Status = "COMPLETED" });
+        await _table.SeedAsync(new OutboxSeed { Status = "DEAD" });
+
+        var result = await _sut.GetOldestUnfinishedAtAsync(CancellationToken.None);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetOldestUnfinishedAt_UnfinishedRows_ReturnsCreatedAtOfEarliestUnfinishedRow()
+    {
+        var now = DateTimeOffset.UtcNow;
+        await _table.SeedAsync(new OutboxSeed { Status = "COMPLETED", CreatedAt = now.AddHours(-1) });
+        await _table.SeedAsync(new OutboxSeed
+        {
+            Status = "PROCESSING", Attempts = 1, ProcessedAt = now.AddSeconds(-10), CreatedAt = now.AddMinutes(-10)
+        });
+        await _table.SeedAsync(new OutboxSeed { CreatedAt = now.AddMinutes(-5) });
+
+        var result = await _sut.GetOldestUnfinishedAtAsync(CancellationToken.None);
+
+        Assert.Equal(now.AddMinutes(-10), result!.Value, TimeSpan.FromMilliseconds(10));
+    }
+
+    [Fact]
     public async Task GetPending_ReturnedRow_CarriesStoredData()
     {
         var seed = new OutboxSeed

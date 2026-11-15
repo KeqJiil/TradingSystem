@@ -30,6 +30,16 @@ public sealed class MetricRecorder : IDisposable
                 .ToList();
     }
 
+    public IReadOnlyList<RecordedMeasurement> For(string instrument)
+    {
+        lock (_measurements) return _measurements.Where(m => m.Instrument == instrument).ToList();
+    }
+
+    public void Observe()
+    {
+        _listener.RecordObservableInstruments();
+    }
+
     public void Dispose()
     {
         _listener.Dispose();

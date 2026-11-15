@@ -45,4 +45,14 @@ internal class OutboxReader<TContext>(TContext dbContext) where TContext : DbCon
             )
         ).ToList().AsReadOnly();
     }
+    
+    public Task<DateTimeOffset?> GetOldestUnfinishedAtAsync(CancellationToken ct)
+    {
+        return dbContext
+            .Set<OutboxEntity>()
+            .Where(e => e.Status == OutboxStatus.Pending || e.Status == OutboxStatus.Processing)
+            .OrderBy(e => e.Id)
+            .Select(e => (DateTimeOffset?) e.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+    }
 }

@@ -37,4 +37,19 @@ internal class OutboxReader(ITransactionContext context)
             new { Amount = amount, LeaseMinutes = leaseMinutes }, context.Transaction, cancellationToken: ct));
         return rows.Select(r => r.ToData()).OrderBy(r => r.Id).ToList().AsReadOnly();
     }
+
+    public async Task<DateTimeOffset?> GetOldestUnfinishedAtAsync(CancellationToken ct)
+    {
+        var sql = """
+                    SELECT TOP(1) created_at
+                    FROM messaging.outbox
+                    WHERE status IN ('PENDING', 'PROCESSING')
+                    ORDER BY id
+                  """;
+
+        await context.EnsureConnectionOpenAsync(ct);
+
+        return await context.Connection.QuerySingleOrDefaultAsync<DateTimeOffset?>(
+            new CommandDefinition(sql, transaction: context.Transaction, cancellationToken: ct));
+    }
 }
