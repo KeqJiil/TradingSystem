@@ -52,7 +52,8 @@ public static class MessagingExtension
                 .AddMessage<OrderCanceledReport>(executionReports, serializer)
                 .AddMessage<CancelRejectedReport>(executionReports, serializer);
 
-            var executionReportsConsumer = new ConsumerOptions(executionReports, "order-execution-reports-group");
+            var executionReportsConsumer = new ConsumerOptions(executionReports, "order-execution-reports-group")
+                { MaxAttempts = kafka.ExecutionReportsMaxAttempts };
             cfg.AddConsumer<OrderAcceptedReport, OrderAcceptedConsumer>(executionReportsConsumer)
                 .AddConsumer<OrderRejectedReport, OrderRejectedConsumer>(executionReportsConsumer)
                 .AddConsumer<FillReport, FillConsumer>(executionReportsConsumer)
