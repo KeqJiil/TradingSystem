@@ -27,7 +27,7 @@ public static class MessagingExtension
         services.AddSingleton<IDomainEventTranslator, DomainEventTranslator>();
         services.AddMessaging(cfg =>
         {
-            cfg.AddOutbox<OrderDbContext>();
+            cfg.AddOutbox<OrderDbContext>(o => o.AgeMetricInterval = kafka.OutboxAgeMetricInterval);
             cfg.AddInbox<OrderDbContext>();
             
             cfg.AddExceptionHandling();

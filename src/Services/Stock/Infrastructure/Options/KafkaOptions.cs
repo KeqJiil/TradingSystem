@@ -11,4 +11,11 @@ public class KafkaOptions
 
     [Required(AllowEmptyStrings = false)]
     public string ProducerClientId { get; set; } = null!;
+
+    public TimeSpan MaxRetryDelay { get; set; } = TimeSpan.FromSeconds(30);
+
+    [Range(1, int.MaxValue)]
+    public int ReadModelMaxAttempts { get; set; } = 10;
+
+    public TimeSpan OutboxAgeMetricInterval { get; set; } = TimeSpan.FromSeconds(15);
 }

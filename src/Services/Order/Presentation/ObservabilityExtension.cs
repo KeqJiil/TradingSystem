@@ -25,7 +25,7 @@ public static class ObservabilityBuilder
             })
             .WithMetrics(metrics =>
             {
-                metrics.AddMeter(OrderTelemetry.SourceName)
+                metrics.AddMeter(OrderTelemetry.SourceName, global::Messaging.MessagingTelemetry.MeterName)
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation();

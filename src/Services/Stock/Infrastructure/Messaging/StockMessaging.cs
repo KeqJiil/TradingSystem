@@ -13,8 +13,6 @@ namespace Stock.Infrastructure.Messaging;
 
 public static class StockMessaging
 {
-    private const int ReadModelMaxAttempts = 15;
-
     public static void AddStockMessaging(this WebApplicationBuilder builder,
         Action<IMessagingBuilder>? configure = null)
     {
@@ -23,7 +21,7 @@ public static class StockMessaging
 
         builder.Services.AddMessaging(b =>
         {
-            b.AddOutbox();
+            b.AddOutbox(o => o.AgeMetricInterval = kafka.OutboxAgeMetricInterval);
             b.AddExceptionHandling();
             b.AddTracing();
             b.Services.AddSingleton<IExceptionToOutcome, StockExceptionToOutcome>();
@@ -51,23 +49,24 @@ public static class StockMessaging
                 new ConsumerOptions(StockTopic.StockCreated.Name(), "stock-created-events-group"));
             b.AddConsumer<Application.Events.StockToggledStatusEvent, StockToggleStatusEventConsumer>(
                 new ConsumerOptions(StockTopic.StockStatusToggled.Name(), "stock-toggle-events-group")
-                    { MaxAttempts = ReadModelMaxAttempts });
+                    { MaxAttempts = kafka.ReadModelMaxAttempts });
             b.AddConsumer<Application.Events.PriceChangedEvent, PriceChangedConsumer>(
                 new ConsumerOptions(StockTopic.Price.Name(), "price-change-events-group"));
             b.AddConsumer<Proto.PriceChangeRequestedEvent, PriceChangeRequestedConsumer>(
                 new ConsumerOptions(StockTopic.PriceChangeRequested.Name(), "price-change-requested-events-group"));
             b.AddConsumer<Application.Events.NameChangedEvent, NameChangedConsumer>(
                 new ConsumerOptions(StockTopic.StockNameChanged.Name(), "name-change-events-group")
-                    { MaxAttempts = ReadModelMaxAttempts });
+                    { MaxAttempts = kafka.ReadModelMaxAttempts });
             b.AddConsumer<Application.Events.TimeChangedEvent, TimeChangedConsumer>(
                 new ConsumerOptions(StockTopic.StockTradingTimeChanged.Name(), "time-change-events-group")
-                    { MaxAttempts = ReadModelMaxAttempts });
+                    { MaxAttempts = kafka.ReadModelMaxAttempts });
 
             configure?.Invoke(b);
         }, o =>
         {
             o.BootstrapServers = kafka.BootstrapServers;
             o.ProducerClientId = kafka.ProducerClientId;
+            o.MaxRetryDelay = kafka.MaxRetryDelay;
         });
     }
 }
