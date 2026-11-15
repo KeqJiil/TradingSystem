@@ -183,6 +183,51 @@ public abstract class OutboxDispatchServiceTestsBase : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Relay_PublishedRows_CountsDispatchedAsPublished()
+    {
+        using var metrics = new MetricRecorder();
+        var topic = await _kafka.CreateTopicAsync();
+        for (var i = 0; i < 3; i++)
+            await _table.SeedAsync(new OutboxSeed { Topic = topic, Key = $"key-{i}", Payload = Bytes($"m-{i}") });
+
+        await StartRelayAsync(_kafkaFixture.BootstrapAddress);
+
+        await Wait.UntilAsync(() => Task.FromResult(Dispatched(metrics, topic, "published") == 3),
+            "three rows counted as published");
+        Assert.Equal(0, Dispatched(metrics, topic, "failed") + Dispatched(metrics, topic, "dead"));
+    }
+
+    [Fact]
+    public async Task Relay_BrokerUnreachable_CountsDispatchedAsFailed()
+    {
+        using var metrics = new MetricRecorder();
+        var topic = $"unreachable-{Guid.NewGuid():N}";
+        await _table.SeedAsync(new OutboxSeed { Topic = topic });
+
+        await StartRelayAsync("localhost:1", messageTimeoutMs: 2_000);
+
+        await Wait.UntilAsync(() => Task.FromResult(Dispatched(metrics, topic, "failed") == 1),
+            "row counted as failed");
+        Assert.Equal(0, Dispatched(metrics, topic, "published") + Dispatched(metrics, topic, "dead"));
+    }
+
+    [Fact]
+    public async Task Relay_PayloadTooLarge_CountsDispatchedAsDeadAndNextAsPublished()
+    {
+        using var metrics = new MetricRecorder();
+        var topic = await _kafka.CreateTopicAsync();
+        await _table.SeedAsync(new OutboxSeed { Topic = topic, Key = "a", Payload = new byte[2_000_000] });
+        await _table.SeedAsync(new OutboxSeed { Topic = topic, Key = "a", Payload = Bytes("next") });
+
+        await StartRelayAsync(_kafkaFixture.BootstrapAddress);
+
+        await Wait.UntilAsync(
+            () => Task.FromResult(Dispatched(metrics, topic, "dead") == 1 &&
+                                  Dispatched(metrics, topic, "published") == 1),
+            "one row counted as dead and one as published");
+    }
+
+    [Fact]
     public async Task Relay_DatabaseUnavailable_KeepsRunningAndRecoversWhenDatabaseAppears()
     {
         var connectionString = new SqlConnectionStringBuilder(_db.NewDatabaseConnectionString()) { Pooling = false }
@@ -225,6 +270,11 @@ public abstract class OutboxDispatchServiceTestsBase : IAsyncLifetime
         _relays.Add((provider, relay));
         await relay.StartAsync(CancellationToken.None);
     }
+
+    private static double Dispatched(MetricRecorder metrics, string topic, string outcome) =>
+        metrics.For("messaging.outbox.dispatched", topic)
+            .Where(m => Equals(m.Tags["messaging.outbox.outcome"], outcome))
+            .Sum(m => m.Value);
 
     private bool HasLog(LogLevel level, string text)
     {

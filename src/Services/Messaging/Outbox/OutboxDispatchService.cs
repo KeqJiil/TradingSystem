@@ -104,6 +104,13 @@ internal class OutboxDispatchService : BackgroundService
                 outcome = DispatchOutcome.Exhausted;
             }
 
+            MessagingMetrics.RecordDispatched(message.Topic, outcome switch
+            {
+                DispatchOutcome.Published => "published",
+                DispatchOutcome.Failed => "failed",
+                _ => "dead"
+            });
+
             if (outcome == DispatchOutcome.Failed) break;
 
             (outcome == DispatchOutcome.Published ? completed : dead).Add(message.Id);
