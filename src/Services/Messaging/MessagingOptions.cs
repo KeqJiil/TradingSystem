@@ -44,6 +44,11 @@ public class MessagingOptions
     public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
 
     /// <summary>
+    /// Gets or sets the upper bound of the pause before a failed message is read again; the pause doubles with each attempt.
+    /// </summary>
+    public TimeSpan MaxRetryDelay { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
     /// Gets or sets the partition count for topics that are not listed in <see cref="Topics"/>.
     /// </summary>
     public int DefaultNumPartitions { get; set; } = 1;
@@ -68,6 +73,8 @@ public class MessagingOptions
             throw new InvalidOperationException($"{nameof(MaxAttempts)} must be at least 1.");
         if (RetryDelay < TimeSpan.Zero)
             throw new InvalidOperationException($"{nameof(RetryDelay)} must not be negative.");
+        if (MaxRetryDelay < RetryDelay)
+            throw new InvalidOperationException($"{nameof(MaxRetryDelay)} must not be less than {nameof(RetryDelay)}.");
         if (DefaultNumPartitions < 1)
             throw new InvalidOperationException($"{nameof(DefaultNumPartitions)} must be at least 1.");
         if (DefaultReplicationFactor < 1)
