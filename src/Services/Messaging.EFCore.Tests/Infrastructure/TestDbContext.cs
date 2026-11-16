@@ -9,5 +9,11 @@ public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(
     {
         modelBuilder.RegisterOutbox();
         modelBuilder.RegisterInbox();
+        modelBuilder.Entity<ProbeEntity>(b =>
+        {
+            b.ToTable("probe");
+            b.HasKey(x => x.Key);
+            b.Property(x => x.Key).HasMaxLength(100);
+        });
     }
 }

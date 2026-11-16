@@ -1,4 +1,5 @@
 using Messaging.Abstractions;
+using Messaging.EFCore.Persistence;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -29,8 +30,7 @@ internal class InboxMiddleware<TContext>(
         {
             result = await next();
         }
-        catch (DbUpdateException ex) when (ex.InnerException is SqlException sqlEx && sqlEx.Number == 2627 &&
-                                           ex.Entries.Any(e => e.Entity is InboxEntity))
+        catch (DbUpdateException ex) when (IsInboxDuplicate(ex))
         {
             return new ConsumeOutcome(MessageConsumeResult.Success);
         }
@@ -57,11 +57,17 @@ internal class InboxMiddleware<TContext>(
             inboxState.Added = false;
             await dbContext.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException ex) when (ex.InnerException is SqlException sqlEx && sqlEx.Number == 2627)
+        catch (DbUpdateException ex) when (IsInboxDuplicate(ex))
         {
             return result;
         }
 
         return result;
+    }
+
+    private static bool IsInboxDuplicate(DbUpdateException ex)
+    {
+        return ex.InnerException is SqlException { Number: 2627 } sqlEx &&
+               sqlEx.Message.Contains($"'{InboxConfiguration.PrimaryKeyName}'", StringComparison.Ordinal);
     }
 }
