@@ -3,6 +3,7 @@ using Messaging.Abstractions;
 using Messaging.EFCore.Inbox;
 using Messaging.EFCore.Outbox;
 using Messaging.EFCore.Tests.Infrastructure;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -209,6 +210,24 @@ public class InboxMiddlewareTests(MssqlFixture db) : IClassFixture<MssqlFixture>
     }
 
     [Fact]
+    public async Task OnDelivery_HandlerViolatesOwnPrimaryKey_PropagatesAndLeavesNoRows()
+    {
+        var id = NewId();
+        await SeedProbeAsync(id);
+
+        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => DeliverAsync(id, Group, async sp =>
+        {
+            var context = sp.GetRequiredService<TestDbContext>();
+            context.Add(new ProbeEntity { Key = id });
+            await context.SaveChangesAsync();
+            return Success;
+        }));
+
+        Assert.Equal(2627, Assert.IsType<SqlException>(ex.InnerException).Number);
+        Assert.Equal(0, await CountInboxAsync(id, Group));
+    }
+
+    [Fact]
     public async Task OnDelivery_SameMessageIdInDifferentGroups_ProcessedInBoth()
     {
         var id = NewId();
@@ -288,6 +307,12 @@ public class InboxMiddlewareTests(MssqlFixture db) : IClassFixture<MssqlFixture>
         await using var connection = await db.OpenConnectionAsync();
         await connection.ExecuteAsync("INSERT INTO messaging.inbox (consumer_group, message_id) VALUES (@Group, @Id)",
             new { Group = group, Id = messageId });
+    }
+
+    private async Task SeedProbeAsync(string key)
+    {
+        await using var connection = await db.OpenConnectionAsync();
+        await connection.ExecuteAsync("INSERT INTO probe ([Key]) VALUES (@Key)", new { Key = key });
     }
 
     private async Task<int> CountEffectsAsync(string messageId)

@@ -6,11 +6,13 @@ namespace Messaging.EFCore.Persistence;
 
 internal class InboxConfiguration : IEntityTypeConfiguration<InboxEntity>
 {
+    internal const string PrimaryKeyName = "pk_inbox";
+
     public void Configure(EntityTypeBuilder<InboxEntity> builder)
     {
         builder.ToTable("inbox", "messaging");
 
-        builder.HasKey(x => new { x.ConsumerGroup, x.MessageId }).HasName("pk_inbox");
+        builder.HasKey(x => new { x.ConsumerGroup, x.MessageId }).HasName(PrimaryKeyName);
 
         builder.Property(x => x.ConsumerGroup)
             .HasColumnName("consumer_group")
