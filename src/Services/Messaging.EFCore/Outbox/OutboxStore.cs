@@ -11,6 +11,11 @@ internal class OutboxStore<TContext>(OutboxWriter<TContext> writer, OutboxReader
         return reader.GetPendingAsync(amount, leaseMinutes, ct);
     }
 
+    public Task<DateTimeOffset?> GetOldestUnfinishedAtAsync(CancellationToken ct)
+    {
+        return reader.GetOldestUnfinishedAtAsync(ct);
+    }
+
     public ValueTask MarkCompletedAsync(IReadOnlyList<long> completedIds, IReadOnlyList<long> deadIds,
         CancellationToken ct)
     {

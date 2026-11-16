@@ -11,7 +11,9 @@ public class OutboxRelayOptionsTests
         { nameof(OutboxRelayOptions.BatchSize), o => o.BatchSize = 0 },
         { nameof(OutboxRelayOptions.MaxParallelKeys), o => o.MaxParallelKeys = 0 },
         { nameof(OutboxRelayOptions.LeaseMinutes), o => o.LeaseMinutes = 0 },
-        { nameof(OutboxRelayOptions.MaxAttempts), o => o.MaxAttempts = 0 }
+        { nameof(OutboxRelayOptions.MaxAttempts), o => o.MaxAttempts = 0 },
+        { nameof(OutboxRelayOptions.AgeMetricInterval), o => o.AgeMetricInterval = TimeSpan.Zero },
+        { nameof(OutboxRelayOptions.AgeMetricInterval), o => o.AgeMetricInterval = TimeSpan.FromSeconds(-1) }
     };
 
     [Fact]

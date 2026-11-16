@@ -32,6 +32,7 @@ internal class OutboxConfiguration : IEntityTypeConfiguration<OutboxEntity>
         builder.HasIndex(x => x.Id).IncludeProperties(x => x.ProcessedAt)
             .HasFilter("[status] IN ('Pending', 'Processing')").HasDatabaseName("idx_outbox_pending");
         builder.HasIndex(x => x.CreatedAt).HasFilter("[status] = 'Completed'").HasDatabaseName("idx_outbox_completed");
+        builder.HasIndex(x => new { x.Topic, x.MessageKey, x.Id }).HasFilter("[status] IN ('Pending', 'Processing')").HasDatabaseName("idx_outbox_unfinished_key");
     }
 }
 

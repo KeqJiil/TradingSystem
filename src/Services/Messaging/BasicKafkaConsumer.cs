@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Confluent.Kafka;
 using Messaging.Abstractions;
@@ -93,7 +94,10 @@ internal class BasicKafkaConsumer(
                 continue;
             }
 
+            var started = Stopwatch.GetTimestamp();
             var result = await consumerBinding.Dispatch.Invoke(scope.ServiceProvider, rawMessage, stoppingToken);
+            MessagingMetrics.RecordProcessed(consumeMessage.Topic, groupId, messageType, result.Kind,
+                Stopwatch.GetElapsedTime(started));
 
             switch (result.Kind)
             {
@@ -105,13 +109,15 @@ internal class BasicKafkaConsumer(
                     var maxAttempts = consumerBinding.Options.MaxAttempts ?? options.MaxAttempts;
                     if (attempt < maxAttempts)
                     {
+                        var retryDelay = RetryBackoff.For(attempt, options.RetryDelay, options.MaxRetryDelay);
                         logger.LogWarning(
                             "Failed to process a message from {Topic} at {Offset}, attempt {Attempt}/{MaxAttempts}, retrying after {RetryDelay}",
                             consumeMessage.Topic, consumeMessage.Offset.Value, attempt, maxAttempts,
-                            options.RetryDelay);
+                            retryDelay);
+                        MessagingMetrics.RecordRetry(consumeMessage.Topic, groupId, messageType);
 
                         Seek(consumeMessage.TopicPartitionOffset);
-                        await Task.Delay(options.RetryDelay, stoppingToken);
+                        await Task.Delay(retryDelay, stoppingToken);
                     }
                     else
                     {
@@ -149,6 +155,7 @@ internal class BasicKafkaConsumer(
 
         if (parked)
         {
+            MessagingMetrics.RecordDeadLetter(consumed.Topic, groupId, reason);
             StoreOffset(consumed.TopicPartitionOffset);
             return;
         }

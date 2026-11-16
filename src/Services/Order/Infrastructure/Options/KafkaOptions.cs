@@ -11,4 +11,9 @@ public class KafkaOptions
 
     [Required(AllowEmptyStrings = false)]
     public string ProducerClientId { get; set; } = null!;
+
+    [Range(1, int.MaxValue)]
+    public int ExecutionReportsMaxAttempts { get; set; } = 10;
+
+    public TimeSpan OutboxAgeMetricInterval { get; set; } = TimeSpan.FromSeconds(15);
 }

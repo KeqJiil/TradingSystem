@@ -27,7 +27,7 @@ public static class MessagingExtension
         services.AddSingleton<IDomainEventTranslator, DomainEventTranslator>();
         services.AddMessaging(cfg =>
         {
-            cfg.AddOutbox<OrderDbContext>();
+            cfg.AddOutbox<OrderDbContext>(o => o.AgeMetricInterval = kafka.OutboxAgeMetricInterval);
             cfg.AddInbox<OrderDbContext>();
             
             cfg.AddExceptionHandling();
@@ -52,7 +52,8 @@ public static class MessagingExtension
                 .AddMessage<OrderCanceledReport>(executionReports, serializer)
                 .AddMessage<CancelRejectedReport>(executionReports, serializer);
 
-            var executionReportsConsumer = new ConsumerOptions(executionReports, "order-execution-reports-group");
+            var executionReportsConsumer = new ConsumerOptions(executionReports, "order-execution-reports-group")
+                { MaxAttempts = kafka.ExecutionReportsMaxAttempts };
             cfg.AddConsumer<OrderAcceptedReport, OrderAcceptedConsumer>(executionReportsConsumer)
                 .AddConsumer<OrderRejectedReport, OrderRejectedConsumer>(executionReportsConsumer)
                 .AddConsumer<FillReport, FillConsumer>(executionReportsConsumer)

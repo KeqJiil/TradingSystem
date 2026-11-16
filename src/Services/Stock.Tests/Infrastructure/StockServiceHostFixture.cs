@@ -52,7 +52,8 @@ public class StockServiceHostFixture : IAsyncLifetime
         {
             ["ConnectionStrings:DefaultConnection"] = ConnectionString,
             ["KafkaOptions:BootstrapServers"] = BootstrapAddress,
-            ["KafkaOptions:ProducerClientId"] = "stock-tests-producer"
+            ["KafkaOptions:ProducerClientId"] = "stock-tests-producer",
+            ["KafkaOptions:MaxRetryDelay"] = "00:00:01"
         });
 
         builder.AddResilence();

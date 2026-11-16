@@ -79,12 +79,14 @@ public class ModelConfigurationTests(MssqlFixture db) : IClassFixture<MssqlFixtu
     }
 
     [Fact]
-    public async Task OutboxTable_Created_HasFilteredPendingAndCompletedIndexes()
+    public async Task OutboxTable_Created_HasFilteredPendingCompletedAndUnfinishedKeyIndexes()
     {
         Assert.Equal(
         [
             new Index("idx_outbox_completed", "created_at", null, "([status]='Completed')"),
-            new Index("idx_outbox_pending", "id", "processed_at", "([status] IN ('Pending', 'Processing'))")
+            new Index("idx_outbox_pending", "id", "processed_at", "([status] IN ('Pending', 'Processing'))"),
+            new Index("idx_outbox_unfinished_key", "topic,message_key,id", null,
+                "([status] IN ('Pending', 'Processing'))")
         ], await IndexesAsync("messaging.outbox"));
     }
 

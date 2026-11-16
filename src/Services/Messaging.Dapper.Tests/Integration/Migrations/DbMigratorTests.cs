@@ -37,6 +37,6 @@ public class DbMigratorTests(MssqlFixture db) : IClassFixture<MssqlFixture>
         DbMigrator.ApplyMigrations(connectionString, typeof(DbMigratorTests).Assembly, MssqlFixture.LibraryScripts);
 
         await using var connection = await db.OpenConnectionAsync(connectionString);
-        Assert.Equal(2, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SchemaVersions"));
+        Assert.Equal(MssqlFixture.LibraryScripts.Length, await connection.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM SchemaVersions"));
     }
 }

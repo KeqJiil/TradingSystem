@@ -4,5 +4,6 @@ public static class MessagingMigrations
 {
     public static MigrationScript Inbox => EmbeddedMigration.Read("001_Inbox.sql");
     public static MigrationScript Outbox => EmbeddedMigration.Read("002_Outbox.sql");
-    public static MigrationScript[] All => [Inbox, Outbox];
+    public static MigrationScript OutboxKeyOrder => EmbeddedMigration.Read("003_OutboxKeyOrder.sql");
+    public static MigrationScript[] All => [Inbox, Outbox, OutboxKeyOrder];
 }

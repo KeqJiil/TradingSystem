@@ -14,6 +14,7 @@ internal static class RegisterOutboxRelay
         services.AddOptions<OutboxRelayOptions>().Configure(o => configureOptions?.Invoke(o));
         services.AddScoped<IOutboxStore, TStore>();
         services.AddHostedService<OutboxDispatchService>();
+        if (options.AgeMetricInterval is not null) services.AddHostedService<OutboxAgeSampler>();
 
         return services;
     }
