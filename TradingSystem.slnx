@@ -36,6 +36,11 @@
         <File Path="perf/queries/outbox-claim-heads-relay-a.sql" />
         <File Path="perf/queries/outbox-claim-heads-relay-b.sql" />
         <File Path="perf/queries/outbox-claim-heads-include.sql" />
+        <File Path="perf/queries/locks-held.sql" />
+        <File Path="perf/queries/outbox-cleanup-batch.sql" />
+        <File Path="perf/queries/outbox-cleanup-hold.sql" />
+        <File Path="perf/queries/blocking.sql" />
+        <File Path="perf/queries/outbox-cleanup-loop.sql" />
     </Folder>
     <Folder Name="/perf/schema/">
         <File Path="perf/schema/outbox-unfinished-key-include.sql" />
@@ -43,5 +48,6 @@
     <Folder Name="/docs/" />
     <Folder Name="/docs/perf/">
         <File Path="docs/perf/01-outbox-claim.md" />
+        <File Path="docs/perf/02-outbox-cleanup.md" />
     </Folder>
 </Solution>

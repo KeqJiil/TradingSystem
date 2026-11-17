@@ -8,7 +8,7 @@ DECLARE @rows INT = 1000000;
 DECLARE @pending INT = 10000;
 DECLARE @keys INT = 200000;
 DECLARE @batch INT = 100000;
-DECLARE @start DATETIMEOFFSET = DATEADD(DAY, -7, SYSDATETIMEOFFSET());
+DECLARE @now DATETIMEOFFSET = SYSDATETIMEOFFSET();
 
 TRUNCATE TABLE messaging.outbox;
 
@@ -27,8 +27,8 @@ BEGIN
            IIF(g.value > @rows - @pending, 'Pending', 'Completed'),
            c.created_at,
            IIF(g.value > @rows - @pending, NULL, DATEADD(MILLISECOND, 50, c.created_at))
-    FROM GENERATE_SERIES(@from, IIF(@from + @batch - 1 > @rows, @rows, @from + @batch - 1)) AS g
-    CROSS APPLY (SELECT DATEADD(MILLISECOND, CAST(g.value * (604800000.0 / @rows) AS INT), @start) AS created_at) AS c
+    FROM GENERATE_SERIES(@from, LEAST(@from + @batch - 1, @rows)) AS g
+    CROSS APPLY (SELECT DATEADD(SECOND, g.value - @rows, @now) AS created_at) AS c
     ORDER BY g.value;
 
     CHECKPOINT;
