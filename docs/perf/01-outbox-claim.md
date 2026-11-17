@@ -47,6 +47,21 @@ With the lab `INCLUDE (processed_at)` on `idx_outbox_unfinished_key`:
 
 `MIN` + `LOOP JOIN` without `INCLUDE`: 1.7k / 75 ms (hot key), 32.4k / 103 ms (Kafka down). Normal without `INCLUDE` was not measured.
 
+## Cold cache at 5M rows
+
+Hot-key seed with `@rows = 5000000` and `@hot = 500000` (499,999 Pending behind one stuck head, then 10k fresh Pending), lab `INCLUDE` applied. Each run starts with `CHECKPOINT; DBCC DROPCLEANBUFFERS`.
+
+| Query | Logical reads | Read-ahead reads | CPU | Elapsed |
+|---|---|---|---|---|
+| `NOT EXISTS` (current) | 2,545,026 | 418,633 (~3.3 GB) | 7,205 ms | 7.9 s |
+| `MIN` + `LOOP JOIN` | 8,529 | 6,447 (~50 MB) | 308 ms | 0.38 s |
+| `ROW_NUMBER` + `INCLUDE` | 8,257 | 6,455 | 555 ms | 0.63 s |
+
+- Warm, the current query is 2.54M / 6.25 s CPU / 6.9 s elapsed: almost all disk reads were read-ahead on a sequential scan, and on Docker/WSL2 the host file cache likely served them, so lab physical reads are cheaper than production disk.
+- 5× the blocked rows made the current query ~6× more expensive (402k → 2.5M); the head-based query grew 2k → 8.5k, following the size of the unfinished index.
+- Warm-cache numbers understate the current query's worst case: under memory pressure it pulls gigabytes per poll, while the head-based variants touch only the small filtered index.
+- More realistic next step: cap `max server memory` so the table doesn't fit in the buffer pool, instead of dropping the cache before each run.
+
 ## Correctness
 
 - Two relays (`perf/queries/outbox-claim-heads-relay-a.sql` holds its transaction open, `…-relay-b.sql` claims concurrently, hot-key data): B took the next 50 heads, `not_heads = 0`, and did not wait for A. B doesn't block because under `READ_COMMITTED_SNAPSHOT` the head search reads the last committed versions, while the claim itself (`UPDLOCK, READPAST`) still locks.
@@ -59,6 +74,7 @@ With the lab `INCLUDE (processed_at)` on `idx_outbox_unfinished_key`:
 - Current query: cost grows with blocked rows; it is the best in the normal case.
 - Head-based variants: cost grows with unfinished rows on every batch; normal case 3 → 18 ms. Hypothesis, not measured: draining a large unblocked backlog becomes close to quadratic.
 - `INCLUDE` cuts reads but not CPU: with data in memory the window function and sort dominate.
+- Cold cache makes the gap wider, not narrower: at 5M rows the current query reads ~3.3 GB from disk per poll in the hot-key case.
 
 ## Decision
 
