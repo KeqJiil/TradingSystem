@@ -85,6 +85,7 @@ Revisit when `matcher-commands-topic` arrives (key = stock, hot keys become real
 ## Reproduce
 
 1. Create the database: `ConnectionStrings__OrderDbConnectionString="Server=localhost,1435;Database=OrderPerf;User Id=sa;Password=…;TrustServerCertificate=True" dotnet ef database update --project src/Services/Order`.
-2. Run a seed from `perf/outbox/seed/`.
-3. Run a query from `perf/outbox/queries/` twice and compare the second run.
-4. For the `INCLUDE` variant, run `perf/outbox/schema/outbox-unfinished-key-include.sql` first.
+2. Run `perf/order/schema/orderperf-options.sql`.
+3. Run a seed from `perf/outbox/seed/`.
+4. Run a query from `perf/outbox/queries/` twice and compare the second run.
+5. For the `INCLUDE` variant, run `perf/outbox/schema/outbox-unfinished-key-include.sql` first.

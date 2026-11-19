@@ -6,7 +6,7 @@ Which Stock queries over `events_store` degrade with a hot stock and a long hist
 
 ## Setup
 
-- Database `StockPerf` in the same SQL Server 2022 container as `OrderPerf`, created by `perf/stock/schema/create-stockperf.sh` (all DbUp migrations). `READ_COMMITTED_SNAPSHOT` off, as Stock never enables it. 16 schedulers.
+- Database `StockPerf` in the same SQL Server 2022 container as `OrderPerf`, created by Stock's own DbUp migrations (Stock schema only; the Messaging outbox/inbox tables were not applied in the measured run). `READ_COMMITTED_SNAPSHOT` off, as Stock never enables it. 16 schedulers.
 - Seed `perf/stock/seed/events-hot-stocks.sql` (~2 min), 4.57M events:
   - 3 hot stocks: 1M events over 7 days + 360k in the last full hour (100/s);
   - 97 cold stocks: 5k + 50;
@@ -74,13 +74,14 @@ Suggested, not applied:
 
 1. Replace the `ListEventsAsync` loop and `GetLastVersionAsync` in `HourlyReadModelWorker` with one candle query in `StockEventStoreReader`.
 2. Measure the Sort-free variant (one window frame, then `version` in the index key) before adding a migration.
-3. Decide whether a candle is ordered by `occured_at` or by `version`; it decides whether `LastVersion` and version-based paging are correct.
+3. Candle semantics (decided): order by `version`, the order Stock accepted events in, the same order the price projection applies them; bucket hours by server time (`created_at`), not the client's `occured_at`. A late event then lands in the current hour instead of rewriting a closed candle, and with time monotonic in `version` the last version of an hour becomes a `TOP 1` seek. Today both the worker and `GetLastVersionAsync` filter by `occured_at`. `created_at` defaults to `GETDATE()`; `SYSDATETIMEOFFSET()` is the correct default. No index on `(aggregate_id, created_at)` exists yet.
 
 Longer term, an incremental candle updated on append would remove re-reading events entirely; revisit with the matcher as the price source.
 
 ## Reproduce
 
-1. `perf/stock/schema/create-stockperf.sh`, then `perf/stock/seed/events-hot-stocks.sql`.
-2. Single queries: `perf/stock/queries/*.sql`, run twice; `list-events-page.sql` takes `@page`, `last-version.sql` takes `@hoursBack`.
-3. Full hour: `perf/stock/queries/list-events-drain.sql`.
-4. Candle: `perf/stock/queries/hour-candle.sql`.
+1. Create the database with Stock's migrations: run the service once against it, `ConnectionStrings__DefaultConnection="Server=localhost,1435;Database=StockPerf;User Id=sa;Password=…;TrustServerCertificate=True" dotnet run --project src/Services/Stock`; `DbMigrator.ApplyMigrations` runs before the host starts, stop it after the migration log.
+2. `perf/stock/schema/stockperf-options.sql`, then `perf/stock/seed/events-hot-stocks.sql`.
+3. Single queries: `perf/stock/queries/*.sql`, run twice; `list-events-page.sql` takes `@page`, `last-version.sql` takes `@hoursBack`.
+4. Full hour: `perf/stock/queries/list-events-drain.sql`.
+5. Candle: `perf/stock/queries/hour-candle.sql`.
