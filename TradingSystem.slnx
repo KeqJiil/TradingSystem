@@ -25,25 +25,44 @@
         <Project Path="src/Services/Messaging.Dapper.Tests/Messaging.Dapper.Tests.csproj" />
     </Folder>
     <Folder Name="/perf/" />
-    <Folder Name="/perf/seed/">
-        <File Path="perf/seed/outbox-mostly-completed.sql" />
-        <File Path="perf/seed/outbox-hot-key.sql" />
-        <File Path="perf/seed/outbox-kafka-down.sql" />
+    <Folder Name="/perf/common/">
+        <File Path="perf/common/locks-held.sql" />
+        <File Path="perf/common/blocking.sql" />
     </Folder>
-    <Folder Name="/perf/queries/">
-        <File Path="perf/queries/outbox-claim-efcore.sql" />
-        <File Path="perf/queries/outbox-claim-heads.sql" />
-        <File Path="perf/queries/outbox-claim-heads-relay-a.sql" />
-        <File Path="perf/queries/outbox-claim-heads-relay-b.sql" />
-        <File Path="perf/queries/outbox-claim-heads-include.sql" />
-        <File Path="perf/queries/locks-held.sql" />
-        <File Path="perf/queries/outbox-cleanup-batch.sql" />
-        <File Path="perf/queries/outbox-cleanup-hold.sql" />
-        <File Path="perf/queries/blocking.sql" />
-        <File Path="perf/queries/outbox-cleanup-loop.sql" />
+    <Folder Name="/perf/outbox/" />
+    <Folder Name="/perf/outbox/seed/">
+        <File Path="perf/outbox/seed/outbox-mostly-completed.sql" />
+        <File Path="perf/outbox/seed/outbox-hot-key.sql" />
+        <File Path="perf/outbox/seed/outbox-kafka-down.sql" />
     </Folder>
-    <Folder Name="/perf/schema/">
-        <File Path="perf/schema/outbox-unfinished-key-include.sql" />
+    <Folder Name="/perf/outbox/queries/">
+        <File Path="perf/outbox/queries/outbox-claim-efcore.sql" />
+        <File Path="perf/outbox/queries/outbox-claim-heads.sql" />
+        <File Path="perf/outbox/queries/outbox-claim-heads-relay-a.sql" />
+        <File Path="perf/outbox/queries/outbox-claim-heads-relay-b.sql" />
+        <File Path="perf/outbox/queries/outbox-claim-heads-include.sql" />
+        <File Path="perf/outbox/queries/outbox-cleanup-batch.sql" />
+        <File Path="perf/outbox/queries/outbox-cleanup-hold.sql" />
+        <File Path="perf/outbox/queries/outbox-cleanup-loop.sql" />
+    </Folder>
+    <Folder Name="/perf/outbox/schema/">
+        <File Path="perf/outbox/schema/outbox-unfinished-key-include.sql" />
+    </Folder>
+    <Folder Name="/perf/stock/" />
+    <Folder Name="/perf/stock/schema/">
+        <File Path="perf/stock/schema/stockperf-create.sql" />
+        <File Path="perf/stock/schema/create-stockperf.sh" />
+    </Folder>
+    <Folder Name="/perf/stock/seed/">
+        <File Path="perf/stock/seed/events-hot-stocks.sql" />
+    </Folder>
+    <Folder Name="/perf/stock/queries/">
+        <File Path="perf/stock/queries/append-max-version.sql" />
+        <File Path="perf/stock/queries/list-events-page.sql" />
+        <File Path="perf/stock/queries/list-events-drain.sql" />
+        <File Path="perf/stock/queries/last-version.sql" />
+        <File Path="perf/stock/queries/sum-price-change.sql" />
+        <File Path="perf/stock/queries/hourly-history.sql" />
     </Folder>
     <Folder Name="/docs/" />
     <Folder Name="/docs/perf/">

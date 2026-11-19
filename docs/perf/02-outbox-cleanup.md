@@ -7,7 +7,7 @@ How does the outbox cleanup (`Messaging.EFCore/Outbox/OutboxCleanser.cs`) behave
 ## Setup
 
 - Same lab as [01](01-outbox-claim.md): `OrderPerf`, SQL Server 2022 in Docker, `READ_COMMITTED_SNAPSHOT` on, 16 schedulers.
-- Seed `perf/seed/outbox-mostly-completed.sql`: 1M rows, one row per second, 990k Completed + 10k Pending. ~395k Completed rows are past the 7-day retention.
+- Seed `perf/outbox/seed/outbox-mostly-completed.sql`: 1M rows, one row per second, 990k Completed + 10k Pending. ~395k Completed rows are past the 7-day retention.
 - The statement as reconstructed from `ExecuteDeleteAsync` (not yet checked against an EF log):
 
   ```sql
@@ -26,12 +26,12 @@ How does the outbox cleanup (`Messaging.EFCore/Outbox/OutboxCleanser.cs`) behave
 
 - Each deleted row takes two `KEY X` locks, one per index it lives in.
 - Escalation is attempted at ~5,000 locks per statement, so the limit is ~2.5k rows per batch.
-- At 25k rows (`perf/queries/outbox-cleanup-hold.sql`, transaction left open) the session held no `KEY` locks, only `OBJECT X` — 16 of them, one per lock partition (`cpu_count = 16`). An exclusive table lock is taken on every partition; `IS`/`IX` go to the local partition only.
-- While it was held, another cleanup batch waited with `LCK_M_IX` on `OBJECT: 7:…:6` (`perf/queries/blocking.sql`). The relay claim and Order's `INSERT` also need `IX`, so they stop too. `READPAST` skips locked rows, not table locks; RCSI only helps plain reads.
+- At 25k rows (`perf/outbox/queries/outbox-cleanup-hold.sql`, transaction left open) the session held no `KEY` locks, only `OBJECT X` — 16 of them, one per lock partition (`cpu_count = 16`). An exclusive table lock is taken on every partition; `IS`/`IX` go to the local partition only.
+- While it was held, another cleanup batch waited with `LCK_M_IX` on `OBJECT: 7:…:6` (`perf/common/blocking.sql`). The relay claim and Order's `INSERT` also need `IX`, so they stop too. `READPAST` skips locked rows, not table locks; RCSI only helps plain reads.
 
 ## Committed loop
 
-`perf/queries/outbox-cleanup-loop.sql` repeats the batch with autocommit until a batch is short, as `CleanupAsync` does, and logs reads and time per batch.
+`perf/outbox/queries/outbox-cleanup-loop.sql` repeats the batch with autocommit until a batch is short, as `CleanupAsync` does, and logs reads and time per batch.
 
 | Batch | Batches | Rows | Logical reads | Reads / row | Elapsed |
 |---|---|---|---|---|---|
@@ -57,6 +57,6 @@ Suggested, not applied: `OutboxBatchSize` 200 → 2000 (`Messaging.EFCore/Cleanu
 
 ## Reproduce
 
-1. Run `perf/seed/outbox-mostly-completed.sql`.
-2. Escalation: `perf/queries/outbox-cleanup-hold.sql` with `@batch` set, then `perf/queries/locks-held.sql` and `perf/queries/blocking.sql` from other sessions; `ROLLBACK` in the first one.
-3. Loop: `perf/queries/outbox-cleanup-loop.sql` with `@batch` set; reseed between runs, the loop deletes for real.
+1. Run `perf/outbox/seed/outbox-mostly-completed.sql`.
+2. Escalation: `perf/outbox/queries/outbox-cleanup-hold.sql` with `@batch` set, then `perf/common/locks-held.sql` and `perf/common/blocking.sql` from other sessions; `ROLLBACK` in the first one.
+3. Loop: `perf/outbox/queries/outbox-cleanup-loop.sql` with `@batch` set; reseed between runs, the loop deletes for real.
