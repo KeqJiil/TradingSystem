@@ -63,10 +63,12 @@
         <File Path="perf/stock/queries/last-version.sql" />
         <File Path="perf/stock/queries/sum-price-change.sql" />
         <File Path="perf/stock/queries/hourly-history.sql" />
+        <File Path="perf/stock/queries/hour-candle.sql" />
     </Folder>
     <Folder Name="/docs/" />
     <Folder Name="/docs/perf/">
         <File Path="docs/perf/01-outbox-claim.md" />
         <File Path="docs/perf/02-outbox-cleanup.md" />
+        <File Path="docs/perf/03-stock-events.md" />
     </Folder>
 </Solution>
