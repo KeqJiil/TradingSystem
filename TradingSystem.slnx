@@ -1,27 +1,124 @@
 <Solution>
     <Folder Name="/Solution Items/">
-        <File Path=".gitignore"/>
-        <File Path="compose.yaml"/>
-        <File Path=".env"/>
+        <File Path=".gitignore" />
+        <File Path="compose.yaml" />
+        <File Path=".env" />
     </Folder>
-    <Folder Name="/src/"/>
+    <Folder Name="/src/" />
     <Folder Name="/src/Contracts/">
-        <Project Path="src/Contracts/TradingSystem.Contracts.csproj"/>
+        <Project Path="src/Contracts/TradingSystem.Contracts.csproj">
+            <BuildType Solution="Default|*" Project="Release" />
+            <Build Solution="Default|*" Project="false" />
+        </Project>
     </Folder>
 
-    <Project Path="src\Services\Stock\Stock.csproj"/>
-    <Project Path="src\Services\Stock.Tests\Stock.Tests.csproj"/>
-    <Project Path="src\Services\Order\Order.csproj"/>
-    <Project Path="src\Services\Order.Tests\Order.Tests.csproj"/>
+    <Project Path="src\Services\Stock\Stock.csproj">
+        <BuildType Solution="Default|*" Project="Release" />
+        <Build Solution="Default|*" Project="false" />
+    </Project>
+    <Project Path="src\Services\Stock.Tests\Stock.Tests.csproj">
+        <BuildType Solution="Default|*" Project="Release" />
+        <Build Solution="Default|*" Project="false" />
+    </Project>
+    <Project Path="src\Services\Order\Order.csproj">
+        <BuildType Solution="Default|*" Project="Release" />
+        <Build Solution="Default|*" Project="false" />
+    </Project>
+    <Project Path="src\Services\Order.Tests\Order.Tests.csproj">
+        <BuildType Solution="Default|*" Project="Release" />
+        <Build Solution="Default|*" Project="false" />
+    </Project>
     <Folder Name="/src/Services/">
-        <Project Path="src/Services/Messaging.Abstractions/Messaging.Abstractions.csproj"/>
-        <Project Path="src/Services/Messaging.Dapper/Messaging.Dapper.csproj"/>
-        <Project Path="src/Services/Messaging.EFCore/Messaging.EFCore.csproj"/>
-        <Project Path="src/Services/Messaging.EFCore.Tests/Messaging.EFCore.Tests.csproj"/>
-        <Project Path="src/Services/Messaging/Messaging.csproj"/>
-        <Project Path="src/Services/Messaging.Tests/Messaging.Tests.csproj"/>
-        <Project Path="src/Services/Messaging.Testing/Messaging.Testing.csproj"/>
-        <Project Path="src/Services/Messaging.IntegrationTests/Messaging.IntegrationTests.csproj"/>
-        <Project Path="src/Services/Messaging.Dapper.Tests/Messaging.Dapper.Tests.csproj"/>
+        <Project Path="src/Services/Messaging.Abstractions/Messaging.Abstractions.csproj">
+            <BuildType Solution="Default|*" Project="Release" />
+            <Build Solution="Default|*" Project="false" />
+        </Project>
+        <Project Path="src/Services/Messaging.Dapper/Messaging.Dapper.csproj">
+            <BuildType Solution="Default|*" Project="Release" />
+            <Build Solution="Default|*" Project="false" />
+        </Project>
+        <Project Path="src/Services/Messaging.EFCore/Messaging.EFCore.csproj">
+            <BuildType Solution="Default|*" Project="Release" />
+            <Build Solution="Default|*" Project="false" />
+        </Project>
+        <Project Path="src/Services/Messaging.EFCore.Tests/Messaging.EFCore.Tests.csproj">
+            <BuildType Solution="Default|*" Project="Release" />
+            <Build Solution="Default|*" Project="false" />
+        </Project>
+        <Project Path="src/Services/Messaging/Messaging.csproj">
+            <BuildType Solution="Default|*" Project="Release" />
+            <Build Solution="Default|*" Project="false" />
+        </Project>
+        <Project Path="src/Services/Messaging.Tests/Messaging.Tests.csproj">
+            <BuildType Solution="Default|*" Project="Release" />
+            <Build Solution="Default|*" Project="false" />
+        </Project>
+        <Project Path="src/Services/Messaging.Testing/Messaging.Testing.csproj">
+            <BuildType Solution="Default|*" Project="Release" />
+            <Build Solution="Default|*" Project="false" />
+        </Project>
+        <Project Path="src/Services/Messaging.IntegrationTests/Messaging.IntegrationTests.csproj">
+            <BuildType Solution="Default|*" Project="Release" />
+            <Build Solution="Default|*" Project="false" />
+        </Project>
+        <Project Path="src/Services/Messaging.Dapper.Tests/Messaging.Dapper.Tests.csproj">
+            <BuildType Solution="Default|*" Project="Release" />
+            <Build Solution="Default|*" Project="false" />
+        </Project>
+    </Folder>
+    <Folder Name="/perf/" />
+    <Folder Name="/perf/common/">
+        <File Path="perf/common/locks-held.sql" />
+        <File Path="perf/common/blocking.sql" />
+    </Folder>
+    <Folder Name="/perf/order/" />
+    <Folder Name="/perf/order/schema/">
+        <File Path="perf/order/schema/orderperf-options.sql" />
+    </Folder>
+    <Folder Name="/perf/outbox/" />
+    <Folder Name="/perf/outbox/seed/">
+        <File Path="perf/outbox/seed/outbox-mostly-completed.sql" />
+        <File Path="perf/outbox/seed/outbox-hot-key.sql" />
+        <File Path="perf/outbox/seed/outbox-kafka-down.sql" />
+    </Folder>
+    <Folder Name="/perf/outbox/queries/">
+        <File Path="perf/outbox/queries/outbox-claim-efcore.sql" />
+        <File Path="perf/outbox/queries/outbox-claim-heads.sql" />
+        <File Path="perf/outbox/queries/outbox-claim-heads-relay-a.sql" />
+        <File Path="perf/outbox/queries/outbox-claim-heads-relay-b.sql" />
+        <File Path="perf/outbox/queries/outbox-claim-heads-include.sql" />
+        <File Path="perf/outbox/queries/outbox-cleanup-batch.sql" />
+        <File Path="perf/outbox/queries/outbox-cleanup-hold.sql" />
+        <File Path="perf/outbox/queries/outbox-cleanup-loop.sql" />
+    </Folder>
+    <Folder Name="/perf/outbox/schema/">
+        <File Path="perf/outbox/schema/outbox-unfinished-key-include.sql" />
+    </Folder>
+    <Folder Name="/perf/stock/" />
+    <Folder Name="/perf/stock/schema/">
+        <File Path="perf/stock/schema/stockperf-options.sql" />
+    </Folder>
+    <Folder Name="/perf/stock/seed/">
+        <File Path="perf/stock/seed/events-hot-stocks.sql" />
+    </Folder>
+    <Folder Name="/perf/stock/queries/">
+        <File Path="perf/stock/queries/append-max-version.sql" />
+        <File Path="perf/stock/queries/list-events-page.sql" />
+        <File Path="perf/stock/queries/list-events-drain.sql" />
+        <File Path="perf/stock/queries/last-version.sql" />
+        <File Path="perf/stock/queries/sum-price-change.sql" />
+        <File Path="perf/stock/queries/hourly-history.sql" />
+        <File Path="perf/stock/queries/hour-candle.sql" />
+    </Folder>
+    <Configurations>
+        <BuildType Name="Debug" />
+        <BuildType Name="Default" />
+        <BuildType Name="Release" />
+    </Configurations>
+    <Folder Name="/docs/" />
+    <Folder Name="/docs/perf/">
+        <File Path="docs/perf/01-outbox-claim.md" />
+        <File Path="docs/perf/02-outbox-cleanup.md" />
+        <File Path="docs/perf/03-stock-events.md" />
     </Folder>
 </Solution>
