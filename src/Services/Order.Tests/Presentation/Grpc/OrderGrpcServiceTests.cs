@@ -111,6 +111,18 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
     }
 
     [Fact]
+    public async Task CreateOrder_RepeatedRequest_ReturnsAlreadyExists()
+    {
+        var request = LimitOrderRequest(quantity: 10);
+        await _client.CreateOrderAsync(request, fixture.AuthFor(_userId));
+
+        var exception = await Assert.ThrowsAsync<RpcException>(async () =>
+            await _client.CreateOrderAsync(request, fixture.AuthFor(_userId)));
+
+        Assert.Equal(StatusCode.AlreadyExists, exception.StatusCode);
+    }
+
+    [Fact]
     public async Task GetById_OwnOrder_ReturnsDetails()
     {
         var order = await SeedAsync(NewLimitOrder(_userId));
@@ -185,8 +197,9 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
         Assert.Equal([own.Id.ToString()], response.Orders.Select(o => o.Id));
     }
 
-    private static Proto.CreateOrderRequest LimitOrderRequest(int quantity) => new()
+    private static Proto.CreateOrderRequest LimitOrderRequest(int quantity, Guid? orderId = null) => new()
     {
+        OrderId = (orderId ?? Guid.CreateVersion7()).ToString(),
         Symbol = Proto.Symbol.Test,
         Quantity = quantity,
         OrderSide = Proto.OrderSide.Buy,
@@ -198,7 +211,7 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
     private static OrderAggregate NewLimitOrder(Guid userId)
     {
         var terms = OrderTerms.Create(TimeInForce.Day, OrderType.Limit, Price.Create(12.5m).Value).Value;
-        return OrderAggregate.Create(userId, Symbols.Test, Quantity.Create(10).Value, terms, OrderSide.Buy,
+        return OrderAggregate.Create(Guid.CreateVersion7(), userId, Symbols.Test, Quantity.Create(10).Value, terms, OrderSide.Buy,
             TestOrders.CreatedAt).Value;
     }
 

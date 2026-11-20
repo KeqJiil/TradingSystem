@@ -75,7 +75,7 @@ public class RequestCancelCommandHandlerTests(MssqlFixture fixture) : IClassFixt
     
     private Result<OrderAggregate> CreateOrder(Guid? userId = null, decimal? priceValue = null, int? quantity = null, TimeInForce? timeInForce = null, OrderType? orderType = null, OrderSide? orderSide = null)
     {
-        return OrderAggregate.Create(userId ?? Guid.NewGuid(), 
+        return OrderAggregate.Create(Guid.CreateVersion7(), userId ?? Guid.NewGuid(), 
             Symbols.Test, Quantity.Create(quantity ?? 1).Value, 
             OrderTerms.Create(timeInForce ?? TimeInForce.Gtc, orderType ?? OrderType.Limit, Price.Create(priceValue ?? 100).Value).Value,
             orderSide ?? OrderSide.Buy,

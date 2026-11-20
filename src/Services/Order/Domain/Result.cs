@@ -73,5 +73,6 @@ public enum ErrorType
     Conflict = 1,
     Validation = 2,
     Violation = 3,
-    NotFound = 4
+    NotFound = 4,
+    AlreadyExists = 5
 }

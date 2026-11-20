@@ -18,7 +18,8 @@
 
 ## Conventions
 
-- Handlers return `Result`/`Result<T>`; callers map `ErrorType` to outcomes (Kafka `ConsumeOutcome`, later gRPC status). No exceptions for expected failures, no exception filters.
+- Handlers return `Result`/`Result<T>`; callers map `ErrorType` to outcomes (Kafka `ConsumeOutcome`, gRPC status via `ResultToStatus`). No exceptions for expected failures, no exception filters.
+- Exception: DB conflicts surfacing at commit are mapped by Order's `DbExceptionInterceptor` (unique/PK violation 2627/2601 → `AlreadyExists`, `DbUpdateConcurrencyException` → `Aborted`); don't move them into `Result`.
 - No explanatory comments. Keep changes minimal; no polish on CRUD code.
 - Tests: real dependencies only (`MssqlFixture`, real Persistence implementations) — no Moq, no hand-rolled fakes.
 - Test names: `Method_Condition_Expected`. Scenarios are often drafted as comments in empty test classes; implement each one, and flag vague or contradicting expectations instead of fitting the test to the code.

@@ -13,4 +13,5 @@ message CreateOrderRequest {
     TimeInForce time_in_force = 4;
     OrderType order_type = 5;
     optional string limit_price = 6;
+    string order_id = 7;
 }
