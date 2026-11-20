@@ -22,6 +22,7 @@ public static class ResultToStatus
         {
             ErrorType.Validation => StatusCode.InvalidArgument,
             ErrorType.NotFound => StatusCode.NotFound,
+            ErrorType.AlreadyExists => StatusCode.AlreadyExists,
             ErrorType.Conflict or ErrorType.Violation => StatusCode.FailedPrecondition,
             _ => StatusCode.Internal
         };

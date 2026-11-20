@@ -41,10 +41,14 @@ public class Order : AggregateRoot
     {
     }
 
-    public static Result<Order> Create(Guid userId, Symbols symbol, Quantity quantity, OrderTerms orderTerms,
+    public static Result<Order> Create(Guid orderId, Guid userId, Symbols symbol, Quantity quantity, OrderTerms orderTerms,
         OrderSide side,
         DateTimeOffset now)
     {
+        if (orderId == Guid.Empty)
+            return Result<Order>.Failure(new Error
+                { Message = "Invalid order id.", Type = ErrorType.Validation });
+
         if (!Enum.IsDefined(symbol))
             return Result<Order>.Failure(new Error
                 { Message = "Invalid symbol.", Type = ErrorType.Validation });
@@ -53,11 +57,9 @@ public class Order : AggregateRoot
             return Result<Order>.Failure(new Error
                 { Message = "Invalid order side.", Type = ErrorType.Validation });
 
-        var id = Guid.CreateVersion7();
-
         var order = new Order
         {
-            Id = id,
+            Id = orderId,
             UserId = userId,
             Symbol = symbol,
             Quantity = quantity,
@@ -67,7 +69,7 @@ public class Order : AggregateRoot
             CreatedAt = now
         };
 
-        order.AddDomainEvent(new OrderPlaced(id, userId, symbol, side, quantity, orderTerms, now));
+        order.AddDomainEvent(new OrderPlaced(orderId, userId, symbol, side, quantity, orderTerms, now));
 
         return Result<Order>.Success(order);
     }

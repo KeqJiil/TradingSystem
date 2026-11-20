@@ -42,7 +42,8 @@ public class TracingPropagationTests(MssqlFixture fixture) : IClassFixture<Mssql
             Side: OrderSide.Buy,
             TimeInForce: TimeInForce.Gtc,
             Type: OrderType.Limit,
-            LimitPrice: 100m));
+            LimitPrice: 100m,
+            OrderId: Guid.CreateVersion7()));
 
         Assert.True(result.IsSuccess);
         var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderPlacedEvent>(result.Value.ToString()));

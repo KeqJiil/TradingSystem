@@ -22,7 +22,7 @@ public class PlaceOrderCommandHandler(IOrderRepository repository, IUnitOfWork u
         if (quantity.IsFailure)
             return quantity.Error;
 
-        var order = OrderAggregate.Create(request.UserId, request.Symbol, quantity.Value, orderTerms.Value, request.Side, timeProvider.GetUtcNow());
+        var order = OrderAggregate.Create(request.OrderId, request.UserId, request.Symbol, quantity.Value, orderTerms.Value, request.Side, timeProvider.GetUtcNow());
         if (order.IsFailure)
             return order.Error;
 

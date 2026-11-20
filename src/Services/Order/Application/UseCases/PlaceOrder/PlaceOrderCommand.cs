@@ -11,4 +11,5 @@ public record PlaceOrderCommand(
     OrderSide Side,
     TimeInForce TimeInForce,
     OrderType Type,
-    decimal? LimitPrice) : IRequest<Result<Guid>>;
+    decimal? LimitPrice,
+    Guid OrderId) : IRequest<Result<Guid>>;

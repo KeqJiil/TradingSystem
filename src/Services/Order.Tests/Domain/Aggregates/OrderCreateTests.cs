@@ -13,12 +13,22 @@ public class OrderCreateTests
     private static OrderTerms Terms => OrderTerms.Create(TimeInForce.Day, OrderType.Limit, Price.Create(10m).Value).Value;
     private static Quantity Qty => Quantity.Create(5).Value;
 
+    [Fact]
+    public void Create_EmptyOrderId_ReturnsValidationError()
+    {
+        var result = OrderAggregate.Create(Guid.Empty, Guid.NewGuid(), Symbols.Test, Qty, Terms, OrderSide.Buy, Now);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Validation, result.Error.Type);
+        Assert.Equal("Invalid order id.", result.Error.Message);
+    }
+
     [Theory]
     [InlineData((OrderSide)0)]
     [InlineData((OrderSide)99)]
     public void Create_InvalidSide_ReturnsValidationFailure(OrderSide side)
     {
-        var result = OrderAggregate.Create(Guid.NewGuid(), Symbols.Test, Qty, Terms, side, Now);
+        var result = OrderAggregate.Create(Guid.CreateVersion7(), Guid.NewGuid(), Symbols.Test, Qty, Terms, side, Now);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorType.Validation, result.Error.Type);
@@ -30,7 +40,7 @@ public class OrderCreateTests
     [InlineData((Symbols)1)]
     public void Create_InvalidSymbol_ReturnsValidationFailure(Symbols symbol)
     {
-        var result = OrderAggregate.Create(Guid.NewGuid(), symbol, Qty, Terms, OrderSide.Buy, Now);
+        var result = OrderAggregate.Create(Guid.CreateVersion7(), Guid.NewGuid(), symbol, Qty, Terms, OrderSide.Buy, Now);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorType.Validation, result.Error.Type);
@@ -42,15 +52,16 @@ public class OrderCreateTests
     [InlineData(OrderSide.Sell)]
     public void Create_ValidArguments_ReturnsPendingNewOrder(OrderSide side)
     {
+        var orderId = Guid.CreateVersion7();
         var userId = Guid.NewGuid();
         var terms = Terms;
         var quantity = Qty;
 
-        var result = OrderAggregate.Create(userId, Symbols.Test, quantity, terms, side, Now);
+        var result = OrderAggregate.Create(orderId, userId, Symbols.Test, quantity, terms, side, Now);
 
         Assert.True(result.IsSuccess);
         var order = result.Value;
-        Assert.NotEqual(Guid.Empty, order.Id);
+        Assert.Equal(orderId, order.Id);
         Assert.Equal(userId, order.UserId);
         Assert.Equal(quantity, order.Quantity);
         Assert.Equal(terms, order.OrderTerms);
@@ -68,7 +79,7 @@ public class OrderCreateTests
         var terms = Terms;
         var quantity = Qty;
 
-        var order = OrderAggregate.Create(userId, Symbols.Test, quantity, terms, OrderSide.Sell, Now).Value;
+        var order = OrderAggregate.Create(Guid.CreateVersion7(), userId, Symbols.Test, quantity, terms, OrderSide.Sell, Now).Value;
 
         var placed = Assert.IsType<OrderPlaced>(Assert.Single(order.GetDomainEvents()));
         Assert.Equal(order.Id, placed.OrderId);

@@ -29,6 +29,37 @@ public class RequestMappingTests
     }
 
     [Fact]
+    public void ToCommand_ValidLimitOrder_MapsOrderId()
+    {
+        var request = LimitOrder();
+
+        var result = request.ToCommand(_userId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(Guid.Parse(request.OrderId), result.Value.OrderId);
+    }
+
+    [Fact]
+    public void ToCommand_OrderIdNotVersion7_ReturnsValidationError()
+    {
+        var request = LimitOrder();
+        request.OrderId = Guid.NewGuid().ToString();
+
+        AssertValidation(request.ToCommand(_userId), "Invalid order id.");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not-a-guid")]
+    public void ToCommand_OrderIdNotGuid_ReturnsValidationError(string orderId)
+    {
+        var request = LimitOrder();
+        request.OrderId = orderId;
+
+        AssertValidation(request.ToCommand(_userId), "Invalid order id.");
+    }
+
+    [Fact]
     public void ToCommand_MarketOrderWithoutLimitPrice_MapsNullLimitPrice()
     {
         var request = LimitOrder();
@@ -173,7 +204,8 @@ public class RequestMappingTests
         OrderSide = Proto.OrderSide.Sell,
         TimeInForce = Proto.TimeInForce.Gtc,
         OrderType = Proto.OrderType.Limit,
-        LimitPrice = "12.5"
+        LimitPrice = "12.5",
+        OrderId = Guid.CreateVersion7().ToString()
     };
 
     private static void AssertValidation<T>(Result<T> result, string message)

@@ -13,6 +13,9 @@ public static class RequestMapping
 {
     public static Result<PlaceOrderCommand> ToCommand(this Proto.CreateOrderRequest request, Guid userId)
     {
+        if (!Guid.TryParse(request.OrderId, out var orderId) || orderId.Version != 7)
+            return Invalid("order id");
+
         var symbol = request.Symbol.ToDomain();
         if (symbol is null)
             return Invalid("symbol");
@@ -39,7 +42,7 @@ public static class RequestMapping
         }
 
         return new PlaceOrderCommand(userId, symbol.Value, request.Quantity, side.Value, timeInForce.Value,
-            type.Value, limitPrice);
+            type.Value, limitPrice, orderId);
     }
 
     public static Result<RequestCancelCommand> ToCommand(this Proto.RequestOrderCancelRequest request, Guid userId)

@@ -1,3 +1,5 @@
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Order.Application.UseCases.PlaceOrder;
 using Order.Domain.Aggregates;
 using TradingSystem.Contracts.ProtobufClasses.Order;
@@ -26,7 +28,8 @@ public class PlaceOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixture
             Type: OrderType.Limit,
             TimeInForce: TimeInForce.Gtc,
             Quantity: 100,
-            LimitPrice: 150.00m
+            LimitPrice: 150.00m,
+            OrderId: Guid.CreateVersion7()
         );
 
         var result = await _scope.SendAsync(command);
@@ -52,7 +55,8 @@ public class PlaceOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixture
             Type: OrderType.Limit,
             TimeInForce: TimeInForce.Gtc,
             Quantity: -1,
-            LimitPrice: 150.00m
+            LimitPrice: 150.00m,
+            OrderId: Guid.CreateVersion7()
         );
         
         var result = await _scope.SendAsync(command);
@@ -60,5 +64,27 @@ public class PlaceOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixture
         Assert.True(result.IsFailure);
         var published = await _scope.Published.OfTypeAsync<OrderPlacedEvent>();
         Assert.DoesNotContain(published, m => m.Message.UserId == command.UserId.ToString());
+    }
+
+    [Fact]
+    public async Task Handle_SameOrderIdTwice_ThrowsDbUpdateException()
+    {
+        var command = new PlaceOrderCommand(
+            UserId: Guid.NewGuid(),
+            Symbol: Symbols.Test,
+            Side: OrderSide.Buy,
+            Type: OrderType.Limit,
+            TimeInForce: TimeInForce.Gtc,
+            Quantity: 100,
+            LimitPrice: 150.00m,
+            OrderId: Guid.CreateVersion7()
+        );
+
+        var first = await _scope.SendAsync(command);
+        var exception = await Assert.ThrowsAsync<DbUpdateException>(() => _scope.SendAsync(command));
+
+        Assert.True(first.IsSuccess);
+        Assert.Equal(2627, Assert.IsType<SqlException>(exception.InnerException).Number);
+        Assert.Single(await _scope.Published.OfTypeAsync<OrderPlacedEvent>(command.OrderId.ToString()));
     }
 }
