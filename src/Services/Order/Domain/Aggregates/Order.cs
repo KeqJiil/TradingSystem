@@ -15,7 +15,7 @@ public class Order : AggregateRoot
     public override Guid Id { get; protected init; }
     public Guid UserId { get; private init; }
 
-    public Symbols Symbol { get; private init; }
+    public Guid StockId { get; private init; }
     public Quantity Quantity { get; private init; }
 
     public IReadOnlyList<Fill> Fills => _fills.AsReadOnly();
@@ -41,7 +41,7 @@ public class Order : AggregateRoot
     {
     }
 
-    public static Result<Order> Create(Guid orderId, Guid userId, Symbols symbol, Quantity quantity, OrderTerms orderTerms,
+    public static Result<Order> Create(Guid orderId, Guid userId, Guid stockId, Quantity quantity, OrderTerms orderTerms,
         OrderSide side,
         DateTimeOffset now)
     {
@@ -49,9 +49,9 @@ public class Order : AggregateRoot
             return Result<Order>.Failure(new Error
                 { Message = "Invalid order id.", Type = ErrorType.Validation });
 
-        if (!Enum.IsDefined(symbol))
+        if (stockId == Guid.Empty)
             return Result<Order>.Failure(new Error
-                { Message = "Invalid symbol.", Type = ErrorType.Validation });
+                { Message = "Invalid stock id.", Type = ErrorType.Validation });
 
         if (!Enum.IsDefined(side))
             return Result<Order>.Failure(new Error
@@ -61,7 +61,7 @@ public class Order : AggregateRoot
         {
             Id = orderId,
             UserId = userId,
-            Symbol = symbol,
+            StockId = stockId,
             Quantity = quantity,
             OrderTerms = orderTerms,
             OrderSide = side,
@@ -69,7 +69,7 @@ public class Order : AggregateRoot
             CreatedAt = now
         };
 
-        order.AddDomainEvent(new OrderPlaced(orderId, userId, symbol, side, quantity, orderTerms, now));
+        order.AddDomainEvent(new OrderPlaced(orderId, userId, stockId, side, quantity, orderTerms, now));
 
         return Result<Order>.Success(order);
     }
@@ -260,9 +260,4 @@ public enum TimeInForce
     Gtc = 2, // until canceled
     Ioc = 3, // immediate or cancel
     Fok = 4 // fill or kill
-}
-
-public enum Symbols
-{
-    Test = 99
 }

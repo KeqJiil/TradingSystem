@@ -5,12 +5,6 @@ namespace Order.Presentation.Grpc.Mapping;
 
 public static class EnumMapping
 {
-    public static Symbols? ToDomain(this Proto.Symbol symbol) => symbol switch
-    {
-        Proto.Symbol.Test => Symbols.Test,
-        _ => null
-    };
-
     public static OrderSide? ToDomain(this Proto.OrderSide side) => side switch
     {
         Proto.OrderSide.Buy => OrderSide.Buy,
@@ -45,12 +39,6 @@ public static class EnumMapping
         Proto.OrderStatus.Canceled => OrderStatus.Canceled,
         Proto.OrderStatus.Expired => OrderStatus.Expired,
         _ => null
-    };
-
-    public static Proto.Symbol ToProto(this Symbols symbol) => symbol switch
-    {
-        Symbols.Test => Proto.Symbol.Test,
-        _ => throw new ArgumentOutOfRangeException(nameof(symbol), symbol, null)
     };
 
     public static Proto.OrderSide ToProto(this OrderSide side) => side switch

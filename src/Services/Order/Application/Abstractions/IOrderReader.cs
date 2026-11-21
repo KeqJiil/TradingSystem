@@ -20,7 +20,7 @@ public record OrderDetailsDto(
 
 public record OrderDto(
     Guid Id,
-    Symbols Symbol,
+    Guid StockId,
     OrderSide Side,
     OrderType Type,
     decimal? LimitPrice,

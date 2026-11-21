@@ -16,7 +16,7 @@ public class OrderCreateTests
     [Fact]
     public void Create_EmptyOrderId_ReturnsValidationError()
     {
-        var result = OrderAggregate.Create(Guid.Empty, Guid.NewGuid(), Symbols.Test, Qty, Terms, OrderSide.Buy, Now);
+        var result = OrderAggregate.Create(Guid.Empty, Guid.NewGuid(), TestOrders.StockId, Qty, Terms, OrderSide.Buy, Now);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorType.Validation, result.Error.Type);
@@ -28,23 +28,21 @@ public class OrderCreateTests
     [InlineData((OrderSide)99)]
     public void Create_InvalidSide_ReturnsValidationFailure(OrderSide side)
     {
-        var result = OrderAggregate.Create(Guid.CreateVersion7(), Guid.NewGuid(), Symbols.Test, Qty, Terms, side, Now);
+        var result = OrderAggregate.Create(Guid.CreateVersion7(), Guid.NewGuid(), TestOrders.StockId, Qty, Terms, side, Now);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorType.Validation, result.Error.Type);
         Assert.Equal("Invalid order side.", result.Error.Message);
     }
 
-    [Theory]
-    [InlineData((Symbols)0)]
-    [InlineData((Symbols)1)]
-    public void Create_InvalidSymbol_ReturnsValidationFailure(Symbols symbol)
+    [Fact]
+    public void Create_EmptyStockId_ReturnsValidationFailure()
     {
-        var result = OrderAggregate.Create(Guid.CreateVersion7(), Guid.NewGuid(), symbol, Qty, Terms, OrderSide.Buy, Now);
+        var result = OrderAggregate.Create(Guid.CreateVersion7(), Guid.NewGuid(), Guid.Empty, Qty, Terms, OrderSide.Buy, Now);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorType.Validation, result.Error.Type);
-        Assert.Equal("Invalid symbol.", result.Error.Message);
+        Assert.Equal("Invalid stock id.", result.Error.Message);
     }
 
     [Theory]
@@ -57,7 +55,7 @@ public class OrderCreateTests
         var terms = Terms;
         var quantity = Qty;
 
-        var result = OrderAggregate.Create(orderId, userId, Symbols.Test, quantity, terms, side, Now);
+        var result = OrderAggregate.Create(orderId, userId, TestOrders.StockId, quantity, terms, side, Now);
 
         Assert.True(result.IsSuccess);
         var order = result.Value;
@@ -79,7 +77,7 @@ public class OrderCreateTests
         var terms = Terms;
         var quantity = Qty;
 
-        var order = OrderAggregate.Create(Guid.CreateVersion7(), userId, Symbols.Test, quantity, terms, OrderSide.Sell, Now).Value;
+        var order = OrderAggregate.Create(Guid.CreateVersion7(), userId, TestOrders.StockId, quantity, terms, OrderSide.Sell, Now).Value;
 
         var placed = Assert.IsType<OrderPlaced>(Assert.Single(order.GetDomainEvents()));
         Assert.Equal(order.Id, placed.OrderId);

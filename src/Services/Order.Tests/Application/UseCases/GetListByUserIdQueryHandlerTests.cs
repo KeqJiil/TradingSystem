@@ -139,7 +139,7 @@ public class GetListByUserIdQueryHandlerTests(MssqlFixture fixture) : IClassFixt
 
     private static OrderAggregate CreateOrder(Guid userId, DateTimeOffset createdAt)
     {
-        return OrderAggregate.Create(Guid.CreateVersion7(), userId, Symbols.Test, Quantity.Create(1).Value,
+        return OrderAggregate.Create(Guid.CreateVersion7(), userId, TestOrders.StockId, Quantity.Create(1).Value,
             OrderTerms.Create(TimeInForce.Gtc, OrderType.Limit, Price.Create(100).Value).Value,
             OrderSide.Buy, createdAt).Value;
     }

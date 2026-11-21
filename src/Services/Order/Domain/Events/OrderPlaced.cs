@@ -6,7 +6,7 @@ namespace Order.Domain.Events;
 public record OrderPlaced(
     Guid OrderId,
     Guid UserId,
-    Symbols Symbol,
+    Guid StockId,
     OrderSide Side,
     Quantity Quantity,
     OrderTerms OrderTerms,

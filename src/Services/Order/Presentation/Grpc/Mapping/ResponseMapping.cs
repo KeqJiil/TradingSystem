@@ -34,7 +34,7 @@ public static class ResponseMapping
         var dto = new Proto.OrderDto
         {
             Id = order.Id.ToString(),
-            Symbol = order.Symbol.ToProto(),
+            StockId = order.StockId.ToString(),
             Side = order.Side.ToProto(),
             Type = order.Type.ToProto(),
             Quantity = order.Quantity,

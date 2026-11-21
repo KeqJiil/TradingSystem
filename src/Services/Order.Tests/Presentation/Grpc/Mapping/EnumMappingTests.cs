@@ -8,13 +8,6 @@ namespace Order.Tests.Presentation.Grpc.Mapping;
 public class EnumMappingTests
 {
     [Fact]
-    public void ToProto_EverySymbol_RoundTripsToDomain()
-    {
-        foreach (var value in Enum.GetValues<Symbols>())
-            Assert.Equal(value, value.ToProto().ToDomain());
-    }
-
-    [Fact]
     public void ToProto_EveryOrderSide_RoundTripsToDomain()
     {
         foreach (var value in Enum.GetValues<OrderSide>())
@@ -45,7 +38,6 @@ public class EnumMappingTests
     [Fact]
     public void ToDomain_Unspecified_ReturnsNull()
     {
-        Assert.Null(Proto.Symbol.Unspecified.ToDomain());
         Assert.Null(Proto.OrderSide.Unspecified.ToDomain());
         Assert.Null(Proto.TimeInForce.Unspecified.ToDomain());
         Assert.Null(Proto.OrderType.Unspecified.ToDomain());
