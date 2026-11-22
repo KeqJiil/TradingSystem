@@ -8,6 +8,8 @@ public class OrderDbContext : DbContext
 {
     public DbSet<AggregateOrder> Orders { get; set; }
 
+    public DbSet<Domain.Aggregates.Stock> Stocks { get; set; }
+
     public OrderDbContext(DbContextOptions<OrderDbContext> options) : base(options)
     {
     }

@@ -4,6 +4,7 @@ using Messaging.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Order.Tests.Domain.Aggregates;
+using Order.Domain.Aggregates;
 using OrderAggregate = Order.Domain.Aggregates.Order;
 
 namespace Order.Tests.Infrastructure;
@@ -55,6 +56,12 @@ public sealed class OrderTestScope : IAsyncDisposable
     {
         await using var context = _fixture.CreateContext();
         return await context.Orders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == orderId);
+    }
+
+    public async Task<Stock?> FindStockAsync(Guid stockId)
+    {
+        await using var context = _fixture.CreateContext();
+        return await context.Stocks.AsNoTracking().FirstOrDefaultAsync(s => s.Id == stockId);
     }
 
     public ValueTask DisposeAsync() => _provider.DisposeAsync();
