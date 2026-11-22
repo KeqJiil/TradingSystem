@@ -7,6 +7,7 @@ using Messaging.Serializers;
 using Order.Infrastructure.Messaging.Consumers;
 using Order.Infrastructure.Messaging.Reports;
 using Order.Infrastructure.Messaging.Serialization;
+using Order.Infrastructure.Messaging.StockEvents;
 using Order.Infrastructure.Messaging.Translators;
 using Order.Infrastructure.Options;
 using Order.Infrastructure.Persistence.Configuration;
@@ -60,6 +61,12 @@ public static class MessagingExtension
                 .AddConsumer<OrderExpiredReport, OrderExpiredConsumer>(executionReportsConsumer)
                 .AddConsumer<OrderCanceledReport, OrderCanceledConsumer>(executionReportsConsumer)
                 .AddConsumer<CancelRejectedReport, CancelRejectedConsumer>(executionReportsConsumer);
+
+            var stockCreated = StockTopic.StockCreated.Name();
+            cfg.AddMessage<StockCreatedEvent>(stockCreated, new ProtobufParsableSerializer<StockCreatedEvent>());
+            cfg.AddConsumer<StockCreatedEvent, StockCreatedConsumer>(
+                new ConsumerOptions(stockCreated, "order-stock-created-group")
+                    { MaxAttempts = kafka.StockEventsMaxAttempts });
         }, options =>
         {
             options.BootstrapServers = kafka.BootstrapServers;

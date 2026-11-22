@@ -15,5 +15,8 @@ public class KafkaOptions
     [Range(1, int.MaxValue)]
     public int ExecutionReportsMaxAttempts { get; set; } = 10;
 
+    [Range(1, int.MaxValue)]
+    public int StockEventsMaxAttempts { get; set; } = 10;
+
     public TimeSpan OutboxAgeMetricInterval { get; set; } = TimeSpan.FromSeconds(15);
 }
