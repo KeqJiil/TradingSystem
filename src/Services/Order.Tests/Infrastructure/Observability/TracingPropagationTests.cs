@@ -35,10 +35,11 @@ public class TracingPropagationTests(MssqlFixture fixture) : IClassFixture<Mssql
         using var ambientSource = new ActivitySource(AmbientSource);
         using var ambient = ambientSource.StartActivity("ambient")!;
         MessagingCorrelation.CorrelationId = "corr-1";
+        var stock = await _scope.SeedStockAsync(TestStocks.AlwaysOpen());
 
         var result = await _scope.SendAsync(new PlaceOrderCommand(
             UserId: Guid.NewGuid(),
-            StockId: TestOrders.StockId,
+            StockId: stock.Id,
             Quantity: 1,
             Side: OrderSide.Buy,
             TimeInForce: TimeInForce.Gtc,

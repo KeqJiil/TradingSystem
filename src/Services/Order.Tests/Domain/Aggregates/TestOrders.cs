@@ -11,7 +11,7 @@ public static class TestOrders
     public static readonly DateTimeOffset CreatedAt = new(2026, 1, 1, 10, 0, 0, TimeSpan.Zero);
     public static readonly DateTimeOffset ApprovedAt = CreatedAt.AddMinutes(1);
     public static readonly DateTimeOffset Now = ApprovedAt.AddMinutes(5);
-    public static readonly Guid StockId = Guid.NewGuid();
+    public static readonly Guid StockId = TestStocks.AlwaysOpenStock.Id;
     public const int Quantity = 10;
     public const string Reason = "test";
 
@@ -20,7 +20,7 @@ public static class TestOrders
         var terms = OrderTerms.Create(TimeInForce.Ioc, OrderType.Market).Value;
         var quantity = Order.Domain.VO.Quantity.Create(Quantity).Value;
 
-        return OrderAggregate.Create(Guid.CreateVersion7(), Guid.NewGuid(), StockId, quantity, terms, OrderSide.Buy, CreatedAt).Value;
+        return OrderAggregate.Create(Guid.CreateVersion7(), Guid.NewGuid(), TestStocks.AlwaysOpenStock, quantity, terms, OrderSide.Buy, CreatedAt).Value;
     }
 
     public static OrderAggregate UnapprovedPendingCancel()
