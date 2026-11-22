@@ -4,11 +4,17 @@ namespace Order.Infrastructure.Messaging.Serialization;
 
 public static class DurationExtensions
 {
-    public static TimeOnly ToTimeOnly(this Duration? duration)
+    public static bool TryToTimeOnly(this Duration? duration, out TimeOnly time)
     {
+        time = default;
         if (duration is null)
-            throw new ArgumentException("Trading time is missing.");
+            return false;
 
-        return TimeOnly.FromTimeSpan(duration.ToTimeSpan());
+        var span = duration.ToTimeSpan();
+        if (span < TimeSpan.Zero || span >= TimeSpan.FromHours(24))
+            return false;
+
+        time = TimeOnly.FromTimeSpan(span);
+        return true;
     }
 }

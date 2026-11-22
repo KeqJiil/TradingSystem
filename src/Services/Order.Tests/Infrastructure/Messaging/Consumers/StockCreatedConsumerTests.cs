@@ -1,8 +1,9 @@
+using Google.Protobuf.WellKnownTypes;
 using Messaging.Abstractions;
 using Order.Infrastructure.Messaging.Consumers;
-using Order.Infrastructure.Messaging.StockEvents;
 using Order.Tests.Infrastructure;
 using Xunit;
+using TradingSystem.Contracts.ProtobufClasses.Stock;
 
 namespace Order.Tests.Infrastructure.Messaging.Consumers;
 
@@ -17,7 +18,7 @@ public class StockCreatedConsumerTests(MssqlFixture fixture) : IClassFixture<Mss
     {
         var stockId = Guid.CreateVersion7();
 
-        var outcome = await ConsumeAsync(CreatedEvent(stockId));
+        var outcome = await ConsumeAsync(CreatedEvent(stockId.ToString()));
 
         Assert.Equal(MessageConsumeResult.Success, outcome.Kind);
         var stock = await _scope.FindStockAsync(stockId);
@@ -31,7 +32,37 @@ public class StockCreatedConsumerTests(MssqlFixture fixture) : IClassFixture<Mss
     [Fact]
     public async Task ConsumeAsync_EmptyStockId_ReturnsDeadLetter()
     {
-        var outcome = await ConsumeAsync(CreatedEvent(Guid.Empty));
+        var outcome = await ConsumeAsync(CreatedEvent(Guid.Empty.ToString()));
+
+        Assert.Equal(MessageConsumeResult.DeadLetter, outcome.Kind);
+    }
+
+    [Fact]
+    public async Task ConsumeAsync_NonGuidStockId_ReturnsDeadLetter()
+    {
+        var outcome = await ConsumeAsync(CreatedEvent("not-a-guid"));
+
+        Assert.Equal(MessageConsumeResult.DeadLetter, outcome.Kind);
+    }
+
+    [Fact]
+    public async Task ConsumeAsync_TradingTimeAt24Hours_ReturnsDeadLetter()
+    {
+        var evt = CreatedEvent(Guid.CreateVersion7().ToString());
+        evt.TradingCloseTime = Duration.FromTimeSpan(TimeSpan.FromHours(24));
+
+        var outcome = await ConsumeAsync(evt);
+
+        Assert.Equal(MessageConsumeResult.DeadLetter, outcome.Kind);
+    }
+
+    [Fact]
+    public async Task ConsumeAsync_NullTradingTime_ReturnsDeadLetter()
+    {
+        var evt = CreatedEvent(Guid.CreateVersion7().ToString());
+        evt.TradingStartTime = null;
+
+        var outcome = await ConsumeAsync(evt);
 
         Assert.Equal(MessageConsumeResult.DeadLetter, outcome.Kind);
     }
@@ -40,9 +71,9 @@ public class StockCreatedConsumerTests(MssqlFixture fixture) : IClassFixture<Mss
     public async Task ConsumeAsync_DuplicateEvent_ReturnsSuccess()
     {
         var stockId = Guid.CreateVersion7();
-        await ConsumeAsync(CreatedEvent(stockId));
+        await ConsumeAsync(CreatedEvent(stockId.ToString()));
 
-        var outcome = await ConsumeAsync(CreatedEvent(stockId));
+        var outcome = await ConsumeAsync(CreatedEvent(stockId.ToString()));
 
         Assert.Equal(MessageConsumeResult.Success, outcome.Kind);
         Assert.NotNull(await _scope.FindStockAsync(stockId));
@@ -51,6 +82,13 @@ public class StockCreatedConsumerTests(MssqlFixture fixture) : IClassFixture<Mss
     private Task<ConsumeOutcome> ConsumeAsync(StockCreatedEvent evt) =>
         _scope.ConsumeAsync<StockCreatedConsumer, StockCreatedEvent>(evt);
 
-    private static StockCreatedEvent CreatedEvent(Guid stockId) =>
-        new(stockId, "AAPL", true, new TimeOnly(9, 30), new TimeOnly(16, 0));
+    private static StockCreatedEvent CreatedEvent(string aggregateId) => new()
+    {
+        AggregateId = aggregateId,
+        Name = "AAPL",
+        IsOpenToTrade = true,
+        Currency = "USD",
+        TradingStartTime = Duration.FromTimeSpan(new TimeSpan(9, 30, 0)),
+        TradingCloseTime = Duration.FromTimeSpan(new TimeSpan(16, 0, 0))
+    };
 }
