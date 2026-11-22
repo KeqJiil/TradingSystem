@@ -52,6 +52,14 @@ public sealed class OrderTestScope : IAsyncDisposable
         return order;
     }
 
+    public async Task<Stock> SeedStockAsync(Stock stock)
+    {
+        await using var context = _fixture.CreateContext();
+        context.Stocks.Add(stock);
+        await context.SaveChangesAsync();
+        return stock;
+    }
+
     public async Task<OrderAggregate?> FindAsync(Guid orderId)
     {
         await using var context = _fixture.CreateContext();

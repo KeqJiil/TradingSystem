@@ -36,4 +36,39 @@ public class Stock
             TradingEnd = tradingEnd
         });
     }
+
+    public Result Rename(string name, long version)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return Result.Failure(new Error
+                { Message = "Invalid stock name.", Type = ErrorType.Validation });
+
+        if (version <= NameVersion)
+            return Result.Success();
+
+        Name = name;
+        NameVersion = version;
+        return Result.Success();
+    }
+
+    public Result SetStatus(bool isOpenToTrade, long version)
+    {
+        if (version <= StatusVersion)
+            return Result.Success();
+
+        IsOpenToTrade = isOpenToTrade;
+        StatusVersion = version;
+        return Result.Success();
+    }
+
+    public Result SetTradingTime(TimeOnly tradingStart, TimeOnly tradingEnd, long version)
+    {
+        if (version <= TradingTimeVersion)
+            return Result.Success();
+
+        TradingStart = tradingStart;
+        TradingEnd = tradingEnd;
+        TradingTimeVersion = version;
+        return Result.Success();
+    }
 }
