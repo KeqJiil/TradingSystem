@@ -164,6 +164,18 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
     }
 
     [Fact]
+    public async Task GetById_StockInReplica_ReturnsStockName()
+    {
+        var stock = await SeedStockAsync(TestStocks.AlwaysOpen());
+        var order = await SeedAsync(NewLimitOrder(_userId, stock));
+
+        var response = await _client.GetByIdAsync(new Proto.GetOrderRequest { OrderId = order.Id.ToString() },
+            fixture.AuthFor(_userId));
+
+        Assert.Equal(stock.Name, response.Order.StockName);
+    }
+
+    [Fact]
     public async Task GetById_OrderOfAnotherUser_ReturnsNotFound()
     {
         var order = await SeedAsync(NewLimitOrder(Guid.NewGuid()));
@@ -224,6 +236,19 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
         Assert.Equal([own.Id.ToString()], response.Orders.Select(o => o.Id));
     }
 
+    [Fact]
+    public async Task GetListByUserId_StockInReplica_ReturnsStockName()
+    {
+        var stock = await SeedStockAsync(TestStocks.AlwaysOpen());
+        await SeedAsync(NewLimitOrder(_userId, stock));
+
+        var response = await _client.GetListByUserIdAsync(new Proto.GetOrdersByUserIdRequest { Limit = 10 },
+            fixture.AuthFor(_userId));
+
+        var order = Assert.Single(response.Orders);
+        Assert.Equal(stock.Name, order.StockName);
+    }
+
     private static Proto.CreateOrderRequest LimitOrderRequest(Guid stockId, int quantity, Guid? orderId = null) => new()
     {
         OrderId = (orderId ?? Guid.CreateVersion7()).ToString(),
@@ -235,10 +260,10 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
         LimitPrice = "12.5"
     };
 
-    private static OrderAggregate NewLimitOrder(Guid userId)
+    private static OrderAggregate NewLimitOrder(Guid userId, Stock? stock = null)
     {
         var terms = OrderTerms.Create(TimeInForce.Day, OrderType.Limit, Price.Create(12.5m).Value).Value;
-        return OrderAggregate.Create(Guid.CreateVersion7(), userId, TestStocks.AlwaysOpenStock, Quantity.Create(10).Value, terms, OrderSide.Buy,
+        return OrderAggregate.Create(Guid.CreateVersion7(), userId, stock ?? TestStocks.AlwaysOpenStock, Quantity.Create(10).Value, terms, OrderSide.Buy,
             TestOrders.CreatedAt).Value;
     }
 

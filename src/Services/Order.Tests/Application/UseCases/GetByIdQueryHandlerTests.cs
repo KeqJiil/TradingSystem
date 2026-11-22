@@ -34,6 +34,30 @@ public class GetByIdQueryHandlerTests(MssqlFixture fixture) : IClassFixture<Mssq
     }
 
     [Fact]
+    public async Task Handle_StockInReplica_ReturnsStockName()
+    {
+        var stock = await _scope.SeedStockAsync(TestStocks.AlwaysOpen());
+        var order = await _scope.SeedAsync(TestOrders.PendingNew(stock));
+
+        var details = await _scope.SendAsync(new GetByIdQuery(order.Id, order.UserId));
+
+        Assert.NotNull(details);
+        Assert.Equal(stock.Name, details.Order.StockName);
+    }
+
+    [Fact]
+    public async Task Handle_StockMissingFromReplica_ReturnsOrderWithNullStockName()
+    {
+        var order = await _scope.SeedAsync(TestOrders.PendingNew(TestStocks.AlwaysOpen()));
+
+        var details = await _scope.SendAsync(new GetByIdQuery(order.Id, order.UserId));
+
+        Assert.NotNull(details);
+        Assert.Equal(order.Id, details.Order.Id);
+        Assert.Null(details.Order.StockName);
+    }
+
+    [Fact]
     public async Task Handle_OrderOfAnotherUser_ReturnsNull()
     {
         var order = await _scope.SeedAsync(TestOrders.PendingNew());

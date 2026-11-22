@@ -55,6 +55,27 @@ public class ResponseMappingTests
     }
 
     [Fact]
+    public void ToResponse_DetailsWithStockName_MapsStockName()
+    {
+        var details = new OrderDetailsDto(Order(OrderStatus.New, limitPrice: null), TimeInForce.Gtc, null, null, null,
+            []);
+
+        var response = details.ToResponse();
+
+        Assert.Equal("TEST", response.Order.StockName);
+    }
+
+    [Fact]
+    public void ToResponse_NullStockName_MapsToEmptyString()
+    {
+        var order = Order(OrderStatus.New, limitPrice: null) with { StockName = null };
+
+        var response = new List<OrderDto> { order }.ToResponse();
+
+        Assert.Equal("", Assert.Single(response.Orders).StockName);
+    }
+
+    [Fact]
     public void ToResponse_OrderList_KeepsOrder()
     {
         var first = Order(OrderStatus.New, limitPrice: null);
@@ -66,6 +87,6 @@ public class ResponseMappingTests
     }
 
     private static OrderDto Order(OrderStatus status, decimal? limitPrice) =>
-        new(Guid.NewGuid(), TestOrders.StockId, OrderSide.Sell, limitPrice is null ? OrderType.Market : OrderType.Limit,
+        new(Guid.NewGuid(), TestOrders.StockId, "TEST", OrderSide.Sell, limitPrice is null ? OrderType.Market : OrderType.Limit,
             limitPrice, 10, 3, status, TestOrders.CreatedAt);
 }

@@ -15,12 +15,12 @@ public static class TestOrders
     public const int Quantity = 10;
     public const string Reason = "test";
 
-    public static OrderAggregate PendingNew()
+    public static OrderAggregate PendingNew(Stock? stock = null)
     {
         var terms = OrderTerms.Create(TimeInForce.Ioc, OrderType.Market).Value;
         var quantity = Order.Domain.VO.Quantity.Create(Quantity).Value;
 
-        return OrderAggregate.Create(Guid.CreateVersion7(), Guid.NewGuid(), TestStocks.AlwaysOpenStock, quantity, terms, OrderSide.Buy, CreatedAt).Value;
+        return OrderAggregate.Create(Guid.CreateVersion7(), Guid.NewGuid(), stock ?? TestStocks.AlwaysOpenStock, quantity, terms, OrderSide.Buy, CreatedAt).Value;
     }
 
     public static OrderAggregate UnapprovedPendingCancel()

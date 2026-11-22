@@ -13,8 +13,10 @@ public class OrderReader(OrderDbContext dbContext) : IOrderReader
     {
         return dbContext.Orders
             .Where(x => x.Id == orderId && x.UserId == userId)
+            .LeftJoin(dbContext.Stocks, o => o.StockId, s => s.Id,
+                (o, s) => new { o, StockName = s == null ? null : s.Name })
+            .Select(x => MapToOrderDetailsDto(x.o, x.StockName))
             .AsNoTracking()
-            .Select(x => MapToOrderDetailsDto(x))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -34,18 +36,21 @@ public class OrderReader(OrderDbContext dbContext) : IOrderReader
                                      (x.CreatedAt == afterCreatedAt.Value && x.Id < afterId.Value));
 
         return await query
-            .OrderByDescending(x => x.CreatedAt)
-            .ThenByDescending(x => x.Id)
+            .LeftJoin(dbContext.Stocks, o => o.StockId, s => s.Id,
+                (o, s) => new { o, StockName = s == null ? null : s.Name })
+            .OrderByDescending(x => x.o.CreatedAt)
+            .ThenByDescending(x => x.o.Id)
             .Take(limit)
-            .Select(x => MapToOrderDto(x))
+            .Select(x => MapToOrderDto(x.o, x.StockName))
             .ToListAsync(cancellationToken);
     }
 
-    private static OrderDto MapToOrderDto(AggregateOrder x)
+    private static OrderDto MapToOrderDto(AggregateOrder x, string? stockName)
     {
         return new OrderDto(
             x.Id,
             x.StockId,
+            stockName,
             x.OrderSide,
             x.OrderTerms.Type,
             x.OrderTerms.LimitPrice?.Value,
@@ -56,10 +61,10 @@ public class OrderReader(OrderDbContext dbContext) : IOrderReader
         );
     }
 
-    private static OrderDetailsDto MapToOrderDetailsDto(AggregateOrder x)
+    private static OrderDetailsDto MapToOrderDetailsDto(AggregateOrder x, string? stockName)
     {
         return new OrderDetailsDto(
-            MapToOrderDto(x),
+            MapToOrderDto(x, stockName),
             x.OrderTerms.TimeInForce,
             x.ApprovedAt,
             x.CanceledAt,
