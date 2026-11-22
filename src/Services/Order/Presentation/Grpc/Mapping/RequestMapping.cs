@@ -16,9 +16,8 @@ public static class RequestMapping
         if (!Guid.TryParse(request.OrderId, out var orderId) || orderId.Version != 7)
             return Invalid("order id");
 
-        var symbol = request.Symbol.ToDomain();
-        if (symbol is null)
-            return Invalid("symbol");
+        if (!Guid.TryParse(request.StockId, out var stockId) || stockId == Guid.Empty)
+            return Invalid("stock id");
 
         var side = request.OrderSide.ToDomain();
         if (side is null)
@@ -41,7 +40,7 @@ public static class RequestMapping
             limitPrice = price;
         }
 
-        return new PlaceOrderCommand(userId, symbol.Value, request.Quantity, side.Value, timeInForce.Value,
+        return new PlaceOrderCommand(userId, stockId, request.Quantity, side.Value, timeInForce.Value,
             type.Value, limitPrice, orderId);
     }
 

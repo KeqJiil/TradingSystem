@@ -4,6 +4,7 @@ using Order.Application.UseCases.PlaceOrder;
 using Order.Domain.Aggregates;
 using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Infrastructure.Observability;
+using Order.Tests.Domain.Aggregates;
 using Order.Tests.Infrastructure;
 using Xunit;
 using OrderSide = Order.Domain.Aggregates.OrderSide;
@@ -37,7 +38,7 @@ public class TracingPropagationTests(MssqlFixture fixture) : IClassFixture<Mssql
 
         var result = await _scope.SendAsync(new PlaceOrderCommand(
             UserId: Guid.NewGuid(),
-            Symbol: Symbols.Test,
+            StockId: TestOrders.StockId,
             Quantity: 1,
             Side: OrderSide.Buy,
             TimeInForce: TimeInForce.Gtc,

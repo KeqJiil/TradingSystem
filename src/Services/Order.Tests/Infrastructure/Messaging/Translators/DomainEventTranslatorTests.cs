@@ -22,14 +22,14 @@ public class DomainEventTranslatorTests
     {
         var userId = Guid.NewGuid();
         var terms = OrderTerms.Create(TimeInForce.Day, OrderType.Limit, Price.Create(12.34m).Value).Value;
-        var domainEvent = new OrderPlaced(_orderId, userId, Symbols.Test, OrderSide.Sell, Quantity.Create(5).Value,
+        var domainEvent = new OrderPlaced(_orderId, userId, TestOrders.StockId, OrderSide.Sell, Quantity.Create(5).Value,
             terms, TestOrders.Now);
 
         var translated = Assert.IsType<OrderPlacedEvent>(TranslateMessage(domainEvent));
 
         Assert.Equal(_orderId.ToString(), translated.AggregateId);
         Assert.Equal(userId.ToString(), translated.UserId);
-        Assert.Equal(nameof(Symbols.Test), translated.Symbol);
+        Assert.Equal(TestOrders.StockId.ToString(), translated.StockId);
         Assert.Equal(nameof(OrderSide.Sell), translated.Side);
         Assert.Equal(5, translated.Quantity);
         Assert.Equal(nameof(TimeInForce.Day), translated.TimeInForce);
@@ -42,7 +42,7 @@ public class DomainEventTranslatorTests
     public void Translate_MarketOrderPlaced_MapsNullLimitPrice()
     {
         var terms = OrderTerms.Create(TimeInForce.Ioc, OrderType.Market).Value;
-        var domainEvent = new OrderPlaced(_orderId, Guid.NewGuid(), Symbols.Test, OrderSide.Buy,
+        var domainEvent = new OrderPlaced(_orderId, Guid.NewGuid(), TestOrders.StockId, OrderSide.Buy,
             Quantity.Create(1).Value, terms, TestOrders.Now);
 
         var translated = Assert.IsType<OrderPlacedEvent>(TranslateMessage(domainEvent));

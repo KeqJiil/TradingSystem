@@ -9,7 +9,7 @@ import "ProtobufClasses/Order/ServiceContracts/Enums.proto";
 
 message OrderDto {
   string id = 1;
-  Symbol symbol = 2;
+  reserved 2;
   OrderSide side = 3;
   OrderType type = 4;
   optional string limit_price = 5;
@@ -17,6 +17,7 @@ message OrderDto {
   int32 filled_quantity = 7;
   OrderStatus status = 8;
   google.protobuf.Timestamp created_at = 9;
+  string stock_id = 10;
 }
 
 message OrderFillDto {

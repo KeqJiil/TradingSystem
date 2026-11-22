@@ -45,7 +45,7 @@ public class OrderReader(OrderDbContext dbContext) : IOrderReader
     {
         return new OrderDto(
             x.Id,
-            x.Symbol,
+            x.StockId,
             x.OrderSide,
             x.OrderTerms.Type,
             x.OrderTerms.LimitPrice?.Value,

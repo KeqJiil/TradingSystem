@@ -20,7 +20,7 @@ public class ResponseMappingTests
         var response = details.ToResponse();
 
         Assert.Equal(order.Id.ToString(), response.Order.Id);
-        Assert.Equal(Proto.Symbol.Test, response.Order.Symbol);
+        Assert.Equal(TestOrders.StockId.ToString(), response.Order.StockId);
         Assert.Equal(Proto.OrderSide.Sell, response.Order.Side);
         Assert.Equal(Proto.OrderType.Limit, response.Order.Type);
         Assert.Equal("12.5", response.Order.LimitPrice);
@@ -66,6 +66,6 @@ public class ResponseMappingTests
     }
 
     private static OrderDto Order(OrderStatus status, decimal? limitPrice) =>
-        new(Guid.NewGuid(), Symbols.Test, OrderSide.Sell, limitPrice is null ? OrderType.Market : OrderType.Limit,
+        new(Guid.NewGuid(), TestOrders.StockId, OrderSide.Sell, limitPrice is null ? OrderType.Market : OrderType.Limit,
             limitPrice, 10, 3, status, TestOrders.CreatedAt);
 }

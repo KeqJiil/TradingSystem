@@ -10,11 +10,6 @@ enum OrderSide {
   ORDER_SIDE_SELL = 2;
 }
 
-enum Symbol {
-  SYMBOL_UNSPECIFIED = 0;
-  SYMBOL_TEST = 99;
-}
-
 enum TimeInForce {
   TIME_IN_FORCE_UNSPECIFIED = 0;
   TIME_IN_FORCE_DAY = 1;

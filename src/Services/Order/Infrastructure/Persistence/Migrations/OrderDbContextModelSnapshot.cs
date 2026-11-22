@@ -188,11 +188,9 @@ namespace Order.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(20)")
                         .HasColumnName("status");
 
-                    b.Property<string>("Symbol")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasColumnName("symbol");
+                    b.Property<Guid>("StockId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("stock_id");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier")

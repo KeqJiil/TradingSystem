@@ -20,7 +20,7 @@ public class RequestMappingTests
         Assert.True(result.IsSuccess);
         var command = result.Value;
         Assert.Equal(_userId, command.UserId);
-        Assert.Equal(Symbols.Test, command.Symbol);
+        Assert.Equal(TestOrders.StockId, command.StockId);
         Assert.Equal(10, command.Quantity);
         Assert.Equal(OrderSide.Sell, command.Side);
         Assert.Equal(TimeInForce.Gtc, command.TimeInForce);
@@ -73,7 +73,6 @@ public class RequestMappingTests
     }
 
     [Theory]
-    [InlineData("symbol")]
     [InlineData("order side")]
     [InlineData("time in force")]
     [InlineData("order type")]
@@ -82,13 +81,32 @@ public class RequestMappingTests
         var request = LimitOrder();
         switch (field)
         {
-            case "symbol": request.Symbol = Proto.Symbol.Unspecified; break;
             case "order side": request.OrderSide = Proto.OrderSide.Unspecified; break;
             case "time in force": request.TimeInForce = Proto.TimeInForce.Unspecified; break;
             case "order type": request.OrderType = Proto.OrderType.Unspecified; break;
         }
 
         AssertValidation(request.ToCommand(_userId), $"Invalid {field}.");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not-a-guid")]
+    public void ToCommand_StockIdNotGuid_ReturnsValidationError(string stockId)
+    {
+        var request = LimitOrder();
+        request.StockId = stockId;
+
+        AssertValidation(request.ToCommand(_userId), "Invalid stock id.");
+    }
+
+    [Fact]
+    public void ToCommand_EmptyStockId_ReturnsValidationError()
+    {
+        var request = LimitOrder();
+        request.StockId = Guid.Empty.ToString();
+
+        AssertValidation(request.ToCommand(_userId), "Invalid stock id.");
     }
 
     [Theory]
@@ -199,7 +217,7 @@ public class RequestMappingTests
 
     private static Proto.CreateOrderRequest LimitOrder() => new()
     {
-        Symbol = Proto.Symbol.Test,
+        StockId = TestOrders.StockId.ToString(),
         Quantity = 10,
         OrderSide = Proto.OrderSide.Sell,
         TimeInForce = Proto.TimeInForce.Gtc,

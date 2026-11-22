@@ -74,7 +74,7 @@ public class DomainEventTranslator : IDomainEventTranslator
         {
             AggregateId = e.OrderId.ToString(),
             UserId = e.UserId.ToString(),
-            Symbol = e.Symbol.ToString(),
+            StockId = e.StockId.ToString(),
             Side = e.Side.ToString(),
             Quantity = e.Quantity.Value,
             TimeInForce = e.OrderTerms.TimeInForce.ToString(),

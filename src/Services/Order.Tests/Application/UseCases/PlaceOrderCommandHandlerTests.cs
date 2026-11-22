@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Order.Application.UseCases.PlaceOrder;
 using Order.Domain.Aggregates;
 using TradingSystem.Contracts.ProtobufClasses.Order;
+using Order.Tests.Domain.Aggregates;
 using Order.Tests.Infrastructure;
 using Xunit;
 using OrderSide = Order.Domain.Aggregates.OrderSide;
@@ -23,7 +24,7 @@ public class PlaceOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixture
     {
         var command = new PlaceOrderCommand(
             UserId: Guid.NewGuid(),
-            Symbol: Symbols.Test,
+            StockId: TestOrders.StockId,
             Side: OrderSide.Buy,
             Type: OrderType.Limit,
             TimeInForce: TimeInForce.Gtc,
@@ -50,7 +51,7 @@ public class PlaceOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixture
     {
         var command = new PlaceOrderCommand(
             UserId: Guid.NewGuid(),
-            Symbol: Symbols.Test,
+            StockId: TestOrders.StockId,
             Side: OrderSide.Buy,
             Type: OrderType.Limit,
             TimeInForce: TimeInForce.Gtc,
@@ -71,7 +72,7 @@ public class PlaceOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixture
     {
         var command = new PlaceOrderCommand(
             UserId: Guid.NewGuid(),
-            Symbol: Symbols.Test,
+            StockId: TestOrders.StockId,
             Side: OrderSide.Buy,
             Type: OrderType.Limit,
             TimeInForce: TimeInForce.Gtc,

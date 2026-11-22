@@ -55,7 +55,7 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
         await using var context = fixture.Database.CreateContext();
         var order = await context.Orders.AsNoTracking().SingleAsync(o => o.Id == Guid.Parse(response.OrderId));
         Assert.Equal(_userId, order.UserId);
-        Assert.Equal(Symbols.Test, order.Symbol);
+        Assert.Equal(TestOrders.StockId, order.StockId);
         Assert.Equal(10, order.Quantity.Value);
         Assert.Equal(12.5m, order.OrderTerms.LimitPrice!.Value);
         Assert.Equal(OrderStatus.PendingNew, order.Status);
@@ -200,7 +200,7 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
     private static Proto.CreateOrderRequest LimitOrderRequest(int quantity, Guid? orderId = null) => new()
     {
         OrderId = (orderId ?? Guid.CreateVersion7()).ToString(),
-        Symbol = Proto.Symbol.Test,
+        StockId = TestOrders.StockId.ToString(),
         Quantity = quantity,
         OrderSide = Proto.OrderSide.Buy,
         TimeInForce = Proto.TimeInForce.Day,
@@ -211,7 +211,7 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
     private static OrderAggregate NewLimitOrder(Guid userId)
     {
         var terms = OrderTerms.Create(TimeInForce.Day, OrderType.Limit, Price.Create(12.5m).Value).Value;
-        return OrderAggregate.Create(Guid.CreateVersion7(), userId, Symbols.Test, Quantity.Create(10).Value, terms, OrderSide.Buy,
+        return OrderAggregate.Create(Guid.CreateVersion7(), userId, TestOrders.StockId, Quantity.Create(10).Value, terms, OrderSide.Buy,
             TestOrders.CreatedAt).Value;
     }
 

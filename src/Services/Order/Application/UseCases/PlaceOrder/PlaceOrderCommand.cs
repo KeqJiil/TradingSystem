@@ -6,7 +6,7 @@ namespace Order.Application.UseCases.PlaceOrder;
 
 public record PlaceOrderCommand(
     Guid UserId,
-    Symbols Symbol,
+    Guid StockId,
     int Quantity,
     OrderSide Side,
     TimeInForce TimeInForce,
