@@ -50,12 +50,14 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
     [Fact]
     public async Task CreateOrder_ValidLimitOrder_PersistsOrderForTokenUser()
     {
-        var response = await _client.CreateOrderAsync(LimitOrderRequest(quantity: 10), fixture.AuthFor(_userId));
+        var stock = await SeedStockAsync(TestStocks.AlwaysOpen());
+
+        var response = await _client.CreateOrderAsync(LimitOrderRequest(stock.Id, quantity: 10), fixture.AuthFor(_userId));
 
         await using var context = fixture.Database.CreateContext();
         var order = await context.Orders.AsNoTracking().SingleAsync(o => o.Id == Guid.Parse(response.OrderId));
         Assert.Equal(_userId, order.UserId);
-        Assert.Equal(TestOrders.StockId, order.StockId);
+        Assert.Equal(stock.Id, order.StockId);
         Assert.Equal(10, order.Quantity.Value);
         Assert.Equal(12.5m, order.OrderTerms.LimitPrice!.Value);
         Assert.Equal(OrderStatus.PendingNew, order.Status);
@@ -64,11 +66,12 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
     [Fact]
     public async Task CreateOrder_CorrelationIdInMetadata_PublishedEventCarriesIt()
     {
+        var stock = await SeedStockAsync(TestStocks.AlwaysOpen());
         var correlationId = Guid.NewGuid().ToString();
         var headers = fixture.AuthFor(_userId);
         headers.Add(CorrelationMiddleware.Header, correlationId);
 
-        var response = await _client.CreateOrderAsync(LimitOrderRequest(quantity: 10), headers);
+        var response = await _client.CreateOrderAsync(LimitOrderRequest(stock.Id, quantity: 10), headers);
 
         var published = Assert.Single(await fixture.Published.OfTypeAsync<Proto.OrderPlacedEvent>(response.OrderId));
         Assert.Equal(correlationId, published.Headers[MessagingHeaders.CorrelationId]);
@@ -77,11 +80,12 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
     [Fact]
     public async Task CreateOrder_CorrelationIdInMetadata_EchoedInResponseHeaders()
     {
+        var stock = await SeedStockAsync(TestStocks.AlwaysOpen());
         var correlationId = Guid.NewGuid().ToString();
         var headers = fixture.AuthFor(_userId);
         headers.Add(CorrelationMiddleware.Header, correlationId);
 
-        using var call = _client.CreateOrderAsync(LimitOrderRequest(quantity: 10), headers);
+        using var call = _client.CreateOrderAsync(LimitOrderRequest(stock.Id, quantity: 10), headers);
         await call;
         var responseHeaders = await call.ResponseHeadersAsync;
 
@@ -91,7 +95,8 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
     [Fact]
     public async Task CreateOrder_NoCorrelationId_GeneratedIdEchoedAndPublished()
     {
-        using var call = _client.CreateOrderAsync(LimitOrderRequest(quantity: 10), fixture.AuthFor(_userId));
+        var stock = await SeedStockAsync(TestStocks.AlwaysOpen());
+        using var call = _client.CreateOrderAsync(LimitOrderRequest(stock.Id, quantity: 10), fixture.AuthFor(_userId));
         var response = await call;
         var responseHeaders = await call.ResponseHeadersAsync;
 
@@ -104,8 +109,9 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
     [Fact]
     public async Task CreateOrder_DomainRejectsQuantity_ReturnsInvalidArgument()
     {
+        var stock = await SeedStockAsync(TestStocks.AlwaysOpen());
         var exception = await Assert.ThrowsAsync<RpcException>(async () =>
-            await _client.CreateOrderAsync(LimitOrderRequest(quantity: 0), fixture.AuthFor(_userId)));
+            await _client.CreateOrderAsync(LimitOrderRequest(stock.Id, quantity: 0), fixture.AuthFor(_userId)));
 
         Assert.Equal(StatusCode.InvalidArgument, exception.StatusCode);
     }
@@ -113,13 +119,34 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
     [Fact]
     public async Task CreateOrder_RepeatedRequest_ReturnsAlreadyExists()
     {
-        var request = LimitOrderRequest(quantity: 10);
+        var stock = await SeedStockAsync(TestStocks.AlwaysOpen());
+        var request = LimitOrderRequest(stock.Id, quantity: 10);
         await _client.CreateOrderAsync(request, fixture.AuthFor(_userId));
 
         var exception = await Assert.ThrowsAsync<RpcException>(async () =>
             await _client.CreateOrderAsync(request, fixture.AuthFor(_userId)));
 
         Assert.Equal(StatusCode.AlreadyExists, exception.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateOrder_UnknownStock_ReturnsNotFound()
+    {
+        var exception = await Assert.ThrowsAsync<RpcException>(async () =>
+            await _client.CreateOrderAsync(LimitOrderRequest(Guid.NewGuid(), quantity: 10), fixture.AuthFor(_userId)));
+
+        Assert.Equal(StatusCode.NotFound, exception.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateOrder_StockNotOpenToTrade_ReturnsFailedPrecondition()
+    {
+        var stock = await SeedStockAsync(TestStocks.Closed());
+
+        var exception = await Assert.ThrowsAsync<RpcException>(async () =>
+            await _client.CreateOrderAsync(LimitOrderRequest(stock.Id, quantity: 10), fixture.AuthFor(_userId)));
+
+        Assert.Equal(StatusCode.FailedPrecondition, exception.StatusCode);
     }
 
     [Fact]
@@ -134,6 +161,18 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
         Assert.Equal(Proto.OrderStatus.PendingNew, response.Order.Status);
         Assert.Equal(12.5m, decimal.Parse(response.Order.LimitPrice, System.Globalization.CultureInfo.InvariantCulture));
         Assert.Equal(Proto.TimeInForce.Day, response.TimeInForce);
+    }
+
+    [Fact]
+    public async Task GetById_StockInReplica_ReturnsStockName()
+    {
+        var stock = await SeedStockAsync(TestStocks.AlwaysOpen());
+        var order = await SeedAsync(NewLimitOrder(_userId, stock));
+
+        var response = await _client.GetByIdAsync(new Proto.GetOrderRequest { OrderId = order.Id.ToString() },
+            fixture.AuthFor(_userId));
+
+        Assert.Equal(stock.Name, response.Order.StockName);
     }
 
     [Fact]
@@ -197,10 +236,23 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
         Assert.Equal([own.Id.ToString()], response.Orders.Select(o => o.Id));
     }
 
-    private static Proto.CreateOrderRequest LimitOrderRequest(int quantity, Guid? orderId = null) => new()
+    [Fact]
+    public async Task GetListByUserId_StockInReplica_ReturnsStockName()
+    {
+        var stock = await SeedStockAsync(TestStocks.AlwaysOpen());
+        await SeedAsync(NewLimitOrder(_userId, stock));
+
+        var response = await _client.GetListByUserIdAsync(new Proto.GetOrdersByUserIdRequest { Limit = 10 },
+            fixture.AuthFor(_userId));
+
+        var order = Assert.Single(response.Orders);
+        Assert.Equal(stock.Name, order.StockName);
+    }
+
+    private static Proto.CreateOrderRequest LimitOrderRequest(Guid stockId, int quantity, Guid? orderId = null) => new()
     {
         OrderId = (orderId ?? Guid.CreateVersion7()).ToString(),
-        StockId = TestOrders.StockId.ToString(),
+        StockId = stockId.ToString(),
         Quantity = quantity,
         OrderSide = Proto.OrderSide.Buy,
         TimeInForce = Proto.TimeInForce.Day,
@@ -208,11 +260,19 @@ public class OrderGrpcServiceTests(OrderGrpcFixture fixture) : IClassFixture<Ord
         LimitPrice = "12.5"
     };
 
-    private static OrderAggregate NewLimitOrder(Guid userId)
+    private static OrderAggregate NewLimitOrder(Guid userId, Stock? stock = null)
     {
         var terms = OrderTerms.Create(TimeInForce.Day, OrderType.Limit, Price.Create(12.5m).Value).Value;
-        return OrderAggregate.Create(Guid.CreateVersion7(), userId, TestOrders.StockId, Quantity.Create(10).Value, terms, OrderSide.Buy,
+        return OrderAggregate.Create(Guid.CreateVersion7(), userId, stock ?? TestStocks.AlwaysOpenStock, Quantity.Create(10).Value, terms, OrderSide.Buy,
             TestOrders.CreatedAt).Value;
+    }
+
+    private async Task<Stock> SeedStockAsync(Stock stock)
+    {
+        await using var context = fixture.Database.CreateContext();
+        context.Stocks.Add(stock);
+        await context.SaveChangesAsync();
+        return stock;
     }
 
     private async Task<OrderAggregate> SeedAsync(OrderAggregate order)

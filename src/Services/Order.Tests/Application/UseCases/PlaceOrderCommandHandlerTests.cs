@@ -1,6 +1,7 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Order.Application.UseCases.PlaceOrder;
+using Order.Domain;
 using Order.Domain.Aggregates;
 using TradingSystem.Contracts.ProtobufClasses.Order;
 using Order.Tests.Domain.Aggregates;
@@ -22,9 +23,10 @@ public class PlaceOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixture
     [Fact]
     public async Task Handle_ValidLimitOrder_PersistsPendingNewOrderAndPublishesOrderPlaced()
     {
+        var stock = await _scope.SeedStockAsync(TestStocks.AlwaysOpen());
         var command = new PlaceOrderCommand(
             UserId: Guid.NewGuid(),
-            StockId: TestOrders.StockId,
+            StockId: stock.Id,
             Side: OrderSide.Buy,
             Type: OrderType.Limit,
             TimeInForce: TimeInForce.Gtc,
@@ -44,14 +46,41 @@ public class PlaceOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixture
 
         var published = Assert.Single(await _scope.Published.OfTypeAsync<OrderPlacedEvent>(result.Value.ToString()));
         Assert.Equal(command.UserId.ToString(), published.Message.UserId);
+        Assert.Equal(stock.Id, order.StockId);
+    }
+
+    [Fact]
+    public async Task Handle_UnknownStock_ReturnsNotFoundAndPersistsNothing()
+    {
+        var command = NewCommand(Guid.NewGuid());
+
+        var result = await _scope.SendAsync(command);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.NotFound, result.Error.Type);
+        Assert.Null(await _scope.FindAsync(command.OrderId));
+    }
+
+    [Fact]
+    public async Task Handle_StockNotOpenToTrade_ReturnsViolationAndPersistsNothing()
+    {
+        var stock = await _scope.SeedStockAsync(TestStocks.Closed());
+        var command = NewCommand(stock.Id);
+
+        var result = await _scope.SendAsync(command);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorType.Violation, result.Error.Type);
+        Assert.Null(await _scope.FindAsync(command.OrderId));
     }
     
     [Fact]
     public async Task Handle_InvalidQuantity_PersistsNothingAndPublishesNothing()
     {
+        var stock = await _scope.SeedStockAsync(TestStocks.AlwaysOpen());
         var command = new PlaceOrderCommand(
             UserId: Guid.NewGuid(),
-            StockId: TestOrders.StockId,
+            StockId: stock.Id,
             Side: OrderSide.Buy,
             Type: OrderType.Limit,
             TimeInForce: TimeInForce.Gtc,
@@ -70,9 +99,10 @@ public class PlaceOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixture
     [Fact]
     public async Task Handle_SameOrderIdTwice_ThrowsDbUpdateException()
     {
+        var stock = await _scope.SeedStockAsync(TestStocks.AlwaysOpen());
         var command = new PlaceOrderCommand(
             UserId: Guid.NewGuid(),
-            StockId: TestOrders.StockId,
+            StockId: stock.Id,
             Side: OrderSide.Buy,
             Type: OrderType.Limit,
             TimeInForce: TimeInForce.Gtc,
@@ -88,4 +118,14 @@ public class PlaceOrderCommandHandlerTests(MssqlFixture fixture) : IClassFixture
         Assert.Equal(2627, Assert.IsType<SqlException>(exception.InnerException).Number);
         Assert.Single(await _scope.Published.OfTypeAsync<OrderPlacedEvent>(command.OrderId.ToString()));
     }
+
+    private static PlaceOrderCommand NewCommand(Guid stockId) => new(
+        UserId: Guid.NewGuid(),
+        StockId: stockId,
+        Side: OrderSide.Buy,
+        Type: OrderType.Limit,
+        TimeInForce: TimeInForce.Gtc,
+        Quantity: 100,
+        LimitPrice: 150.00m,
+        OrderId: Guid.CreateVersion7());
 }

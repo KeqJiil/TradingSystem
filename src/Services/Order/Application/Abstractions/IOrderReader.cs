@@ -21,6 +21,7 @@ public record OrderDetailsDto(
 public record OrderDto(
     Guid Id,
     Guid StockId,
+    string? StockName,
     OrderSide Side,
     OrderType Type,
     decimal? LimitPrice,

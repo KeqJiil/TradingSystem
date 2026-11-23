@@ -236,6 +236,54 @@ namespace Order.Infrastructure.Persistence.Migrations
                     b.ToTable("order", "order");
                 });
 
+            modelBuilder.Entity("Order.Infrastructure.Persistence.Configuration.StockEntity", b =>
+                {
+                    b.Property<Guid>("StockId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("stock_id");
+
+                    b.Property<bool>("IsOpenToTrade")
+                        .HasColumnType("bit")
+                        .HasColumnName("is_open_to_trade");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("name");
+
+                    b.Property<long>("NameVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("name_version");
+
+                    b.Property<long>("StatusVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("status_version");
+
+                    b.Property<TimeOnly>("TradingEnd")
+                        .HasColumnType("time")
+                        .HasColumnName("trading_end");
+
+                    b.Property<TimeOnly>("TradingStart")
+                        .HasColumnType("time")
+                        .HasColumnName("trading_start");
+
+                    b.Property<long>("TradingTimeVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("trading_time_version");
+
+                    b.HasKey("StockId")
+                        .HasName("pk_stock");
+
+                    b.ToTable("stock", "order");
+                });
+
             modelBuilder.Entity("Order.Domain.Aggregates.Order", b =>
                 {
                     b.OwnsMany("Order.Domain.Entity.Fill", "Fills", b1 =>

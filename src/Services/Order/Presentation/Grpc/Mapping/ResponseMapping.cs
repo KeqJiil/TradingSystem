@@ -35,6 +35,7 @@ public static class ResponseMapping
         {
             Id = order.Id.ToString(),
             StockId = order.StockId.ToString(),
+            StockName = order.StockName ?? "",
             Side = order.Side.ToProto(),
             Type = order.Type.ToProto(),
             Quantity = order.Quantity,

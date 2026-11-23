@@ -18,6 +18,7 @@ message OrderDto {
   OrderStatus status = 8;
   google.protobuf.Timestamp created_at = 9;
   string stock_id = 10;
+  string stock_name = 11;
 }
 
 message OrderFillDto {

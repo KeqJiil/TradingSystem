@@ -12,6 +12,7 @@ using Order.Infrastructure.Options;
 using Order.Infrastructure.Persistence.Configuration;
 using Order.Infrastructure.Topics;
 using TradingSystem.Contracts.ProtobufClasses.Order;
+using TradingSystem.Contracts.ProtobufClasses.Stock;
 
 namespace Order.Infrastructure.Messaging;
 
@@ -60,6 +61,31 @@ public static class MessagingExtension
                 .AddConsumer<OrderExpiredReport, OrderExpiredConsumer>(executionReportsConsumer)
                 .AddConsumer<OrderCanceledReport, OrderCanceledConsumer>(executionReportsConsumer)
                 .AddConsumer<CancelRejectedReport, CancelRejectedConsumer>(executionReportsConsumer);
+
+            var stockCreated = StockTopic.StockCreated.Name();
+            cfg.AddMessage<StockCreatedEvent>(stockCreated, new ProtobufSerializer<StockCreatedEvent>());
+            cfg.AddConsumer<StockCreatedEvent, StockCreatedConsumer>(
+                new ConsumerOptions(stockCreated, "order-stock-created-group")
+                    { MaxAttempts = kafka.StockEventsMaxAttempts });
+
+            var stockNameChanged = StockTopic.StockNameChanged.Name();
+            cfg.AddMessage<NameChangedEvent>(stockNameChanged, new ProtobufSerializer<NameChangedEvent>());
+            cfg.AddConsumer<NameChangedEvent, NameChangedConsumer>(
+                new ConsumerOptions(stockNameChanged, "order-stock-name-changed-group")
+                    { MaxAttempts = kafka.StockEventsMaxAttempts });
+
+            var stockStatusToggled = StockTopic.StockStatusToggled.Name();
+            cfg.AddMessage<StockToggledStatusEvent>(stockStatusToggled,
+                new ProtobufSerializer<StockToggledStatusEvent>());
+            cfg.AddConsumer<StockToggledStatusEvent, StockToggledStatusConsumer>(
+                new ConsumerOptions(stockStatusToggled, "order-stock-status-toggled-group")
+                    { MaxAttempts = kafka.StockEventsMaxAttempts });
+
+            var stockTradingTimeChanged = StockTopic.StockTradingTimeChanged.Name();
+            cfg.AddMessage<TimeChangedEvent>(stockTradingTimeChanged, new ProtobufSerializer<TimeChangedEvent>());
+            cfg.AddConsumer<TimeChangedEvent, TimeChangedConsumer>(
+                new ConsumerOptions(stockTradingTimeChanged, "order-stock-trading-time-changed-group")
+                    { MaxAttempts = kafka.StockEventsMaxAttempts });
         }, options =>
         {
             options.BootstrapServers = kafka.BootstrapServers;

@@ -137,9 +137,37 @@ public class GetListByUserIdQueryHandlerTests(MssqlFixture fixture) : IClassFixt
         Assert.Equal(ids.OrderByDescending(id => new SqlGuid(id)), pages);
     }
 
-    private static OrderAggregate CreateOrder(Guid userId, DateTimeOffset createdAt)
+    [Fact]
+    public async Task Handle_StockInReplica_ReturnsStockName()
     {
-        return OrderAggregate.Create(Guid.CreateVersion7(), userId, TestOrders.StockId, Quantity.Create(1).Value,
+        var userId = Guid.NewGuid();
+        var stock = await _scope.SeedStockAsync(TestStocks.AlwaysOpen());
+        await _scope.SeedAsync(CreateOrder(userId, TestOrders.CreatedAt, stock));
+
+        var result = await _scope.SendAsync(new GetListByUserIdQuery(userId, null, 10, null, null));
+
+        Assert.True(result.IsSuccess);
+        var order = Assert.Single(result.Value);
+        Assert.Equal(stock.Name, order.StockName);
+    }
+
+    [Fact]
+    public async Task Handle_StockMissingFromReplica_ReturnsOrderWithNullStockName()
+    {
+        var userId = Guid.NewGuid();
+        var seeded = await _scope.SeedAsync(CreateOrder(userId, TestOrders.CreatedAt, TestStocks.AlwaysOpen()));
+
+        var result = await _scope.SendAsync(new GetListByUserIdQuery(userId, null, 10, null, null));
+
+        Assert.True(result.IsSuccess);
+        var order = Assert.Single(result.Value);
+        Assert.Equal(seeded.Id, order.Id);
+        Assert.Null(order.StockName);
+    }
+
+    private static OrderAggregate CreateOrder(Guid userId, DateTimeOffset createdAt, Stock? stock = null)
+    {
+        return OrderAggregate.Create(Guid.CreateVersion7(), userId, stock ?? TestStocks.AlwaysOpenStock, Quantity.Create(1).Value,
             OrderTerms.Create(TimeInForce.Gtc, OrderType.Limit, Price.Create(100).Value).Value,
             OrderSide.Buy, createdAt).Value;
     }

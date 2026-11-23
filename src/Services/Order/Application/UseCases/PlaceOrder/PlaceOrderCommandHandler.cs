@@ -6,7 +6,7 @@ using OrderAggregate = Order.Domain.Aggregates.Order;
 
 namespace Order.Application.UseCases.PlaceOrder;
 
-public class PlaceOrderCommandHandler(IOrderRepository repository, IUnitOfWork unitOfWork, TimeProvider timeProvider) : IRequestHandler<PlaceOrderCommand, Result<Guid>>
+public class PlaceOrderCommandHandler(IOrderRepository repository, IStockRepository stockRepository, IUnitOfWork unitOfWork, TimeProvider timeProvider) : IRequestHandler<PlaceOrderCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(PlaceOrderCommand request, CancellationToken cancellationToken)
     {
@@ -22,7 +22,11 @@ public class PlaceOrderCommandHandler(IOrderRepository repository, IUnitOfWork u
         if (quantity.IsFailure)
             return quantity.Error;
 
-        var order = OrderAggregate.Create(request.OrderId, request.UserId, request.StockId, quantity.Value, orderTerms.Value, request.Side, timeProvider.GetUtcNow());
+        var stock = await stockRepository.GetByIdAsync(request.StockId, cancellationToken);
+        if (stock is null)
+            return new Error { Message = $"Stock with id {request.StockId} not found", Type = ErrorType.NotFound };
+
+        var order = OrderAggregate.Create(request.OrderId, request.UserId, stock, quantity.Value, orderTerms.Value, request.Side, timeProvider.GetUtcNow());
         if (order.IsFailure)
             return order.Error;
 

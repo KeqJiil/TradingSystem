@@ -41,7 +41,7 @@ public class Order : AggregateRoot
     {
     }
 
-    public static Result<Order> Create(Guid orderId, Guid userId, Guid stockId, Quantity quantity, OrderTerms orderTerms,
+    public static Result<Order> Create(Guid orderId, Guid userId, Stock stock, Quantity quantity, OrderTerms orderTerms,
         OrderSide side,
         DateTimeOffset now)
     {
@@ -49,19 +49,21 @@ public class Order : AggregateRoot
             return Result<Order>.Failure(new Error
                 { Message = "Invalid order id.", Type = ErrorType.Validation });
 
-        if (stockId == Guid.Empty)
-            return Result<Order>.Failure(new Error
-                { Message = "Invalid stock id.", Type = ErrorType.Validation });
-
         if (!Enum.IsDefined(side))
             return Result<Order>.Failure(new Error
                 { Message = "Invalid order side.", Type = ErrorType.Validation });
+
+        var specificationResult = PlaceOrderSpecification.Validate(stock.IsOpenToTrade, stock.TradingStart,
+            stock.TradingEnd, TimeOnly.FromDateTime(now.UtcDateTime));
+
+        if (specificationResult.IsFailure)
+            return Result<Order>.Failure(specificationResult.Error);
 
         var order = new Order
         {
             Id = orderId,
             UserId = userId,
-            StockId = stockId,
+            StockId = stock.Id,
             Quantity = quantity,
             OrderTerms = orderTerms,
             OrderSide = side,
@@ -69,7 +71,7 @@ public class Order : AggregateRoot
             CreatedAt = now
         };
 
-        order.AddDomainEvent(new OrderPlaced(orderId, userId, stockId, side, quantity, orderTerms, now));
+        order.AddDomainEvent(new OrderPlaced(orderId, userId, stock.Id, side, quantity, orderTerms, now));
 
         return Result<Order>.Success(order);
     }
