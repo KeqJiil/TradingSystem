@@ -75,6 +75,16 @@
     <Folder Name="/perf/order/schema/">
         <File Path="perf/order/schema/orderperf-options.sql" />
     </Folder>
+    <Folder Name="/perf/order/seed/">
+        <File Path="perf/order/seed/orders-hot-user.sql" />
+    </Folder>
+    <Folder Name="/perf/order/queries/">
+        <File Path="perf/order/queries/orders-list-page.sql" />
+        <File Path="perf/order/queries/orders-list-page-projection.sql" />
+        <File Path="perf/order/queries/orders-list-drain.sql" />
+        <File Path="perf/order/queries/orders-list-drain-projection.sql" />
+        <File Path="perf/order/queries/order-details.sql" />
+    </Folder>
     <Folder Name="/perf/outbox/" />
     <Folder Name="/perf/outbox/seed/">
         <File Path="perf/outbox/seed/outbox-mostly-completed.sql" />

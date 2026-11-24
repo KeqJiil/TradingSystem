@@ -41,7 +41,17 @@ public class OrderReader(OrderDbContext dbContext) : IOrderReader
             .OrderByDescending(x => x.o.CreatedAt)
             .ThenByDescending(x => x.o.Id)
             .Take(limit)
-            .Select(x => MapToOrderDto(x.o, x.StockName))
+            .Select(x => new OrderDto(
+                x.o.Id,
+                x.o.StockId,
+                x.StockName,
+                x.o.OrderSide,
+                x.o.OrderTerms.Type,
+                x.o.OrderTerms.LimitPrice != null ? x.o.OrderTerms.LimitPrice.Value : null,
+                x.o.Quantity.Value,
+                x.o.FilledQuantity,
+                x.o.Status,
+                x.o.CreatedAt))
             .ToListAsync(cancellationToken);
     }
 
