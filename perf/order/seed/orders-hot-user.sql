@@ -46,7 +46,10 @@ SELECT CONVERT(UNIQUEIDENTIFIER, CONCAT(LEFT(v.ts, 8), '-', RIGHT(v.ts, 4), '-7'
        t.created_at
 FROM GENERATE_SERIES(1, @hotOrders + @users * @perUser) AS g
 CROSS APPLY (SELECT IIF(g.value <= @hotOrders, 1, 0) AS hot,
-                    CAST(CAST(g.value AS BIGINT) * 7919 % 1000 AS INT) AS bucket) AS b
+                    CAST(IIF(g.value <= @hotOrders,
+                             CAST(g.value AS BIGINT) * 7919,
+                             (g.value - @hotOrders - 1) / @users * 7919 + (g.value - @hotOrders - 1) % @users * 31)
+                         % 1000 AS INT) AS bucket) AS b
 CROSS APPLY (SELECT IIF(b.hot = 1, @hotUser,
                         CONVERT(UNIQUEIDENTIFIER, HASHBYTES('MD5', CONCAT('user-', (g.value - @hotOrders - 1) % @users + 1))))
                         AS user_id,
@@ -102,8 +105,15 @@ FROM [order].[order] AS o
 CROSS APPLY (SELECT COUNT(*) AS fills FROM [order].[fill] WHERE order_id = o.id) AS f
 GROUP BY IIF(o.user_id = @hotUser, 'hot', 'background');
 
-SELECT status, COUNT(*) AS orders
+SELECT status,
+       SUM(IIF(user_id = @hotUser, 1, 0)) AS hot,
+       SUM(IIF(user_id = @hotUser, 0, 1)) AS background
 FROM [order].[order]
-WHERE user_id = @hotUser
 GROUP BY status
-ORDER BY orders DESC;
+ORDER BY hot DESC;
+
+SELECT TOP (1) COUNT(DISTINCT status) AS statuses_per_background_user
+FROM [order].[order]
+WHERE user_id <> @hotUser
+GROUP BY user_id
+ORDER BY statuses_per_background_user;

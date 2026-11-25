@@ -225,20 +225,20 @@ namespace Order.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_order");
 
-                    b.HasIndex("Status")
-                        .HasDatabaseName("order_status_partial_idx")
-                        .HasFilter("[status] IN (N'PendingNew', N'New', N'PartiallyFilled', N'PendingCancel')");
-
                     b.HasIndex("UserId", "CreatedAt", "Id")
                         .IsDescending()
                         .HasDatabaseName("order_user_id_idx");
 
+                    b.HasIndex("UserId", "Status", "CreatedAt", "Id")
+                        .IsDescending()
+                        .HasDatabaseName("order_user_status_idx");
+
                     b.ToTable("order", "order");
                 });
 
-            modelBuilder.Entity("Order.Infrastructure.Persistence.Configuration.StockEntity", b =>
+            modelBuilder.Entity("Order.Domain.Aggregates.Stock", b =>
                 {
-                    b.Property<Guid>("StockId")
+                    b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("stock_id");
 
@@ -278,7 +278,7 @@ namespace Order.Infrastructure.Persistence.Migrations
                         .HasDefaultValue(0L)
                         .HasColumnName("trading_time_version");
 
-                    b.HasKey("StockId")
+                    b.HasKey("Id")
                         .HasName("pk_stock");
 
                     b.ToTable("stock", "order");

@@ -69,8 +69,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<AggregateOrder>
         builder.Property<byte[]>("row_version").IsRowVersion();
 
         builder.HasIndex(x => new { x.UserId, x.CreatedAt, x.Id }).IsDescending().HasDatabaseName("order_user_id_idx");
-        builder.HasIndex(x => x.Status)
-            .HasFilter("[status] IN (N'PendingNew', N'New', N'PartiallyFilled', N'PendingCancel')")
-            .HasDatabaseName("order_status_partial_idx");
+        builder.HasIndex(x => new { x.UserId, x.Status, x.CreatedAt, x.Id }).IsDescending()
+            .HasDatabaseName("order_user_status_idx");
     }
 }
