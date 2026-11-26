@@ -28,6 +28,22 @@
         <BuildType Solution="Default|*" Project="Release" />
         <Build Solution="Default|*" Project="false" />
     </Project>
+    <Project Path="src\Services\Matcher.Core\Matcher.Core.csproj">
+        <BuildType Solution="Default|*" Project="Release" />
+        <Build Solution="Default|*" Project="false" />
+    </Project>
+    <Project Path="src\Services\Matcher\Matcher.csproj">
+        <BuildType Solution="Default|*" Project="Release" />
+        <Build Solution="Default|*" Project="false" />
+    </Project>
+    <Project Path="src\Services\Matcher.Tests\Matcher.Tests.csproj">
+        <BuildType Solution="Default|*" Project="Release" />
+        <Build Solution="Default|*" Project="false" />
+    </Project>
+    <Project Path="src\Services\Matcher.Benchmarks\Matcher.Benchmarks.csproj">
+        <BuildType Solution="Default|*" Project="Release" />
+        <Build Solution="Default|*" Project="false" />
+    </Project>
     <Folder Name="/src/Services/">
         <Project Path="src/Services/Messaging.Abstractions/Messaging.Abstractions.csproj">
             <BuildType Solution="Default|*" Project="Release" />
