@@ -7,5 +7,4 @@ public readonly record struct MatcherEvent(
     int Quantity,
     ushort TradeIndex,
     EventKind EventKind,
-    Reason Reason)
-;
+    Reason Reason);

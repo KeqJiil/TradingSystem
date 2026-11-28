@@ -1,5 +1,4 @@
 using Matcher.Core.Enums;
-using Matcher.Core.Events;
 
 namespace Matcher.Core.Commands;
 
@@ -13,4 +12,4 @@ public readonly record struct IncomingEvent(
     OrderType OrderType,
     OrderSide OrderSide,
     TimeInForce TimeInForce,
-    IncomeEventKind IncomeEventKind); // 4 bytes + 4 bytes padding = 64 bytes.
+    IncomingEventKind IncomingEventKind); // 4 bytes + 4 bytes padding = 64 bytes.

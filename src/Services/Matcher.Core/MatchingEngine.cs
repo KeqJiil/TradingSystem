@@ -1,8 +1,12 @@
+using Matcher.Core.Commands;
+using Matcher.Core.Events;
+
 namespace Matcher.Core;
 
-public static class MatchingEngine
+public sealed class MatchingEngine
 {
-    public static void Process()
+    public ReadOnlySpan<MatcherEvent> Process(in IncomingEvent cmd)
     {
+        throw new NotImplementedException();
     }
 }
